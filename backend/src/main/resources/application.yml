@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: brika-backend
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# Sprint 0: no datasource, no Flyway, no security configured on purpose.
+# Those are introduced in Sprint 1 (schema/foundation) and Sprint 2 (identity/RBAC),
+# per 25_CLAUDE_CODE_EXECUTION_GUIDE.md.
