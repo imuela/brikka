@@ -19,12 +19,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: Format check (Spotless)
-        run: ./mvnw -B spotless:check
-      - name: Build
-        run: ./mvnw -B compile
-      - name: Test
-        run: ./mvnw -B test
+      - name: Build, unit tests, Flyway integration tests (Testcontainers), format check
+        run: ./mvnw -B verify
 
   frontend:
     name: Frontend (lint, build, tests)
