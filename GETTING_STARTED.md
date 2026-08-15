@@ -1,6 +1,6 @@
-# BRIKA — Sprint 0 — Getting Started
+# BRIKA — Getting Started (Sprint 0 + Sprint 1)
 
-Este documento cubre únicamente el entorno de infraestructura de Sprint 0 (`ADR-PROCESS-002`, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`). No hay esquema de base de datos, RBAC, lógica de negocio ni API funcional todavía.
+Cubre el entorno de infraestructura (Sprint 0, `ADR-PROCESS-002`) y la foundation de persistencia/Flyway (Sprint 1, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`). El esquema físico completo existe (48 tablas vía Flyway), pero **no hay RBAC funcional, lógica de negocio ni endpoints de negocio todavía** — eso empieza en Sprint 2 en adelante.
 
 ## Prerrequisitos
 
@@ -50,18 +50,31 @@ curl -f http://localhost:19000/minio/health/live
 curl -f http://localhost:19090/health/ready
 ```
 
-## 4. Backend (esqueleto, sin lógica de negocio)
+## 4. Backend (Flyway + persistencia, sin lógica de negocio)
 
 ```bash
 cd backend
 ./mvnw spotless:check   # formato
-./mvnw test             # arranque del contexto Spring
-./mvnw spring-boot:run  # expone /actuator/health en :8080
+./mvnw verify            # unit tests + test de integración Flyway (Testcontainers)
+./mvnw spring-boot:run  # migra contra el postgres de docker compose y expone /actuator/health en :8080
 ```
 
 ```bash
 curl http://localhost:8080/actuator/health
 ```
+
+`spring-boot:run` conecta por defecto a `127.0.0.1:15432/brika` (el `postgres` de `docker compose`, paso 2) y ejecuta las migraciones Flyway automáticamente al arrancar. Ajusta `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` si tu configuración difiere.
+
+### Nota Docker en macOS sin Docker Desktop (Colima, Lima, etc.)
+
+El test de integración (`FlywayMigrationIT`) usa Testcontainers, que espera el socket estándar `/var/run/docker.sock`. Si tu Docker corre vía Colima u otro backend con socket en otra ruta, expórtalo antes de `./mvnw verify`:
+
+```bash
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/var/run/docker.sock"
+```
+
+No hace falta con Docker Desktop estándar ni en el runner de CI.
 
 ## 5. Frontend (esqueleto, sin features de negocio)
 
@@ -88,4 +101,4 @@ docker compose down -v
 
 ## Qué NO hay todavía
 
-Ver `25_CLAUDE_CODE_EXECUTION_GUIDE.md` §3. No hay esquema PostgreSQL, migraciones Flyway, RBAC, lógica de negocio, endpoints funcionales, Portal Cliente, IA ni integraciones. Eso empieza en Sprint 1 y Sprint 2, previa aprobación explícita.
+Ver `25_CLAUDE_CODE_EXECUTION_GUIDE.md` §3. El esquema PostgreSQL completo (48 tablas) y las migraciones Flyway ya existen (Sprint 1). NO hay todavía: RBAC funcional, lógica de negocio, entidades JPA, endpoints de negocio, Portal Cliente, IA ni integraciones. Eso empieza en Sprint 2 en adelante, previa aprobación explícita.
