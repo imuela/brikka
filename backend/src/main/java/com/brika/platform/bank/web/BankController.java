@@ -6,6 +6,7 @@ import com.brika.platform.bank.BankCriteriaVersionRepository;
 import com.brika.platform.bank.BankProduct;
 import com.brika.platform.bank.BankProductRepository;
 import com.brika.platform.bank.BankRepository;
+import com.brika.platform.bankmatching.CriteriaRulesValidator;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.security.AuthorizationService;
@@ -38,18 +39,21 @@ public class BankController {
   private final BankProductRepository bankProductRepository;
   private final BankCriteriaVersionRepository bankCriteriaVersionRepository;
   private final ObjectMapper objectMapper;
+  private final CriteriaRulesValidator criteriaRulesValidator;
 
   public BankController(
       AuthorizationService authorizationService,
       BankRepository bankRepository,
       BankProductRepository bankProductRepository,
       BankCriteriaVersionRepository bankCriteriaVersionRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      CriteriaRulesValidator criteriaRulesValidator) {
     this.authorizationService = authorizationService;
     this.bankRepository = bankRepository;
     this.bankProductRepository = bankProductRepository;
     this.bankCriteriaVersionRepository = bankCriteriaVersionRepository;
     this.objectMapper = objectMapper;
+    this.criteriaRulesValidator = criteriaRulesValidator;
   }
 
   @GetMapping("/api/v1/banks")
@@ -133,13 +137,11 @@ public class BankController {
       @RequestBody CreateBankCriteriaVersionApiRequest request) {
     authorizationService.requirePermission(authentication, "BANK_CRITERIA_MANAGE");
     requireBank(id);
+    String rulesJson = writeJson(request.rules());
+    criteriaRulesValidator.validate(rulesJson);
     UUID criteriaId =
         bankCriteriaVersionRepository.insert(
-            id,
-            request.version(),
-            request.effectiveFrom(),
-            request.effectiveTo(),
-            writeJson(request.rules()));
+            id, request.version(), request.effectiveFrom(), request.effectiveTo(), rulesJson);
     return toResponse(requireCriteria(criteriaId));
   }
 
@@ -150,8 +152,9 @@ public class BankController {
       @RequestBody UpdateBankCriteriaVersionApiRequest request) {
     authorizationService.requirePermission(authentication, "BANK_CRITERIA_MANAGE");
     requireCriteria(id);
-    bankCriteriaVersionRepository.update(
-        id, request.status(), request.effectiveTo(), writeJson(request.rules()));
+    String rulesJson = writeJson(request.rules());
+    criteriaRulesValidator.validate(rulesJson);
+    bankCriteriaVersionRepository.update(id, request.status(), request.effectiveTo(), rulesJson);
     return toResponse(requireCriteria(id));
   }
 

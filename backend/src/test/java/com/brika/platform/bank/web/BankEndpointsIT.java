@@ -15,6 +15,7 @@ import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -125,9 +126,18 @@ class BankEndpointsIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").value("P1"));
 
+    Map<String, Object> maxLtvRule =
+        Map.of(
+            "id", "max-ltv-80",
+            "field", "computed.ltv",
+            "operator", "LESS_THAN_OR_EQUAL",
+            "value", 0.80,
+            "severity", "FAIL",
+            "reason", "LTV must not exceed 80%");
     String criteriaBody =
         objectMapper.writeValueAsString(
-            new CreateBankCriteriaVersionApiRequest("v1", null, null, Map.of("maxLtv", 80)));
+            new CreateBankCriteriaVersionApiRequest(
+                "v1", null, null, Map.of("rules", List.of(maxLtvRule))));
     mockMvc
         .perform(
             post("/api/v1/banks/" + bankId + "/criteria")

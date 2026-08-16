@@ -23,8 +23,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * combinations from the ADR-RBAC-001 matrix (12_DECISION_LOG.md) — no more, no fewer — and none of
  * the 16 PENDING or any NOT_ASSIGNED combination. V11__portal_account_permission.sql
  * (ADR-PORTAL-AUTH-001, Sprint 7) adds 2 further combinations (MANAGER/BROKER x
- * CLIENT_PORTAL_ACCOUNT_CREATE) on top of that matrix — counts below reflect the full schema state
- * after every migration, i.e. 221 + 2 = 223.
+ * CLIENT_PORTAL_ACCOUNT_CREATE); V13__bank_matching_engine.sql (ADR-BANKENGINE-001, Sprint 6B) adds
+ * 6 more (SUPERADMIN/MANAGER/BROKER x BANK_MATCHING_RUN/READ) — counts below reflect the full
+ * schema state after every migration, i.e. 221 + 2 + 6 = 229.
  */
 @Testcontainers
 @SpringBootTest
@@ -54,22 +55,22 @@ class RbacSeedIT {
   }
 
   @Test
-  void totalRolePermissionCountIsExactly223() {
+  void totalRolePermissionCountIsExactly229() {
     Integer count = jdbc().queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);
-    assertThat(count).isEqualTo(223);
-    assertThat(rolePermissionRepository.count()).isEqualTo(223);
+    assertThat(count).isEqualTo(229);
+    assertThat(rolePermissionRepository.count()).isEqualTo(229);
   }
 
   @Test
   void roleAndPermissionRepositoriesExposeTheFullCatalog() {
     assertThat(roleRepository.findAll()).hasSize(4);
-    assertThat(permissionRepository.findAll()).hasSize(111);
+    assertThat(permissionRepository.findAll()).hasSize(113);
   }
 
   @Test
   void rolePermissionRepositoryResolvesPermissionCodesForSuperadmin() {
     Role superadmin = roleRepository.findByCode("SUPERADMIN");
-    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(81);
+    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(83);
   }
 
   @Test
@@ -90,9 +91,9 @@ class RbacSeedIT {
     assertThat(byRole)
         .containsExactlyInAnyOrderEntriesOf(
             Map.of(
-                "SUPERADMIN", 81L,
-                "MANAGER", 72L, // 71 (ADR-RBAC-001) + 1 (ADR-PORTAL-AUTH-001, V11)
-                "BROKER", 59L, // 58 (ADR-RBAC-001) + 1 (ADR-PORTAL-AUTH-001, V11)
+                "SUPERADMIN", 83L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13)
+                "MANAGER", 74L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13)
+                "BROKER", 61L, // 58 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13)
                 "CLIENT", 11L));
   }
 
