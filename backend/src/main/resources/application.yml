@@ -29,6 +29,19 @@ brika:
     # Set once the realm exists, so audience validation (§4) is enforced.
     expected-audience: ${OIDC_EXPECTED_AUDIENCE:}
 
+  storage:
+    # MinIO (Sprint 0 infra), S3-compatible (18_STORAGE_SPECIFICATION.md §2). The
+    # bucket itself is created by the storage-init one-shot service, not here.
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:19000}
+    region: ${STORAGE_REGION:us-east-1}
+    access-key: ${MINIO_ROOT_USER:brika}
+    secret-key: ${MINIO_ROOT_PASSWORD:brika_dev_password}
+    bucket: ${MINIO_BUCKET:brika-documents}
+    presigned-url-ttl-seconds: ${STORAGE_PRESIGNED_TTL_SECONDS:300}
+    # Provisional technical defaults (Sprint 4 pre-flight decision), not a
+    # documented business catalog — see Sprint 4 gate review.
+    max-file-size-bytes: 20971520
+
 server:
   port: ${SERVER_PORT:8080}
 

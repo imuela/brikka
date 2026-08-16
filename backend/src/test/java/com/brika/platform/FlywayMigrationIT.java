@@ -15,11 +15,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Sprint 1 smoke test: the application context must boot against a real, empty PostgreSQL instance
- * and Flyway must run every migration (V1-V9) successfully. This is the same physical schema
+ * and Flyway must run every migration (V1-V10) successfully. This is the same physical schema
  * described in 16_POSTGRESQL_SCHEMA_SPECIFICATION.md — no JPA entities exist yet, so this test
  * asserts against raw JDBC metadata rather than a domain model. V8 (ADR-IDENTITY-001) makes
- * users.company_id nullable; V9 (ADR-RBAC-001) seeds role_permissions. Neither adds or removes a
- * table; the exact role_permissions content is verified in RbacSeedIT.
+ * users.company_id nullable; V9 (ADR-RBAC-001) seeds role_permissions; V10 (Sprint 4) adds
+ * document_versions.review_comment. None add or remove a table; the exact role_permissions content
+ * is verified in RbacSeedIT.
  */
 @Testcontainers
 @SpringBootTest
@@ -48,14 +49,14 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(9);
+    assertThat(appliedMigrations).isEqualTo(10);
 
     Integer tableCount =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
                 + " AND table_name != 'flyway_schema_history'",
             Integer.class);
-    // 38 tables from V1 + 4 (V4) + 1 (V5) + 3 (V6) + 2 (V7) = 48. V8/V9 add no table.
+    // 38 tables from V1 + 4 (V4) + 1 (V5) + 3 (V6) + 2 (V7) = 48. V8/V9/V10 add no table.
     assertThat(tableCount).isEqualTo(48);
 
     Boolean companyIdNullable =
@@ -88,5 +89,12 @@ class FlywayMigrationIT {
     // 221 APPROVED combinations from ADR-RBAC-001 (81+71+58+11); full breakdown and PENDING/
     // NOT_ASSIGNED absence verified in RbacSeedIT.
     assertThat(rolePermissionCount).isEqualTo(221);
+
+    Boolean reviewCommentExists =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) > 0 FROM information_schema.columns WHERE table_name ="
+                + " 'document_versions' AND column_name = 'review_comment'",
+            Boolean.class);
+    assertThat(reviewCommentExists).isTrue();
   }
 }

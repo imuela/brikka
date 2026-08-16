@@ -44,6 +44,19 @@
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
+        <!-- Sprint 4: Object Storage (18_STORAGE_SPECIFICATION.md §2, "S3 API compatible").
+             MinIO (Sprint 0 infra) speaks the S3 API, so the standard AWS S3 SDK is the
+             expected client, not an arbitrary framework — url-connection-client is the
+             lightweight sync HTTP implementation, avoiding pulling in Netty/Apache. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
+
         <!-- Sprint 1: persistence configuration and Flyway. No JPA entities
              yet — there is no business/domain code to map, so jdbc (not
              data-jpa) is the minimal dependency that gives us a DataSource,
@@ -86,6 +99,11 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>minio</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
@@ -94,6 +112,13 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>1.21.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>2.28.16</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
