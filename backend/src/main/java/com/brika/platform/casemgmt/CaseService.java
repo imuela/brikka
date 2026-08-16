@@ -53,7 +53,7 @@ public class CaseService {
     String reference = generateReference();
     UUID id = caseRepository.insert(tenantId, reference, operationType, createdBy);
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "CaseCreated", tenantId, id, createdBy, "Case " + reference + " created"));
     return caseRepository.findById(id).orElseThrow();
   }
@@ -96,7 +96,7 @@ public class CaseService {
         theCase.companyId(), theCase.id(), current, newStatus, actorUserId, reason);
     String activityType = newStatus == CaseStatus.COMPLETED ? "CaseCompleted" : "CaseStatusChanged";
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             activityType,
             theCase.companyId(),
             theCase.id(),
@@ -129,7 +129,7 @@ public class CaseService {
         actorUserId,
         historyReason);
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "CaseCancelled",
             theCase.companyId(),
             theCase.id(),
@@ -153,7 +153,7 @@ public class CaseService {
     caseStatusHistoryRepository.insert(
         theCase.companyId(), theCase.id(), current, targetStatus, actorUserId, reason);
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "CaseReopened",
             theCase.companyId(),
             theCase.id(),

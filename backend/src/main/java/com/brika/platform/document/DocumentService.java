@@ -96,11 +96,54 @@ public class DocumentService {
     documentRepository.setCurrentVersionAndStatus(document.id(), versionId, ReviewStatus.PENDING);
 
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "document.uploaded",
             document.companyId(),
             document.caseId(),
             uploadedBy,
+            "Document version " + versionNumber + " uploaded (" + originalFilename + ")"));
+
+    return documentVersionRepository.findById(versionId).orElseThrow();
+  }
+
+  /**
+   * Portal Cliente upload (Sprint 7, decision D3 / V12): mirrors uploadVersion for a client actor.
+   */
+  @Transactional
+  public DocumentVersion uploadVersionFromClient(
+      Document document,
+      byte[] content,
+      String originalFilename,
+      String declaredMimeType,
+      UUID uploadedByClientId) {
+    validateUpload(content, declaredMimeType);
+
+    UUID versionId = UUID.randomUUID();
+    int versionNumber = documentVersionRepository.nextVersionNumber(document.id());
+    String storageKey =
+        DocumentStorageKey.build(
+            document.companyId(), document.caseId(), document.id(), versionId, originalFilename);
+    String checksum = sha256(content);
+
+    storageClient.upload(storageKey, content, declaredMimeType);
+    documentVersionRepository.insertFromClient(
+        versionId,
+        document.id(),
+        versionNumber,
+        storageKey,
+        originalFilename,
+        declaredMimeType,
+        content.length,
+        checksum,
+        uploadedByClientId);
+    documentRepository.setCurrentVersionAndStatus(document.id(), versionId, ReviewStatus.PENDING);
+
+    activityPublisher.publish(
+        CaseActivityEvent.byClient(
+            "document.uploaded",
+            document.companyId(),
+            document.caseId(),
+            uploadedByClientId,
             "Document version " + versionNumber + " uploaded (" + originalFilename + ")"));
 
     return documentVersionRepository.findById(versionId).orElseThrow();

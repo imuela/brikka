@@ -64,4 +64,16 @@ public class ClientRepository {
         phone,
         id);
   }
+
+  /**
+   * Portal Cliente (PATCH /portal/profile, approved editable fields): never touches first_name/
+   * last_name — those require broker/manager action via {@link #update}.
+   */
+  public void updateContactInfo(UUID id, String email, String phone) {
+    jdbcTemplate.update(
+        "UPDATE clients SET email = ?, phone = ?, updated_at = now() WHERE id = ?",
+        email,
+        phone,
+        id);
+  }
 }

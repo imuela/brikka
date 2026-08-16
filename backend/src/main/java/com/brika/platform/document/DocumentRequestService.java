@@ -40,7 +40,7 @@ public class DocumentRequestService {
             requirementId);
 
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "document.request.created", tenantId, caseId, requestedBy, "Document request created"));
 
     return documentRequestRepository.findById(id).orElseThrow();

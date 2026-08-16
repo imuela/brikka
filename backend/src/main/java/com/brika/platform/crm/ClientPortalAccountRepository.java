@@ -7,7 +7,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
-/** Model/repository only in Sprint 3 — no REST endpoint (Portal Cliente auth is Sprint 7). */
+/**
+ * external_identity_id resolves the sub claim of tokens issued by the brika-portal realm
+ * (ADR-PORTAL-AUTH-001) — never the internal realm, never users.external_identity_id.
+ */
 @Repository
 public class ClientPortalAccountRepository {
 
@@ -44,9 +47,29 @@ public class ClientPortalAccountRepository {
         status);
   }
 
+  public Optional<ClientPortalAccount> findById(UUID id) {
+    List<ClientPortalAccount> accounts =
+        jdbcTemplate.query(SELECT + " WHERE id = ?", ROW_MAPPER, id);
+    return accounts.stream().findFirst();
+  }
+
   public Optional<ClientPortalAccount> findByClientId(UUID clientId) {
     List<ClientPortalAccount> accounts =
         jdbcTemplate.query(SELECT + " WHERE client_id = ?", ROW_MAPPER, clientId);
     return accounts.stream().findFirst();
+  }
+
+  public Optional<ClientPortalAccount> findByExternalIdentityId(String externalIdentityId) {
+    List<ClientPortalAccount> accounts =
+        jdbcTemplate.query(
+            SELECT + " WHERE external_identity_id = ?", ROW_MAPPER, externalIdentityId);
+    return accounts.stream().findFirst();
+  }
+
+  public void updateLastLoginAt(UUID id) {
+    jdbcTemplate.update(
+        "UPDATE client_portal_accounts SET last_login_at = now(), updated_at = now() WHERE id ="
+            + " ?",
+        id);
   }
 }

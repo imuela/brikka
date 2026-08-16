@@ -109,7 +109,7 @@ public class BankRequestController {
             contactSnapshotJson);
 
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "bank.request.created",
             access.tenantId(),
             access.theCase().id(),
@@ -137,7 +137,7 @@ public class BankRequestController {
         bankResponseRepository.insert(id, request.summary(), writeJson(request.payload()));
 
     activityPublisher.publish(
-        new CaseActivityEvent(
+        CaseActivityEvent.byUser(
             "bank.response.received",
             access.access().tenantId(),
             access.bankRequest().caseId(),

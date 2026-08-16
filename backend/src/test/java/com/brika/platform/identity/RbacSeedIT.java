@@ -21,7 +21,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Mechanical verification that V9__seed_role_permissions.sql seeds exactly the 221 APPROVED
  * combinations from the ADR-RBAC-001 matrix (12_DECISION_LOG.md) — no more, no fewer — and none of
- * the 16 PENDING or any NOT_ASSIGNED combination.
+ * the 16 PENDING or any NOT_ASSIGNED combination. V11__portal_account_permission.sql
+ * (ADR-PORTAL-AUTH-001, Sprint 7) adds 2 further combinations (MANAGER/BROKER x
+ * CLIENT_PORTAL_ACCOUNT_CREATE) on top of that matrix — counts below reflect the full schema state
+ * after every migration, i.e. 221 + 2 = 223.
  */
 @Testcontainers
 @SpringBootTest
@@ -51,16 +54,16 @@ class RbacSeedIT {
   }
 
   @Test
-  void totalRolePermissionCountIsExactly221() {
+  void totalRolePermissionCountIsExactly223() {
     Integer count = jdbc().queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);
-    assertThat(count).isEqualTo(221);
-    assertThat(rolePermissionRepository.count()).isEqualTo(221);
+    assertThat(count).isEqualTo(223);
+    assertThat(rolePermissionRepository.count()).isEqualTo(223);
   }
 
   @Test
   void roleAndPermissionRepositoriesExposeTheFullCatalog() {
     assertThat(roleRepository.findAll()).hasSize(4);
-    assertThat(permissionRepository.findAll()).hasSize(110);
+    assertThat(permissionRepository.findAll()).hasSize(111);
   }
 
   @Test
@@ -88,8 +91,8 @@ class RbacSeedIT {
         .containsExactlyInAnyOrderEntriesOf(
             Map.of(
                 "SUPERADMIN", 81L,
-                "MANAGER", 71L,
-                "BROKER", 58L,
+                "MANAGER", 72L, // 71 (ADR-RBAC-001) + 1 (ADR-PORTAL-AUTH-001, V11)
+                "BROKER", 59L, // 58 (ADR-RBAC-001) + 1 (ADR-PORTAL-AUTH-001, V11)
                 "CLIENT", 11L));
   }
 

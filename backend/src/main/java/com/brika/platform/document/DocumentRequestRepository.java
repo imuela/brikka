@@ -67,6 +67,25 @@ public class DocumentRequestRepository {
     return jdbcTemplate.query(SELECT + " WHERE case_id = ? ORDER BY due_at", ROW_MAPPER, caseId);
   }
 
+  /**
+   * Portal Cliente upload (Sprint 7): opportunistic match to auto-fulfill a pending request when
+   * the client uploads a document of the requested type — heuristic on (case, type, client) since
+   * document_requests has no FK back to the document that satisfies it.
+   */
+  public Optional<DocumentRequest> findPendingByCaseAndTypeAndClient(
+      UUID caseId, UUID documentTypeId, UUID clientId) {
+    List<DocumentRequest> requests =
+        jdbcTemplate.query(
+            SELECT
+                + " WHERE case_id = ? AND document_type_id = ? AND requested_from_client_id = ?"
+                + " AND status = 'PENDING' ORDER BY due_at",
+            ROW_MAPPER,
+            caseId,
+            documentTypeId,
+            clientId);
+    return requests.stream().findFirst();
+  }
+
   public void updateStatus(UUID id, DocumentRequestStatus status) {
     jdbcTemplate.update(
         "UPDATE document_requests SET status = ?, updated_at = now() WHERE id = ?",

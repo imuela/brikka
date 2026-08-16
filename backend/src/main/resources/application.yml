@@ -28,6 +28,11 @@ brika:
     # — see 19_IDENTITY_OAUTH_SPECIFICATION.md, no documented client id/aud).
     # Set once the realm exists, so audience validation (§4) is enforced.
     expected-audience: ${OIDC_EXPECTED_AUDIENCE:}
+    # ADR-PORTAL-AUTH-001 (Sprint 7): separate Keycloak realm for Portal
+    # Cliente, same Keycloak instance. Also not provisioned yet — lazy
+    # decoder (LazyIssuerJwtDecoder), same rationale as above.
+    portal-issuer-uri: ${OIDC_PORTAL_ISSUER_URI:http://localhost:18081/realms/brika-portal}
+    portal-expected-audience: ${OIDC_PORTAL_EXPECTED_AUDIENCE:}
 
   storage:
     # MinIO (Sprint 0 infra), S3-compatible (18_STORAGE_SPECIFICATION.md §2). The

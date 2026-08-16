@@ -3,10 +3,7 @@ package com.brika.platform.crm;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Model/repository only in Sprint 3 (approved scope: no REST endpoint, no auth wiring). Real Portal
- * Cliente authentication/activation is Sprint 7.
- */
+/** ADR-PORTAL-AUTH-001: the Portal authentication principal (never a `User`). */
 public record ClientPortalAccount(
     UUID id,
     UUID companyId,

@@ -13,11 +13,20 @@ public class SynchronousActivityPublisher implements ActivityPublisher {
 
   @Override
   public void publish(CaseActivityEvent event) {
-    activityRepository.insert(
-        event.companyId(),
-        event.caseId(),
-        event.actorUserId(),
-        event.activityType(),
-        event.summary());
+    if (event.actorClientId() != null) {
+      activityRepository.insertWithClientActor(
+          event.companyId(),
+          event.caseId(),
+          event.actorClientId(),
+          event.activityType(),
+          event.summary());
+    } else {
+      activityRepository.insert(
+          event.companyId(),
+          event.caseId(),
+          event.actorUserId(),
+          event.activityType(),
+          event.summary());
+    }
   }
 }

@@ -72,6 +72,17 @@ public class CaseRepository {
         userId);
   }
 
+  /** Portal Cliente (Sprint 7): cases where the client is a case_clients participant. */
+  public List<Case> findAllByClientId(UUID companyId, UUID clientId) {
+    return jdbcTemplate.query(
+        SELECT
+            + " WHERE company_id = ? AND id IN (SELECT case_id FROM case_clients WHERE client_id"
+            + " = ?) ORDER BY created_at DESC",
+        ROW_MAPPER,
+        companyId,
+        clientId);
+  }
+
   public void updateOperationType(UUID id, String operationType) {
     jdbcTemplate.update(
         "UPDATE cases SET operation_type = ?, updated_at = now() WHERE id = ?", operationType, id);
