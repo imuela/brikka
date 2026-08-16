@@ -245,3 +245,283 @@ Arquitectura conceptual:
 **Documentos afectados:** `BRIKA_MASTER_SPEC.md`, `03_TECHNICAL_SPECIFICATION.md`, `21_AI_V1_SCOPE.md`, `06_SECURITY_SPECIFICATION.md`, `23_CLOUD_DEPLOYMENT_SPECIFICATION.md`.
 
 **Estado:** APPROVED.
+
+---
+
+## ADR-RBAC-001 — Role-Permission Assignment Matrix
+
+**Contexto:** Sprint 1 dejó `role_permissions` intencionadamente vacía (ver `V3__seed_roles_permissions.sql`): `14_DEFINITIVE_PERMISSION_CATALOG.md` define 110 permisos atómicos y 4 roles (`SUPERADMIN`, `MANAGER`, `BROKER`, `CLIENT`, `ADR-004`), pero ningún documento del proyecto contenía una asignación rol→permiso explícita a nivel atómico. Sprint 2 (Identity + Tenant + RBAC, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`) necesita esa asignación para ser funcional.
+
+**Problema:**
+1. Asignar permisos sin base documental suficiente equivale a inventar una regla de negocio (`CLAUDE.md` §3, §10).
+2. `05_PERMISSIONS_MATRIX.md` —la única fuente con forma de matriz— está autodeclarada histórica y describe capacidades por recurso de forma cualitativa, no permisos atómicos.
+3. `SUPERADMIN` necesita acceder a recursos tenant-owned para dar soporte, pero ningún permiso puede implicar acceso cross-tenant permanente sin violar el aislamiento de tenant (`CLAUDE.md` §6, `ADR-010`).
+
+**Decisión:** Se aprueba la matriz completa de 440 combinaciones rol-permiso (110 permisos × 4 roles) detallada íntegramente más abajo, construida sobre `BRIKA_MASTER_SPEC.md` §4 (capacidades por rol) combinado con §8 (constituyentes explícitos de `CASE`), `14_DEFINITIVE_PERMISSION_CATALOG.md` §19-§21, las ADR previas de este mismo documento, y decisiones explícitas del promotor del proyecto registradas durante el diseño de este ADR. Se introduce `SUPPORT_SESSION` como único mecanismo de acceso de `SUPERADMIN` a recursos tenant-owned.
+
+Verificación mecánica (no manual) previa a esta decisión: 110 permisos en catálogo, 4 roles, 440 combinaciones, 81/71/58/11 `APPROVED` (SUPERADMIN/MANAGER/BROKER/CLIENT), 4/6/6/0 `PENDING`, 25/33/46/99 `NOT_ASSIGNED`, cero duplicados, cero permisos del catálogo ausentes de la matriz, cero permisos inventados.
+
+### Matriz definitiva — 110 permisos × 4 roles
+
+Formato por celda: `ESTADO` y, cuando aplica, `(SCOPE)`. Scopes usados: `GLOBAL` (catálogo/plataforma, sin tenant), `TENANT` (limitado a la propia empresa), `CASE` (limitado además a `case_assignments`/participación), `PORTAL` (Portal Cliente, sujeto a `document_publications`/`conversation_participants`/visibility), `SUPPORT_SESSION` (solo `SUPERADMIN`, exige sesión de soporte activa — ver sección dedicada).
+
+#### Plataforma
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `COMPANY_CREATE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Ciclo de vida de empresa = acción de plataforma, no dato tenant-owned |
+| `COMPANY_READ` | APPROVED (GLOBAL) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `COMPANY_UPDATE` | APPROVED (GLOBAL) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `COMPANY_SUSPEND` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | MANAGER no puede autosuspender su empresa |
+| `COMPANY_DELETE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | |
+
+#### Planes y suscripciones (`ADR-PLATFORM-001`)
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `PLAN_READ` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Catálogo §3B: "uso exclusivo SUPERADMIN" |
+| `PLAN_MANAGE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `SUBSCRIPTION_READ` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Decisión explícita: gestión de planes/suscripciones exclusiva de SUPERADMIN |
+| `SUBSCRIPTION_MANAGE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | |
+
+#### Usuarios
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `USER_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `USER_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | BROKER: necesidad operativa derivada de `TASK_ASSIGN`/`CASE_ASSIGN` |
+| `USER_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `USER_DISABLE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `USER_ASSIGN_ROLE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | |
+
+#### Clientes
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `CLIENT_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CLIENT_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CLIENT_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CLIENT_EXPORT` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Acción sensible (exportación de PII), sin base documental suficiente para ningún rol en V1 |
+| `CLIENT_DELETE` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | No asignado en V1, decisión explícita |
+
+#### Operaciones (`CASE`)
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `CASE_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | Sin caso previo que scopee la creación |
+| `CASE_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Ejemplo canónico del catálogo §21 |
+| `CASE_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CASE_ASSIGN` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | Acción de supervisión |
+| `CASE_CHANGE_STATUS` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CASE_CANCEL` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CASE_REOPEN` | NOT_ASSIGNED | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | Decisión explícita: exclusivo MANAGER |
+| `CASE_EXPORT` | NOT_ASSIGNED | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | Decisión explícita: exclusivo MANAGER |
+
+#### Inmuebles
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `PROPERTY_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Inferencia derivada: `BRIKA_MASTER_SPEC.md` §8 (PROPERTY es constituyente de CASE) + §4 "operaciones" |
+| `PROPERTY_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Inferencia derivada, igual que arriba |
+| `PROPERTY_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Inferencia derivada, igual que arriba |
+| `PROPERTY_DELETE` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | |
+
+#### Documentos
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `DOCUMENT_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | CLIENT usa `PORTAL_DOCUMENT_READ` |
+| `DOCUMENT_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_REQUEST` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_UPLOAD` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_DOWNLOAD` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_REVIEW` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_APPROVE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_REJECT` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `DOCUMENT_DELETE` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | No asignado en V1, decisión explícita; contradice principio de versionado sin sobrescritura |
+| `DOCUMENT_PUBLISH` | NOT_ASSIGNED | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | `BRIKA_MASTER_SPEC.md` §7 nombra explícitamente al broker; sin caso de uso de soporte plausible para SUPERADMIN |
+| `DOCUMENT_UNPUBLISH` | NOT_ASSIGNED | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Igual que arriba |
+| `DOCUMENT_REQUIREMENT_READ` | APPROVED (GLOBAL) | APPROVED (GLOBAL) | APPROVED (GLOBAL) | NOT_ASSIGNED | Catálogo global (`ADR-DOC-001`), lectura abierta a todo rol interno |
+| `DOCUMENT_REQUIREMENT_MANAGE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Gestión de catálogo global, patrón SUPERADMIN-only |
+
+#### Financiación
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `SIMULATION_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `SIMULATION_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `SIMULATION_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `FINANCING_REQUEST_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `FINANCING_REQUEST_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `FINANCING_REQUEST_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `FINANCING_FINALIZE` | NOT_ASSIGNED | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | Decisión explícita: acción irreversible, exclusivo MANAGER |
+
+#### Bancos
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `BANK_READ` | APPROVED (GLOBAL) | APPROVED (GLOBAL) | APPROVED (GLOBAL) | NOT_ASSIGNED | `BANK` es catálogo global (`15_DEFINITIVE_ERD.md` §9) |
+| `BANK_CREATE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Gestión de catálogo global |
+| `BANK_UPDATE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `BANK_CRITERIA_READ` | APPROVED (GLOBAL) | APPROVED (GLOBAL) | APPROVED (GLOBAL) | NOT_ASSIGNED | |
+| `BANK_CRITERIA_MANAGE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | |
+| `BANK_REQUEST_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `BANK_REQUEST_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `BANK_RESPONSE_REGISTER` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `BANK_OFFER_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `BANK_OFFER_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Visibilidad de CLIENT sobre ofertas publicadas se resuelve vía `PORTAL_CASE_READ` + `document_publications`, nunca este permiso interno |
+| `BANK_OFFER_SELECT` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Riesgo medio-alto señalado en revisión: acción de naturaleza similar a `FINANCING_FINALIZE`; se mantiene en BROKER por respaldo explícito de §4.3 "bancos", pero queda anotado como candidato a revisión futura |
+
+#### Contactos bancarios (`ADR-BANK-001`)
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `BANK_CONTACT_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | Contacto es propiedad de la empresa, no del caso (`ADR-BANK-001`) — scope `TENANT`, no `CASE` |
+| `BANK_CONTACT_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | |
+| `BANK_CONTACT_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | |
+| `BANK_CONTACT_DELETE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | |
+
+#### Tareas
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `TASK_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `TASK_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `TASK_UPDATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `TASK_ASSIGN` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `TASK_COMPLETE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `TASK_DELETE` | NOT_ASSIGNED | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | Riesgo medio señalado en revisión: más irreversible que el resto del grupo; se mantiene en MANAGER por ser rol de supervisión |
+
+#### Comunicación (`ADR-COMMS-001`, `ADR-COMMS-002`)
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `CONVERSATION_CREATE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `CONVERSATION_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | CLIENT usa `PORTAL_MESSAGE_READ` + `conversation_participants` |
+| `CONVERSATION_PARTICIPANT_MANAGE` | APPROVED (SUPPORT_SESSION) | APPROVED (CASE) | APPROVED (CASE) | NOT_ASSIGNED | Scope `CASE` explícito para MANAGER/BROKER (decisión: "siempre limitado por tenant + acceso al CASE/conversación") |
+| `MESSAGE_SEND` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `MESSAGE_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `MESSAGE_ATTACHMENT_UPLOAD` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+| `MESSAGE_ATTACHMENT_DOWNLOAD` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | |
+
+#### Notificaciones
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `NOTIFICATION_READ` | NOT_ASSIGNED | APPROVED (TENANT) | APPROVED (TENANT) | NOT_ASSIGNED | `notifications.company_id` es `NOT NULL` (`16_POSTGRESQL_SCHEMA_SPECIFICATION.md` §11) y SUPERADMIN "no pertenece necesariamente a una empresa" (`BRIKA_MASTER_SPEC.md` §4.1) — incompatibilidad estructural, no solo ausencia de evidencia |
+| `NOTIFICATION_MANAGE` | NOT_ASSIGNED | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | Igual restricción estructural para SUPERADMIN |
+
+#### Actividad (`ADR-AUDIT-001`)
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `ACTIVITY_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Respeta `CASE_READ` del mismo rol (`ADR-AUDIT-001`) |
+
+#### Scoring
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `SCORING_RUN` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Riesgo medio señalado en revisión: grupo con menor anclaje textual directo (solo inferencia derivada §8, ningún rol lo nombra explícitamente) |
+| `SCORING_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Igual que arriba |
+| `SCORING_RULESET_READ` | APPROVED (GLOBAL) | APPROVED (GLOBAL) | APPROVED (GLOBAL) | NOT_ASSIGNED | Consecuencia de transparencia/explicabilidad (`BRIKA_MASTER_SPEC.md` §12) |
+| `SCORING_RULESET_MANAGE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Catálogo de reglas versionado, gestión SUPERADMIN-only |
+
+#### Auditoría
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `AUDIT_READ` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Necesidad funcional: única forma de auditar el uso de `SUPPORT_SESSION`; decisión explícita: auditoría restringida a SUPERADMIN |
+| `AUDIT_EXPORT` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Igual |
+
+#### IA
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `AI_USE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Falta decisión de producto: qué caso de uso IA (`21_AI_V1_SCOPE.md`) está aprobado por rol. No asignar hasta entonces |
+| `AI_DOCUMENT_ANALYZE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Igual |
+| `AI_SUMMARIZE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Igual |
+| `AI_DRAFT_MESSAGE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Igual |
+| `AI_MANAGE_CONFIGURATION` | APPROVED (GLOBAL) | PENDING | PENDING | NOT_ASSIGNED | Configuración de IA es responsabilidad de plataforma (`BRIKA_MASTER_SPEC.md` §13) |
+| `AI_READ_USAGE` | APPROVED (GLOBAL) | PENDING | PENDING | NOT_ASSIGNED | Igual |
+
+#### Reporting
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `REPORT_READ` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | NOT_ASSIGNED | NOT_ASSIGNED | `BRIKA_MASTER_SPEC.md` §4.2 "reporting" explícito para MANAGER; no nombrado para BROKER |
+| `REPORT_EXPORT` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Acción distinta de "consultar reporting", sensible, sin base suficiente |
+
+#### Integraciones (`ADR-INTEGRATIONS-001`)
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `INTEGRATION_READ` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Fuente: decisión explícita del promotor del proyecto durante el diseño de este ADR, no derivada de documentación previa |
+| `INTEGRATION_MANAGE` | APPROVED (GLOBAL) | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Igual |
+| `INTEGRATION_EXECUTE` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | Catálogo §18: "no se ejercita en V1" |
+
+#### Portal Cliente
+
+| Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
+|---|---|---|---|---|---|
+| `PORTAL_DASHBOARD_READ` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | Catálogo §19, "Capacidades iniciales" |
+| `PORTAL_CASE_READ` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+| `PORTAL_DOCUMENT_READ` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+| `PORTAL_DOCUMENT_UPLOAD` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+| `PORTAL_DOCUMENT_REQUEST_RESPOND` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+| `PORTAL_MESSAGE_READ` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | Sujeto adicionalmente a `conversation_participants` (`ADR-COMMS-002`) |
+| `PORTAL_MESSAGE_SEND` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | Igual |
+| `PORTAL_MESSAGE_ATTACHMENT_UPLOAD` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | Igual (`ADR-COMMS-001`) |
+| `PORTAL_NOTIFICATION_READ` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+| `PORTAL_PROFILE_READ` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+| `PORTAL_PROFILE_UPDATE` | NOT_ASSIGNED | NOT_ASSIGNED | NOT_ASSIGNED | APPROVED (PORTAL) | |
+
+### Reglas de autorización obligatorias
+
+Ningún permiso implica autorización efectiva por sí solo. Toda autorización se evalúa como:
+
+```
+TENANT + ROLE/PERMISSION + RESOURCE SCOPE
+```
+
+y, cuando el recurso es un `CASE` o deriva de uno:
+
+```
+TENANT + ROLE/PERMISSION + CASE ASSIGNMENT
+```
+
+Reglas adicionales no expresables únicamente mediante `role_permissions`:
+
+- **Permission + entitlement** (`ADR-PLATFORM-001`): funcionalidad limitada por plan exige además el `entitlement` activo de la suscripción.
+- **Permission + participant + visibility** (`ADR-COMMS-002`): conversaciones tipo `CLIENT` exigen `tenant + case + participant + visibility`.
+- **Permission + SUPPORT_SESSION activa:** todo permiso marcado `(SUPPORT_SESSION)` exige, además del rol, una `support_session` `ACTIVE` no caducada para la `company_id` objetivo. Sin sesión activa, acceso `DENIED`, aunque `role_permissions` conceda el permiso.
+- **CLIENT** queda además sujeto en todo momento a `document_publications` (visibilidad de documentos), `conversation_participants` (mensajería) y a que la información esté expresamente publicada (`06_SECURITY_SPECIFICATION.md` §8) — nunca accede por el mero hecho de pertenecer al `CASE`.
+
+### Tenant isolation
+
+Ningún rol tiene ningún permiso con acceso cross-tenant permanente. `TenantContext` resuelve `company_id` exclusivamente desde la identidad autenticada, nunca desde un valor enviado por el cliente (`CLAUDE.md` §6, `ADR-010`). Para `SUPERADMIN`, `TenantContext` no resuelve ningún tenant salvo que exista una `SUPPORT_SESSION` `ACTIVE` — en cualquier otro momento, `SUPERADMIN` no tiene tenant resuelto y no puede ejercer ninguno de sus permisos `(SUPPORT_SESSION)`, aunque `role_permissions` se los conceda.
+
+### SUPPORT_SESSION — diseño conceptual
+
+Único mecanismo autorizado para que `SUPERADMIN` acceda a recursos tenant-owned.
+
+Entidad conceptual `support_sessions` (no implementada todavía): `id`, `superadmin_user_id`, `target_company_id` (obligatorio, exactamente una empresa, nunca `'*'`), `reason` (obligatorio), `started_at`, `expires_at` (obligatorio, sin sesiones indefinidas), `ended_at` nullable, `status` (`ACTIVE`/`EXPIRED`/`CLOSED`).
+
+Reglas obligatorias: no cambia el rol de `SUPERADMIN`; no concede permisos nuevos; solo habilita el uso de permisos ya marcados `(SUPPORT_SESSION)` en esta matriz, y solo contra `target_company_id`; toda acción durante la sesión genera `AuditEvent` con `support_session_id`; al expirar o cerrarse, el acceso tenant desaparece inmediatamente, sin periodo de gracia.
+
+**`SUPPORT_SESSION` no se implementa en Sprint 2** — `25_CLAUDE_CODE_EXECUTION_GUIDE.md` no lo contempla explícitamente en el alcance de ningún sprint todavía. Los 57 permisos `(SUPPORT_SESSION)` pueden sembrarse en `role_permissions` durante Sprint 2 (la concesión es segura por sí sola: sin `TenantContext` con verificación de sesión, que tampoco se implementa todavía, no hay ningún endpoint que pueda ejercerlos), pero **ningún endpoint o servicio debe consumirlos** hasta que existan `support_sessions`, la verificación de sesión en `TenantContext`, y la columna `support_session_id` en `audit_events`. Sprint 2 sí debe implementar, desde el primer commit de `TenantContext`, la regla "`SUPERADMIN` sin sesión activa = sin tenant resuelto" como comportamiento por defecto.
+
+### Estados PENDING (16 combinaciones)
+
+`AI_USE`, `AI_DOCUMENT_ANALYZE`, `AI_SUMMARIZE`, `AI_DRAFT_MESSAGE` para `SUPERADMIN`/`MANAGER`/`BROKER` (12 combinaciones) y `AI_MANAGE_CONFIGURATION`/`AI_READ_USAGE` para `MANAGER`/`BROKER` (4 combinaciones). Ningún endpoint de IA puede consumir estos permisos hasta que exista una decisión de producto explícita sobre qué caso de uso de `21_AI_V1_SCOPE.md` está aprobado para qué rol — recomendado antes de Sprint 10 (AI Gateway).
+
+### NOT_ASSIGNED
+
+Detalle completo en la matriz de arriba. Categorías: exclusiones estructurales (`*_DELETE` de clientes/documentos/inmuebles, `INTEGRATION_EXECUTE`), exclusiones por incompatibilidad de esquema (`NOTIFICATION_READ/MANAGE` para SUPERADMIN), exclusiones por decisión explícita (`SUBSCRIPTION_*`/`AUDIT_*` fuera de MANAGER; `CASE_REOPEN`/`CASE_EXPORT`/`FINANCING_FINALIZE` exclusivos de MANAGER), y catálogos globales fuera de SUPERADMIN.
+
+**Alternativas consideradas:** (a) conceder a SUPERADMIN acceso directo permanente a recursos tenant-owned por simplicidad de implementación — rechazada explícitamente, viola `ADR-010`/`CLAUDE.md` §6; (b) no modelar `SUPPORT_SESSION` y dejar todos los permisos tenant-owned de SUPERADMIN en `NOT_ASSIGNED` indefinidamente — rechazada, bloquearía cualquier capacidad de soporte sin fecha; (c) implementar `SUPPORT_SESSION` completo ya en Sprint 2 — rechazada, expande el alcance definido para ese sprint en `25_CLAUDE_CODE_EXECUTION_GUIDE.md` sin necesidad inmediata.
+
+**Consecuencias:** `role_permissions` puede poblarse en Sprint 2 con las 221 combinaciones `APPROVED` (81+71+58+11). `TenantContext` de Sprint 2 debe nacer con la regla de `SUPERADMIN` sin sesión. Ningún endpoint puede consumir permisos `(SUPPORT_SESSION)` ni los 16 `PENDING` de IA hasta que existan sus mecanismos respectivos.
+
+**Documentos afectados:** `06_SECURITY_SPECIFICATION.md` (nueva sección `SUPPORT_SESSION` + reglas de scope), `14_DEFINITIVE_PERMISSION_CATALOG.md` (referencia a este ADR), `25_CLAUDE_CODE_EXECUTION_GUIDE.md` (alcance exacto de Sprint 2 respecto a `role_permissions`/`TenantContext`/`SUPPORT_SESSION`), `08_REQUIREMENTS_TRACEABILITY.md` (nuevo `BRK`).
+
+**Estado:** APPROVED.

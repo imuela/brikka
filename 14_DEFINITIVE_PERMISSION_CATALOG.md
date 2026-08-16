@@ -229,6 +229,10 @@ Operativa hipotecaria asignada/autorizada.
 
 Únicamente capacidades del Portal Cliente.
 
+### Asignación definitiva rol → permiso
+
+La matriz completa de los 110 permisos de este catálogo frente a los 4 roles (`APPROVED`/`PENDING`/`NOT_ASSIGNED`, con su `scope`) está congelada en `12_DECISION_LOG.md` → `ADR-RBAC-001`. Este catálogo define qué permisos existen; el ADR define quién los tiene.
+
 ## 21. Scope
 
 Un permiso nunca significa acceso universal.

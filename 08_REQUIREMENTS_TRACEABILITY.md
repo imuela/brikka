@@ -57,3 +57,5 @@ Antes de congelar V1, todo requisito crítico debe tener:
 | BRK-035 | Roadmap único de ejecución (`25_CLAUDE_CODE_EXECUTION_GUIDE.md`) | ADR-PROCESS-001 |
 | BRK-036 | Sprint 0 = infraestructura únicamente, sin esquema ni lógica de negocio | ADR-PROCESS-002 |
 | BRK-037 | Python Worker sin acceso directo a PostgreSQL, aislado de red | ADR-AI-001 / Security / Technical |
+
+| BRK-038 | Matriz RBAC definitiva (110 permisos × 4 roles) con `SUPPORT_SESSION` como único acceso de SUPERADMIN a recursos tenant-owned, sin bypass permanente de tenant | ADR-RBAC-001 / Security / Permission Catalog |

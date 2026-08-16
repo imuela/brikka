@@ -20,11 +20,36 @@ Roles iniciales:
 - BROKER
 - CLIENT
 
+### 3.0 Regla general de autorización efectiva (`ADR-RBAC-001`)
+
+Ningún permiso implica autorización efectiva por sí solo. Toda autorización se evalúa como:
+
+`tenant + role/permission + resource scope`
+
+y, cuando el recurso es un `CASE` o deriva de uno:
+
+`tenant + role/permission + case assignment`
+
+La matriz definitiva de 110 permisos × 4 roles (`APPROVED`/`PENDING`/`NOT_ASSIGNED`, con su `scope`) queda registrada en `12_DECISION_LOG.md` → `ADR-RBAC-001`. Ningún servicio debe consumir un permiso marcado `PENDING` en esa matriz.
+
 ### 3.1 RBAC permission vs entitlement de plan
 
 Un `RBAC permission` (qué puede hacer un rol) y un `entitlement` (qué funcionalidad ha contratado la empresa mediante su `plan`) son conceptos distintos y se comprueban por separado (`ADR-PLATFORM-001`).
 
 Una funcionalidad limitada por plan requiere ambas comprobaciones: `tenant + permission + entitlement`. Tener el permiso RBAC nunca es suficiente por sí solo cuando la funcionalidad depende de plan.
+
+### 3.1B SUPPORT_SESSION — acceso de SUPERADMIN a recursos tenant-owned (`ADR-RBAC-001`)
+
+`SUPERADMIN` no tiene acceso cross-tenant permanente a ningún recurso tenant-owned. Su único camino de acceso es una `SUPPORT_SESSION` activa:
+
+- exactamente una `target_company_id` por sesión, nunca `'*'` ni todas las empresas;
+- `reason` y `expires_at` obligatorios; no se permiten sesiones indefinidas;
+- `status`: `ACTIVE` / `EXPIRED` / `CLOSED`;
+- toda acción realizada durante la sesión queda auditada con referencia a la sesión (`support_session_id` en `audit_events`);
+- `SUPPORT_SESSION` no cambia el rol de SUPERADMIN ni concede permisos nuevos: solo habilita el uso de los permisos ya marcados `SUPPORT_SESSION` en `ADR-RBAC-001`, y solo contra `target_company_id`;
+- al expirar o cerrarse la sesión, el acceso tenant desaparece inmediatamente, sin periodo de gracia.
+
+Mientras `SUPPORT_SESSION` no esté implementado, `TenantContext` debe resolver "sin tenant" para SUPERADMIN en todos los casos, sin excepción, sin fallback y sin bypass — ni por `company_id` recibido del cliente, ni por ausencia de filtro en un repositorio/servicio, ni por un filtro JPA opt-in mal configurado. El mecanismo completo (entidad `support_sessions`, verificación en `TenantContext`, endpoints de apertura/cierre) no forma parte de Sprint 2; el sprint de implementación queda pendiente de asignación explícita en `25_CLAUDE_CODE_EXECUTION_GUIDE.md`.
 
 ### 3.2 Conversaciones (mensajería)
 

@@ -68,6 +68,14 @@ No incluye todavía lógica de negocio ni RBAC funcional.
 - autenticación (OAuth/OIDC), autorización (permission **y** entitlement), TenantContext;
 - tests de aislamiento de tenant desde el primer momento.
 
+**`role_permissions` (`ADR-RBAC-001`):** sembrar exactamente las 221 combinaciones `APPROVED` de la matriz definitiva (81 SUPERADMIN + 71 MANAGER + 58 BROKER + 11 CLIENT). No sembrar ninguna combinación `PENDING` (16, todas de IA) ni `NOT_ASSIGNED`.
+
+**`TenantContext` — regla obligatoria desde el primer commit:** para `SUPERADMIN`, `TenantContext` no resuelve ningún `company_id` salvo mediante `SUPPORT_SESSION` activa. Como `SUPPORT_SESSION` no se implementa en Sprint 2 (ver abajo), esto significa en la práctica que `SUPERADMIN` no resuelve tenant en ningún caso durante este sprint — comportamiento seguro por defecto, no una limitación temporal a corregir con un bypass.
+
+**`SUPPORT_SESSION` — explícitamente fuera de Sprint 2.** No se implementa la entidad `support_sessions`, ni endpoints de apertura/cierre, ni la columna `support_session_id` en `audit_events`. Ningún endpoint puede consumir un permiso marcado `SUPPORT_SESSION` en la matriz de `ADR-RBAC-001` hasta que ese mecanismo exista completo. Sprint de implementación: **pendiente de asignación explícita** (recomendación no vinculante: no más tarde de Sprint 11 — Hardening).
+
+**IA (`AI_USE`, `AI_DOCUMENT_ANALYZE`, `AI_SUMMARIZE`, `AI_DRAFT_MESSAGE`, y para MANAGER/BROKER también `AI_MANAGE_CONFIGURATION`/`AI_READ_USAGE`):** los 16 permisos quedan `PENDING` en `ADR-RBAC-001`. No sembrar, no implementar ningún endpoint que los consuma hasta que exista una decisión de producto sobre alcance de IA por rol — a resolver antes de Sprint 10.
+
 ### Sprint 3 — CRM + CASE + Workflow
 
 - clients, client_portal_accounts;
