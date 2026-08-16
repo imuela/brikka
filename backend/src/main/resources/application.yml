@@ -15,6 +15,20 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:18081/realms/brika}
+
+brika:
+  security:
+    # Not validated when unset (empty string): no Keycloak realm/client is
+    # provisioned yet (Sprint 0 only started bare Keycloak, no "brika" realm
+    # — see 19_IDENTITY_OAUTH_SPECIFICATION.md, no documented client id/aud).
+    # Set once the realm exists, so audience validation (§4) is enforced.
+    expected-audience: ${OIDC_EXPECTED_AUDIENCE:}
+
 server:
   port: ${SERVER_PORT:8080}
 

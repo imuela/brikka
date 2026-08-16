@@ -13,9 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserProvisioningService {
 
   private final UserRepository userRepository;
+  private final RoleRepository roleRepository;
 
-  public UserProvisioningService(UserRepository userRepository) {
+  public UserProvisioningService(UserRepository userRepository, RoleRepository roleRepository) {
     this.userRepository = userRepository;
+    this.roleRepository = roleRepository;
   }
 
   @Transactional
@@ -29,10 +31,17 @@ public class UserProvisioningService {
             command.email(),
             command.firstName(),
             command.lastName());
-    UUID roleId = userRepository.findRoleIdByCode(command.role().name());
-    userRepository.insertUserRole(userId, roleId);
+    Role role = roleRepository.findByCode(command.role().name());
+    userRepository.insertUserRole(userId, role.id());
 
-    return new User(userId, command.companyId(), command.email(), command.role());
+    return new User(
+        userId,
+        command.companyId(),
+        command.email(),
+        command.firstName(),
+        command.lastName(),
+        "ACTIVE",
+        command.role());
   }
 
   private void validateCompanyAssignment(UserRole role, UUID companyId) {

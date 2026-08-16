@@ -4,15 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.brika.platform.tenant.TenantContext;
+import java.util.Set;
 import java.util.UUID;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -43,17 +42,11 @@ class UserProvisioningIT {
   }
 
   @Autowired private UserProvisioningService userProvisioningService;
-  @Autowired private DataSource dataSource;
+  @Autowired private CompanyRepository companyRepository;
+  @Autowired private PermissionResolutionService permissionResolutionService;
 
   private UUID insertCompany(String taxId) {
-    JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-    return jdbc.queryForObject(
-        "INSERT INTO companies (legal_name, trade_name, tax_id, status) VALUES (?, ?, ?,"
-            + " 'ACTIVE') RETURNING id",
-        UUID.class,
-        "Test Co " + taxId,
-        "Test Co " + taxId,
-        taxId);
+    return companyRepository.insert("Test Co " + taxId, "Test Co " + taxId, taxId);
   }
 
   @Test
@@ -162,5 +155,24 @@ class UserProvisioningIT {
                 "Admin"));
 
     assertThat(superadmin.email()).isEqualTo("shared@brika.test");
+  }
+
+  @Test
+  void permissionResolutionServiceReflectsTheUsersSeededRole() {
+    UUID companyId = insertCompany("TC-PERMS");
+    User client =
+        userProvisioningService.createUser(
+            new CreateUserCommand(
+                UserRole.CLIENT,
+                companyId,
+                "ext-" + UUID.randomUUID(),
+                "client1@brika.test",
+                "Cli",
+                "Ent"));
+
+    Set<String> permissions = permissionResolutionService.permissionCodesForUser(client.id());
+
+    assertThat(permissions).hasSize(11).contains("PORTAL_CASE_READ", "PORTAL_DASHBOARD_READ");
+    assertThat(permissions).doesNotContain("CASE_READ", "COMPANY_CREATE");
   }
 }

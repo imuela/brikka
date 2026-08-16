@@ -15,10 +15,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Sprint 1 smoke test: the application context must boot against a real, empty PostgreSQL instance
- * and Flyway must run every migration (V1-V8) successfully. This is the same physical schema
+ * and Flyway must run every migration (V1-V9) successfully. This is the same physical schema
  * described in 16_POSTGRESQL_SCHEMA_SPECIFICATION.md — no JPA entities exist yet, so this test
  * asserts against raw JDBC metadata rather than a domain model. V8 (ADR-IDENTITY-001) makes
- * users.company_id nullable and does not add or remove any table.
+ * users.company_id nullable; V9 (ADR-RBAC-001) seeds role_permissions. Neither adds or removes a
+ * table; the exact role_permissions content is verified in RbacSeedIT.
  */
 @Testcontainers
 @SpringBootTest
@@ -47,14 +48,14 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(8);
+    assertThat(appliedMigrations).isEqualTo(9);
 
     Integer tableCount =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
                 + " AND table_name != 'flyway_schema_history'",
             Integer.class);
-    // 38 tables from V1 + 4 (V4) + 1 (V5) + 3 (V6) + 2 (V7) = 48. V8 adds no table.
+    // 38 tables from V1 + 4 (V4) + 1 (V5) + 3 (V6) + 2 (V7) = 48. V8/V9 add no table.
     assertThat(tableCount).isEqualTo(48);
 
     Boolean companyIdNullable =
@@ -81,5 +82,11 @@ class FlywayMigrationIT {
     Integer documentTypeCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM document_types", Integer.class);
     assertThat(documentTypeCount).isEqualTo(10);
+
+    Integer rolePermissionCount =
+        jdbc.queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);
+    // 221 APPROVED combinations from ADR-RBAC-001 (81+71+58+11); full breakdown and PENDING/
+    // NOT_ASSIGNED absence verified in RbacSeedIT.
+    assertThat(rolePermissionCount).isEqualTo(221);
   }
 }
