@@ -525,3 +525,40 @@ Detalle completo en la matriz de arriba. Categorías: exclusiones estructurales 
 **Documentos afectados:** `06_SECURITY_SPECIFICATION.md` (nueva sección `SUPPORT_SESSION` + reglas de scope), `14_DEFINITIVE_PERMISSION_CATALOG.md` (referencia a este ADR), `25_CLAUDE_CODE_EXECUTION_GUIDE.md` (alcance exacto de Sprint 2 respecto a `role_permissions`/`TenantContext`/`SUPPORT_SESSION`), `08_REQUIREMENTS_TRACEABILITY.md` (nuevo `BRK`).
 
 **Estado:** APPROVED.
+
+## ADR-IDENTITY-001 — Nullability de users.company_id (SUPERADMIN sin empresa)
+
+**Contexto:** `BRIKA_MASTER_SPEC.md` §4.1 establece explícitamente que SUPERADMIN "no pertenece necesariamente a una empresa concreta". Sin embargo, la migración ya ejecutada `V1__initial_schema.sql` define `company_id uuid NOT NULL REFERENCES companies (id)` en `users`, y `16_POSTGRESQL_SCHEMA_SPECIFICATION.md` describe la misma columna sin anotación de nullability (NOT NULL implícito por convención del documento). `15_DEFINITIVE_ERD.md` §USER reforzaba la contradicción de forma textual ("Usuario interno de una empresa. Debe pertenecer a una `COMPANY`.").
+
+**Problema:** Un SUPERADMIN no puede existir en el sistema tal como está físicamente modelado sin violar la regla de negocio de origen, o sin inventar una "empresa plataforma" ficticia que el propio negocio no ha definido.
+
+**Decisión:** `users.company_id` pasa a admitir NULL. Regla de asignación:
+- SUPERADMIN → `company_id = NULL` (obligatorio, no opcional).
+- MANAGER / BROKER / CLIENT → `company_id` sigue siendo obligatorio. La columna deja de imponerlo a nivel de constraint SQL, pero ningún flujo de creación de estos tres roles puede dejarlo vacío (validación de aplicación).
+
+No se crea una "empresa plataforma". No se crea una tabla separada para SUPERADMIN. `company_id` sigue siendo la única columna de pertenencia a tenant para `users`.
+
+La corrección se implementa mediante una nueva migración Flyway incremental (`V8`, primera libre tras `V1`–`V7`, que permanecen inmutables):
+1. `ALTER TABLE users ALTER COLUMN company_id DROP NOT NULL;`
+2. Índice único parcial `uq_users_email_no_company` sobre `(email) WHERE company_id IS NULL`, para cerrar el hueco de integridad descrito abajo.
+
+No se añade ningún `CHECK` constraint que ate `company_id IS NULL` al rol: el rol vive en `user_roles`/`roles`, no en `users`; esa coherencia se aplica en capa de aplicación (servicio de creación de usuario), no en el esquema.
+
+**Por qué no una "empresa plataforma":** introduciría un tenant sintético sin respaldo en `BRIKA_MASTER_SPEC.md`, complicaría toda condición `WHERE company_id = :tenant` con un valor especial a excluir, y contradice directamente el propio texto de origen ("no pertenece necesariamente a una empresa concreta" ya asume ausencia, no una empresa distinta).
+
+**Impacto sobre TenantContext:** para SUPERADMIN, `TenantContext` no resuelve ningún `company_id` por defecto — `company_id = NULL` en la fila del usuario autenticado se traduce directamente en "sin tenant". Para MANAGER/BROKER/CLIENT, `TenantContext` sigue resolviendo el `company_id` del usuario autenticado, que nunca puede ser NULL en la práctica para esos roles. Esta regla ya estaba descrita en `06_SECURITY_SPECIFICATION.md` §3.1B y `25_CLAUDE_CODE_EXECUTION_GUIDE.md` (Sprint 2); este ADR la ancla ahora también a nivel de esquema físico.
+
+**Impacto sobre autorización:** ningún cambio sobre `ADR-RBAC-001`. Un SUPERADMIN con `company_id = NULL` sigue sin acceso a ningún recurso tenant-owned salvo mediante `SUPPORT_SESSION` activa (no implementado en Sprint 2). `company_id = NULL` no es un bypass de tenant isolation; es la representación física de "SUPERADMIN no tiene tenant propio".
+
+**Impacto sobre integridad de datos:**
+- Las columnas que referencian `users(id)` en `V1`/`V6`/`V7` (p. ej. `case_status_history.changed_by`, `document_versions.uploaded_by`, `message.sender_user_id`, `tasks.created_by`) referencian la PK `id`, nunca `company_id`; la FK es estructuralmente inmune a este cambio.
+- Hueco detectado y corregido en esta misma migración: el índice único existente `uq_users_company_email ON users (company_id, email)` no detecta emails duplicados entre filas con `company_id IS NULL`, porque SQL trata cada NULL como distinto en un índice único compuesto. Se corrige con `uq_users_email_no_company` en `V8`.
+- Hallazgo adjunto, fuera de alcance de este ADR: `external_identity_id` no tiene hoy ningún constraint de unicidad propio (preexistente, independiente de este cambio). Queda señalado como pendiente de decisión separada.
+
+**Alternativas consideradas:** (b) empresa plataforma sintética — descartada, sin respaldo en el negocio, complica toda condición de tenant; (c) tabla `superadmins` separada de `users` — descartada, duplica identidad y complica el futuro lookup `external_identity_id` de OIDC y toda la capa de autenticación, que ya asume una única tabla `users`.
+
+**Consecuencias:** `V8` (nueva migración); actualización de `16_POSTGRESQL_SCHEMA_SPECIFICATION.md` y `15_DEFINITIVE_ERD.md` para reflejar nullability condicionada por rol; nuevos tests de aceptación; sin cambio de scope de Sprint 2 más allá de esta corrección de esquema y la validación de aplicación mínima necesaria para sostenerla.
+
+**Documentos afectados:** `16_POSTGRESQL_SCHEMA_SPECIFICATION.md`, `15_DEFINITIVE_ERD.md`, `08_REQUIREMENTS_TRACEABILITY.md`, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`, `12_DOCUMENT_MANIFEST.md`.
+
+**Estado:** APPROVED.

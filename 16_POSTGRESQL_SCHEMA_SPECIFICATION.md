@@ -5,7 +5,7 @@
 - PostgreSQL como base de datos principal.
 - UUID como identificador público de entidades de negocio.
 - `created_at` y `updated_at` en entidades mutables.
-- `company_id` obligatorio en recursos tenant-owned.
+- `company_id` obligatorio en recursos tenant-owned. Excepción única: `users.company_id` es nullable para permitir `SUPERADMIN` sin empresa (`ADR-IDENTITY-001`); para MANAGER/BROKER/CLIENT sigue siendo obligatorio, aplicado en capa de aplicación.
 - FK con restricciones explícitas.
 - Índices orientados a tenant + consultas frecuentes.
 - JSONB sólo para metadata/configuración realmente variable.
@@ -39,7 +39,7 @@ Porcentajes/tipos financieros calculados: `numeric` con precisión suficiente, e
 
 ### users
 - id uuid PK
-- company_id FK
+- company_id FK, **nullable** (`V8`): NULL únicamente para `SUPERADMIN`; obligatorio en aplicación para MANAGER/BROKER/CLIENT (`ADR-IDENTITY-001`)
 - external_identity_id
 - email
 - first_name
@@ -47,6 +47,8 @@ Porcentajes/tipos financieros calculados: `numeric` con precisión suficiente, e
 - status
 - created_at
 - updated_at
+
+Índices: `uq_users_company_email (company_id, email)` para usuarios con empresa; `uq_users_email_no_company (email) WHERE company_id IS NULL` para SUPERADMIN — necesario porque SQL no detecta duplicados de NULL en un índice único compuesto (`ADR-IDENTITY-001`).
 
 ### roles
 - id uuid PK

@@ -116,9 +116,7 @@ Clave:
 - `id`
 
 ### USER
-Usuario interno de una empresa.
-
-Debe pertenecer a una `COMPANY`.
+Usuario interno de una empresa, con una excepción: `SUPERADMIN` no pertenece a ninguna `COMPANY` (`company_id = NULL`), conforme a `BRIKA_MASTER_SPEC.md` §4.1 y `ADR-IDENTITY-001`. MANAGER, BROKER y CLIENT deben pertenecer siempre a una `COMPANY`.
 
 No debe utilizarse como propietario de los contactos bancarios: el propietario es `COMPANY`.
 

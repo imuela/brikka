@@ -63,6 +63,8 @@ No incluye todavía lógica de negocio ni RBAC funcional.
 
 ### Sprint 2 — Identity + Tenant + RBAC
 
+**`users.company_id` (`ADR-IDENTITY-001`, resuelto en fase previa a Sprint 2 mediante `V8__users_company_id_nullable.sql`):** nullable únicamente para `SUPERADMIN` (`company_id = NULL`); obligatorio en aplicación para MANAGER/BROKER/CLIENT. No existe "empresa plataforma" ni tabla separada para SUPERADMIN. Índice `uq_users_email_no_company (email) WHERE company_id IS NULL` complementa a `uq_users_company_email` para evitar duplicados de email entre SUPERADMIN.
+
 - companies, users, roles, permissions, user_roles, role_permissions;
 - `plans`, `entitlements`, `plan_entitlements`, `company_subscriptions` (`ADR-PLATFORM-001`) — la gestión de empresa/plataforma vive aquí porque es prerrequisito de cualquier feature limitada por plan;
 - autenticación (OAuth/OIDC), autorización (permission **y** entitlement), TenantContext;

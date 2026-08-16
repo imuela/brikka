@@ -59,3 +59,5 @@ Antes de congelar V1, todo requisito crítico debe tener:
 | BRK-037 | Python Worker sin acceso directo a PostgreSQL, aislado de red | ADR-AI-001 / Security / Technical |
 
 | BRK-038 | Matriz RBAC definitiva (110 permisos × 4 roles) con `SUPPORT_SESSION` como único acceso de SUPERADMIN a recursos tenant-owned, sin bypass permanente de tenant | ADR-RBAC-001 / Security / Permission Catalog |
+
+| BRK-039 | `users.company_id` nullable únicamente para SUPERADMIN; obligatorio en aplicación para MANAGER/BROKER/CLIENT; TenantContext resuelve "sin tenant" para SUPERADMIN | ADR-IDENTITY-001 / PostgreSQL Schema / ERD / Security |
