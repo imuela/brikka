@@ -21,11 +21,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 17_API_SPECIFICATION_DETAILED.md §18, Sprint 7 (D2): minimal internal subset needed for CLIENT
- * conversations to actually work — only type CLIENT is ever created here (validated), never
- * INTERNAL/SYSTEM (Sprint 8 scope, structurally possible in the schema but not reachable through
- * any endpoint in this sprint). TENANT + ROLE/PERMISSION + CASE ASSIGNMENT via CaseAccessService,
- * exactly as every other case-scoped resource since Sprint 3.
+ * 17_API_SPECIFICATION_DETAILED.md §18. CLIENT (Sprint 7, D2) and INTERNAL (Sprint 8) conversations
+ * are both created here. SYSTEM is never created by any endpoint — no sprint documents it. TENANT +
+ * ROLE/PERMISSION + CASE ASSIGNMENT via CaseAccessService, exactly as every other case-scoped
+ * resource since Sprint 3. INTERNAL never has a conversation_participants row (ADR-COMMS-002:
+ * authorization stays implicit via CASE ASSIGNMENT) — participant management endpoints are
+ * therefore CLIENT-only.
  */
 @RestController
 public class ConversationController {
@@ -66,23 +67,34 @@ public class ConversationController {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CONVERSATION_CREATE", caseId);
 
-    List<UUID> clientIds = request.clientIds();
-    if (clientIds == null || clientIds.isEmpty()) {
+    String type = request.type();
+    if (!"CLIENT".equals(type) && !"INTERNAL".equals(type)) {
       throw new ValidationException(
-          "PARTICIPANTS_REQUIRED", "A CLIENT conversation requires at least one participant.");
-    }
-    for (UUID clientId : clientIds) {
-      if (!caseClientRepository.exists(access.theCase().id(), clientId)) {
-        throw new ValidationException(
-            "CLIENT_NOT_IN_CASE", "Client " + clientId + " is not a participant of this case.");
-      }
+          "INVALID_CONVERSATION_TYPE", "type must be CLIENT or INTERNAL.");
     }
 
-    UUID conversationId =
-        conversationRepository.insert(access.tenantId(), access.theCase().id(), "CLIENT");
-    for (UUID clientId : clientIds) {
-      conversationParticipantRepository.insertClientParticipant(
-          access.tenantId(), conversationId, clientId);
+    UUID conversationId;
+    if ("CLIENT".equals(type)) {
+      List<UUID> clientIds = request.clientIds();
+      if (clientIds == null || clientIds.isEmpty()) {
+        throw new ValidationException(
+            "PARTICIPANTS_REQUIRED", "A CLIENT conversation requires at least one participant.");
+      }
+      for (UUID clientId : clientIds) {
+        if (!caseClientRepository.exists(access.theCase().id(), clientId)) {
+          throw new ValidationException(
+              "CLIENT_NOT_IN_CASE", "Client " + clientId + " is not a participant of this case.");
+        }
+      }
+      conversationId =
+          conversationRepository.insert(access.tenantId(), access.theCase().id(), "CLIENT");
+      for (UUID clientId : clientIds) {
+        conversationParticipantRepository.insertClientParticipant(
+            access.tenantId(), conversationId, clientId);
+      }
+    } else {
+      conversationId =
+          conversationRepository.insert(access.tenantId(), access.theCase().id(), "INTERNAL");
     }
 
     return ConversationResponse.from(conversationRepository.findById(conversationId).orElseThrow());
@@ -93,6 +105,7 @@ public class ConversationController {
       Authentication authentication, @PathVariable UUID id) {
     Conversation conversation =
         requireAccessibleConversation(authentication, "CONVERSATION_READ", id);
+    requireClientType(conversation);
     return conversationParticipantRepository.findActiveByConversationId(conversation.id()).stream()
         .map(ConversationParticipantResponse::from)
         .toList();
@@ -105,6 +118,7 @@ public class ConversationController {
       @RequestBody AddConversationParticipantApiRequest request) {
     Conversation conversation =
         requireAccessibleConversation(authentication, "CONVERSATION_PARTICIPANT_MANAGE", id);
+    requireClientType(conversation);
 
     if (request.clientId() == null) {
       throw new ValidationException("CLIENT_ID_REQUIRED", "clientId is required.");
@@ -127,6 +141,7 @@ public class ConversationController {
       Authentication authentication, @PathVariable UUID id, @PathVariable UUID participantId) {
     Conversation conversation =
         requireAccessibleConversation(authentication, "CONVERSATION_PARTICIPANT_MANAGE", id);
+    requireClientType(conversation);
 
     ConversationParticipant participant =
         conversationParticipantRepository
@@ -164,6 +179,13 @@ public class ConversationController {
     UUID messageId =
         messageRepository.insertFromUser(conversation.id(), access.user().id(), request.body());
     return MessageResponse.from(messageRepository.findById(messageId).orElseThrow());
+  }
+
+  private void requireClientType(Conversation conversation) {
+    if (!"CLIENT".equals(conversation.type())) {
+      throw new ValidationException(
+          "PARTICIPANTS_NOT_SUPPORTED_FOR_TYPE", "Only CLIENT conversations have participants.");
+    }
   }
 
   private Conversation requireConversation(UUID id) {

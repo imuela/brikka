@@ -185,7 +185,8 @@ class PortalEndpointsIT {
   private UUID createClientConversation(TestPrincipal manager, UUID caseId, UUID clientId)
       throws Exception {
     String body =
-        objectMapper.writeValueAsString(new CreateConversationApiRequest(List.of(clientId)));
+        objectMapper.writeValueAsString(
+            new CreateConversationApiRequest("CLIENT", List.of(clientId)));
     String response =
         mockMvc
             .perform(
