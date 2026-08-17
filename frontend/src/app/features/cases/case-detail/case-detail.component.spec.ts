@@ -48,6 +48,12 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
+      .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -61,6 +67,12 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`)
       .flush([{ clientId: 'c1', firstName: 'Ada', lastName: 'Lovelace', participationType: 'HOLDER', isPrimary: true }]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
+      .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -77,6 +89,12 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'CASE_NOT_FOUND', message: 'Case not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
+      .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Case not found.');
@@ -88,16 +106,49 @@ describe('CaseDetailComponent', () => {
     flushInitialLoad();
     fixture.detectChanges();
 
-    for (const label of ['Cambiar estado', 'Cancelar', 'Reabrir', 'Asignar']) {
+    const gatedLabels = [
+      'Cambiar estado',
+      'Cancelar',
+      'Reabrir',
+      'Asignar',
+      'Registrar inmueble',
+      'Nuevo documento',
+    ];
+    for (const label of gatedLabels) {
       expect(fixture.nativeElement.textContent).not.toContain(label);
     }
 
-    sessionStore.setPermissions(['CASE_CHANGE_STATUS', 'CASE_CANCEL', 'CASE_REOPEN', 'CASE_ASSIGN']);
+    sessionStore.setPermissions([
+      'CASE_CHANGE_STATUS',
+      'CASE_CANCEL',
+      'CASE_REOPEN',
+      'CASE_ASSIGN',
+      'PROPERTY_READ',
+      'PROPERTY_UPDATE',
+      'DOCUMENT_READ',
+      'DOCUMENT_CREATE',
+    ]);
     fixture.detectChanges();
 
-    for (const label of ['Cambiar estado', 'Cancelar', 'Reabrir', 'Asignar']) {
+    for (const label of gatedLabels) {
       expect(fixture.nativeElement.textContent).toContain(label);
     }
+  });
+
+  it('the Documentos and Solicitudes sections are gated by DOCUMENT_READ / DOCUMENT_REQUEST', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Documentos');
+    expect(fixture.nativeElement.textContent).not.toContain('Solicitudes de documentos');
+
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_REQUEST']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Documentos');
+    expect(fixture.nativeElement.textContent).toContain('Solicitudes de documentos');
   });
 
   it('openChangeStatus opens the dialog and applies the returned case on close', () => {
@@ -146,5 +197,72 @@ describe('CaseDetailComponent', () => {
 
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients/c1`).flush(null);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+  });
+
+  it('openProperty opens the dialog and applies the returned property on close', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const property = {
+      id: 'p1',
+      companyId: 'co1',
+      caseId: 'k1',
+      address: { street: 'Gran Via' },
+      propertyType: 'FLAT',
+      valuation: 250000,
+      purchasePrice: null,
+    };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(property) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openProperty();
+
+    expect(openSpy).toHaveBeenCalled();
+    expect(fixture.componentInstance.property()).toEqual(property);
+  });
+
+  it('publish and unpublish call the correct document endpoints', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    fixture.componentInstance.publish('d1');
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/documents/d1/publish`)
+      .flush({ id: 'pub1', documentId: 'd1', documentVersionId: 'v1', publishedToPortal: true, publishedAt: '2026-08-17T10:00:00Z' });
+
+    fixture.componentInstance.unpublish('d1');
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/documents/d1/unpublish`).flush(null);
+  });
+
+  it('updateDocumentRequestStatus patches the request then reloads the list', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    fixture.componentInstance.updateDocumentRequestStatus('dr1', 'FULFILLED');
+
+    const patchReq = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-requests/dr1`);
+    expect(patchReq.request.method).toBe('PATCH');
+    expect(patchReq.request.body).toEqual({ status: 'FULFILLED' });
+    patchReq.flush({
+      id: 'dr1',
+      companyId: 'co1',
+      caseId: 'k1',
+      documentTypeId: 't1',
+      requestedFromClientId: null,
+      status: 'FULFILLED',
+      dueAt: null,
+      requestedBy: 'u1',
+      requirementId: null,
+    });
+
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
   });
 });

@@ -21,6 +21,10 @@ export class ApiClient {
     return this.http.patch<T>(`${environment.apiBaseUrl}${path}`, body);
   }
 
+  put<T>(path: string, body: unknown = {}): Observable<T> {
+    return this.http.put<T>(`${environment.apiBaseUrl}${path}`, body);
+  }
+
   delete<T>(path: string): Observable<T> {
     return this.http.delete<T>(`${environment.apiBaseUrl}${path}`);
   }

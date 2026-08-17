@@ -109,4 +109,160 @@
       </table>
     }
   </div>
+
+  <div class="section" *appHasPermission="'PROPERTY_READ'">
+    <div class="section-header">
+      <h2>Inmueble</h2>
+      <button
+        *appHasPermission="'PROPERTY_UPDATE'"
+        mat-flat-button
+        color="primary"
+        (click)="openProperty()">
+        {{ property() ? 'Editar' : 'Registrar inmueble' }}
+      </button>
+    </div>
+    @if (propertyLoading()) {
+      <mat-spinner diameter="24" />
+    } @else if (property() === null) {
+      <p>Sin inmueble registrado.</p>
+    } @else {
+      <p><strong>Tipo:</strong> {{ property()!.propertyType }}</p>
+      @if (property()!.valuation !== null) {
+        <p><strong>Valoración:</strong> {{ property()!.valuation }} €</p>
+      }
+      @if (property()!.purchasePrice !== null) {
+        <p><strong>Precio de compra:</strong> {{ property()!.purchasePrice }} €</p>
+      }
+    }
+  </div>
+
+  <div class="section" *appHasPermission="'DOCUMENT_READ'">
+    <div class="section-header">
+      <h2>Documentos</h2>
+      <button
+        *appHasPermission="'DOCUMENT_CREATE'"
+        mat-flat-button
+        color="primary"
+        (click)="openCreateDocument()">
+        Nuevo documento
+      </button>
+    </div>
+    @if (documents() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (documents()!.length === 0) {
+      <p>Sin documentos todavía.</p>
+    } @else {
+      <table mat-table [dataSource]="documents()!">
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Tipo</th>
+          <td mat-cell *matCellDef="let document">
+            {{ documentTypeName(document.documentTypeId) }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let document">{{ document.status }}</td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let document">
+            <button
+              *appHasPermission="'DOCUMENT_UPLOAD'"
+              mat-button
+              (click)="openUploadVersion(document.id)">
+              Subir versión
+            </button>
+            <button mat-button (click)="openVersions(document.id)">Versiones</button>
+            @if (document.currentVersionId) {
+              <button
+                *appHasPermission="'DOCUMENT_DOWNLOAD'"
+                mat-button
+                (click)="download(document.id)">
+                Descargar
+              </button>
+            }
+            @if (document.status === 'PENDING') {
+              <button
+                *appHasPermission="'DOCUMENT_APPROVE'"
+                mat-button
+                (click)="openReviewDocument(document.id)">
+                Revisar
+              </button>
+            }
+            <button
+              *appHasPermission="'DOCUMENT_PUBLISH'"
+              mat-button
+              (click)="publish(document.id)">
+              Publicar
+            </button>
+            <button
+              *appHasPermission="'DOCUMENT_UNPUBLISH'"
+              mat-button
+              (click)="unpublish(document.id)">
+              Despublicar
+            </button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="documentColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: documentColumns"></tr>
+      </table>
+    }
+  </div>
+
+  <div class="section" *appHasPermission="'DOCUMENT_REQUEST'">
+    <div class="section-header">
+      <h2>Solicitudes de documentos</h2>
+      <button mat-flat-button color="primary" (click)="openCreateDocumentRequest()">
+        Nueva solicitud
+      </button>
+    </div>
+    @if (documentRequests() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (documentRequests()!.length === 0) {
+      <p>Sin solicitudes todavía.</p>
+    } @else {
+      <table mat-table [dataSource]="documentRequests()!">
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Tipo</th>
+          <td mat-cell *matCellDef="let request">
+            {{ documentTypeName(request.documentTypeId) }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="client">
+          <th mat-header-cell *matHeaderCellDef>Cliente</th>
+          <td mat-cell *matCellDef="let request">
+            {{ clientName(request.requestedFromClientId) }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let request">{{ request.status }}</td>
+        </ng-container>
+        <ng-container matColumnDef="dueAt">
+          <th mat-header-cell *matHeaderCellDef>Fecha límite</th>
+          <td mat-cell *matCellDef="let request">
+            {{ request.dueAt ? (request.dueAt | date: 'shortDate') : '—' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let request">
+            @if (request.status === 'PENDING') {
+              <button mat-button (click)="updateDocumentRequestStatus(request.id, 'FULFILLED')">
+                Marcar cumplida
+              </button>
+              <button
+                mat-button
+                color="warn"
+                (click)="updateDocumentRequestStatus(request.id, 'CANCELLED')">
+                Cancelar
+              </button>
+            }
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="documentRequestColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: documentRequestColumns"></tr>
+      </table>
+    }
+  </div>
 }

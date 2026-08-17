@@ -222,6 +222,19 @@ class DocumentEndpointsIT {
   }
 
   @Test
+  void listDocumentTypesReturnsSeededGlobalCatalog() throws Exception {
+    UUID companyId = companyRepository.insert("Co DT1", "Co DT1", "TC-DT1");
+    TestPrincipal broker = createUser(UserRole.BROKER, companyId, "broker-dt1");
+
+    mockMvc
+        .perform(get("/api/v1/document-types").header("Authorization", broker.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(10)))
+        .andExpect(jsonPath("$[0].code").exists())
+        .andExpect(jsonPath("$[0].name").exists());
+  }
+
+  @Test
   void propertyUpsertAndGetWorkForAssignedBroker() throws Exception {
     UUID companyId = companyRepository.insert("Co PR1", "Co PR1", "TC-PR1");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-pr1");

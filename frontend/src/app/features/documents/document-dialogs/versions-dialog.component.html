@@ -1,0 +1,45 @@
+<h2 mat-dialog-title>Versiones del documento</h2>
+<mat-dialog-content>
+  @if (error()) {
+    <p class="error-text">{{ error() }}</p>
+  }
+
+  @if (versions() === null) {
+    <mat-spinner diameter="32" />
+  } @else if (versions()!.length === 0) {
+    <p>Sin versiones todavía.</p>
+  } @else {
+    <table mat-table [dataSource]="versions()!">
+      <ng-container matColumnDef="versionNumber">
+        <th mat-header-cell *matHeaderCellDef>Versión</th>
+        <td mat-cell *matCellDef="let version">{{ version.versionNumber }}</td>
+      </ng-container>
+      <ng-container matColumnDef="originalFilename">
+        <th mat-header-cell *matHeaderCellDef>Fichero</th>
+        <td mat-cell *matCellDef="let version">{{ version.originalFilename }}</td>
+      </ng-container>
+      <ng-container matColumnDef="reviewStatus">
+        <th mat-header-cell *matHeaderCellDef>Estado</th>
+        <td mat-cell *matCellDef="let version">{{ version.reviewStatus }}</td>
+      </ng-container>
+      <ng-container matColumnDef="uploadedAt">
+        <th mat-header-cell *matHeaderCellDef>Subido</th>
+        <td mat-cell *matCellDef="let version">{{ version.uploadedAt | date: 'short' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let version">
+          <button mat-icon-button (click)="download(version.id)" aria-label="Descargar">
+            <mat-icon>download</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Cerrar</button>
+</mat-dialog-actions>

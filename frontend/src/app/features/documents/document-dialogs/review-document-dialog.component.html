@@ -1,0 +1,32 @@
+<h2 mat-dialog-title>Revisar documento</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <mat-form-field>
+      <mat-label>Decisión</mat-label>
+      <mat-select formControlName="decision" required>
+        <mat-option value="APPROVED">Aprobar</mat-option>
+        <mat-option value="REJECTED">Rechazar / solicitar nueva versión</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Comentario (opcional)</mat-label>
+      <input matInput formControlName="comment" />
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Confirmar
+      }
+    </button>
+  </mat-dialog-actions>
+</form>
