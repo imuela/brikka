@@ -1,0 +1,10 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Sesión iniciada</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <p>Email: {{ sessionStore.user()?.email }}</p>
+    <p>Rol: {{ sessionStore.role() }}</p>
+    <p>Empresa: {{ sessionStore.companyId() ?? '—' }}</p>
+  </mat-card-content>
+</mat-card>

@@ -84,7 +84,7 @@ export TESTCONTAINERS_RYUK_DISABLED=true
 
 Con Ryuk desactivado, los contenedores de test no se limpian automáticamente al terminar la JVM — puede acumularse basura en `docker ps -a` tras varias ejecuciones; bórrala manualmente si hace falta (`docker container prune`). No hace falta con Docker Desktop estándar ni en el runner de CI.
 
-## 5. Frontend (esqueleto, sin features de negocio)
+## 5. Frontend (Sprint 13: foundation, OIDC/PKCE, shell — sin features de negocio)
 
 ```bash
 cd frontend
@@ -93,6 +93,33 @@ npm run lint
 npm test -- --watch=false
 npm run build
 npm start   # sirve en :4200
+```
+
+Login real contra Keycloak: con la infraestructura del paso 2 levantada (el realm `brika` se
+importa automáticamente desde `keycloak/brika-realm.json`, `ADR-FRONTEND-001`), abre
+`http://localhost:4200`, pulsa "Iniciar sesión" y usa el usuario de demostración ya sembrado en
+el realm:
+
+```
+usuario: demo.manager
+contraseña: brika_dev_password
+```
+
+Ese usuario de Keycloak no tiene por sí solo ninguna fila en `users` — para que `GET /me`
+resuelva una identidad hace falta una empresa y un usuario en PostgreSQL cuyo
+`external_identity_id` coincida con el `id` fijado en el realm-export
+(`11111111-1111-1111-1111-111111111111`):
+
+```sql
+INSERT INTO companies (legal_name, trade_name, tax_id, status)
+VALUES ('Demo Broker S.L.', 'Demo Broker', 'DEMO-TAX-001', 'ACTIVE') RETURNING id;
+
+INSERT INTO users (company_id, external_identity_id, email, first_name, last_name, status)
+VALUES ('<id de la empresa anterior>', '11111111-1111-1111-1111-111111111111',
+        'demo.manager@brika.test', 'Demo', 'Manager', 'ACTIVE') RETURNING id;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT '<id del usuario anterior>', id FROM roles WHERE code = 'MANAGER';
 ```
 
 ## 6. Parar el entorno

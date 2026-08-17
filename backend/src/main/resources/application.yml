@@ -23,16 +23,20 @@ spring:
 
 brika:
   security:
-    # Not validated when unset (empty string): no Keycloak realm/client is
-    # provisioned yet (Sprint 0 only started bare Keycloak, no "brika" realm
-    # — see 19_IDENTITY_OAUTH_SPECIFICATION.md, no documented client id/aud).
-    # Set once the realm exists, so audience validation (§4) is enforced.
+    # Sprint 13 D2: the "brika" realm now exists (keycloak/brika-realm.json, imported
+    # automatically via --import-realm), but its public frontend client has no configured
+    # audience claim (public/PKCE clients don't get one by default), so this stays empty —
+    # setting an invented value here would fail every real token. Revisit once a concrete
+    # audience requirement is approved.
     expected-audience: ${OIDC_EXPECTED_AUDIENCE:}
-    # ADR-PORTAL-AUTH-001 (Sprint 7): separate Keycloak realm for Portal
-    # Cliente, same Keycloak instance. Also not provisioned yet — lazy
-    # decoder (LazyIssuerJwtDecoder), same rationale as above.
+    # ADR-PORTAL-AUTH-001 (Sprint 7): separate Keycloak realm for Portal Cliente, same
+    # Keycloak instance. Still not provisioned (out of Sprint 13 scope, internal frontend
+    # only) — lazy decoder (LazyIssuerJwtDecoder) tolerates this exactly as before.
     portal-issuer-uri: ${OIDC_PORTAL_ISSUER_URI:http://localhost:18081/realms/brika-portal}
     portal-expected-audience: ${OIDC_PORTAL_EXPECTED_AUDIENCE:}
+    # Sprint 13 D1 (06_SECURITY_SPECIFICATION.md §9, "CORS controlado"): comma-separated list
+    # of allowed browser origins, never a wildcard. Defaults to the local Angular dev server.
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
 
   ai:
     # D10-5: local/testable transport is the default so `mvn verify` never depends on a

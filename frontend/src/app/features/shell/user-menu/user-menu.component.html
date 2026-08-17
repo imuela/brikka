@@ -1,0 +1,11 @@
+<button mat-button [matMenuTriggerFor]="menu">
+  <mat-icon>account_circle</mat-icon>
+  {{ sessionStore.user()?.email }}
+</button>
+<mat-menu #menu="matMenu">
+  <div class="user-menu-role" mat-menu-item disabled>{{ sessionStore.role() }}</div>
+  <button mat-menu-item (click)="logout()">
+    <mat-icon>logout</mat-icon>
+    <span>Cerrar sesión</span>
+  </button>
+</mat-menu>

@@ -1,0 +1,18 @@
+<div class="callback-page">
+  @if (errorMessage()) {
+    <mat-card class="callback-card">
+      <mat-card-header>
+        <mat-card-title>No se pudo iniciar sesión</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>{{ errorMessage() }}</p>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-flat-button color="primary" (click)="retry()">Volver a intentarlo</button>
+      </mat-card-actions>
+    </mat-card>
+  } @else {
+    <mat-spinner diameter="40" />
+    <p>Completando inicio de sesión…</p>
+  }
+</div>

@@ -19,6 +19,9 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.StringUtils;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * 19_IDENTITY_OAUTH_SPECIFICATION.md §1/§4: backend validates bearer tokens (issuer, signature,
@@ -33,6 +36,12 @@ import org.springframework.util.StringUtils;
  * against the internal realm exactly as before. A token issued by one realm can never authenticate
  * against the other chain — the issuer check fails before either converter runs — so this is a hard
  * separation, not just a routing convention.
+ *
+ * <p>Sprint 13 D1 (06_SECURITY_SPECIFICATION.md §9, "CORS controlado"): both chains accept
+ * cross-origin requests only from the explicitly configured frontend origin(s) — never a wildcard.
+ * Bearer tokens are never ambient credentials (unlike cookies), so {@code allowCredentials} stays
+ * false; the browser only attaches the Authorization header because the frontend code sets it
+ * explicitly per request.
  */
 @Configuration
 @EnableWebSecurity
@@ -42,16 +51,20 @@ public class SecurityConfig {
   private final String expectedAudience;
   private final String portalIssuerUri;
   private final String portalExpectedAudience;
+  private final List<String> corsAllowedOrigins;
 
   public SecurityConfig(
       @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
       @Value("${brika.security.expected-audience:}") String expectedAudience,
       @Value("${brika.security.portal-issuer-uri}") String portalIssuerUri,
-      @Value("${brika.security.portal-expected-audience:}") String portalExpectedAudience) {
+      @Value("${brika.security.portal-expected-audience:}") String portalExpectedAudience,
+      @Value("${brika.security.cors-allowed-origins:http://localhost:4200}")
+          List<String> corsAllowedOrigins) {
     this.issuerUri = issuerUri;
     this.expectedAudience = expectedAudience;
     this.portalIssuerUri = portalIssuerUri;
     this.portalExpectedAudience = portalExpectedAudience;
+    this.corsAllowedOrigins = corsAllowedOrigins;
   }
 
   @Bean
@@ -63,6 +76,7 @@ public class SecurityConfig {
       throws Exception {
     http.securityMatcher("/api/v1/portal/**")
         .csrf(csrf -> csrf.disable())
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
@@ -83,6 +97,7 @@ public class SecurityConfig {
       JwtDecoder jwtDecoder)
       throws Exception {
     http.csrf(csrf -> csrf.disable())
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
@@ -100,6 +115,19 @@ public class SecurityConfig {
                         jwt.decoder(jwtDecoder)
                             .jwtAuthenticationConverter(brikaJwtAuthenticationConverter)));
     return http.build();
+  }
+
+  @Bean
+  CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(corsAllowedOrigins);
+    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+    configuration.setExposedHeaders(List.of("X-Request-Id"));
+    configuration.setAllowCredentials(false);
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
   }
 
   @Bean

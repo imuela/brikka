@@ -88,7 +88,11 @@ services:
   identity:
     image: quay.io/keycloak/keycloak:26.0
     container_name: brika-identity
-    command: start-dev --health-enabled=true
+    # Sprint 13 D2: --import-realm loads keycloak/brika-realm.json (versioned in the repo) on
+    # every boot — the "brika" realm + brika-frontend client (public, PKCE S256, Authorization
+    # Code) + one seeded demo user now exist reproducibly instead of requiring manual Admin
+    # Console setup. See 19_IDENTITY_OAUTH_SPECIFICATION.md and 12_DECISION_LOG.md ADR-FRONTEND-001.
+    command: start-dev --health-enabled=true --import-realm
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin_dev_password}
@@ -98,6 +102,7 @@ services:
       - "127.0.0.1:${KEYCLOAK_HEALTH_PORT:-19090}:9000"
     volumes:
       - brika_identity_data:/opt/keycloak/data
+      - ./keycloak/brika-realm.json:/opt/keycloak/data/import/brika-realm.json:ro
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'UP' <&3"]
       interval: 10s
