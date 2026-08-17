@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from './auth/auth.guard';
+import { permissionGuard } from './auth/permission.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'app' },
@@ -34,8 +35,82 @@ export const routes: Routes = [
             (m) => m.ForbiddenComponent,
           ),
       },
-      // Sprint 14+ feature routes are added here, each with its own `data: { permission: '...' }`
-      // guarded by permissionGuard — none exist yet (Sprint 13 scope).
+      // Sprint 14: Clientes (CRM). "new" must precede ":id" so it is not matched as an id param.
+      {
+        path: 'clients',
+        canActivate: [permissionGuard],
+        data: { permission: 'CLIENT_READ' },
+        loadComponent: () =>
+          import('./features/clients/client-list/client-list.component').then(
+            (m) => m.ClientListComponent,
+          ),
+      },
+      {
+        path: 'clients/new',
+        canActivate: [permissionGuard],
+        data: { permission: 'CLIENT_CREATE' },
+        loadComponent: () =>
+          import('./features/clients/client-form/client-form.component').then(
+            (m) => m.ClientFormComponent,
+          ),
+      },
+      {
+        path: 'clients/:id/edit',
+        canActivate: [permissionGuard],
+        data: { permission: 'CLIENT_UPDATE' },
+        loadComponent: () =>
+          import('./features/clients/client-form/client-form.component').then(
+            (m) => m.ClientFormComponent,
+          ),
+      },
+      {
+        path: 'clients/:id',
+        canActivate: [permissionGuard],
+        data: { permission: 'CLIENT_READ' },
+        loadComponent: () =>
+          import('./features/clients/client-detail/client-detail.component').then(
+            (m) => m.ClientDetailComponent,
+          ),
+      },
+      // Sprint 14: Casos (Operaciones). Same "new"-before-":id" ordering rule applies.
+      {
+        path: 'cases',
+        canActivate: [permissionGuard],
+        data: { permission: 'CASE_READ' },
+        loadComponent: () =>
+          import('./features/cases/case-list/case-list.component').then(
+            (m) => m.CaseListComponent,
+          ),
+      },
+      {
+        path: 'cases/new',
+        canActivate: [permissionGuard],
+        data: { permission: 'CASE_CREATE' },
+        loadComponent: () =>
+          import('./features/cases/case-form/case-form.component').then(
+            (m) => m.CaseFormComponent,
+          ),
+      },
+      {
+        path: 'cases/:id/edit',
+        canActivate: [permissionGuard],
+        data: { permission: 'CASE_UPDATE' },
+        loadComponent: () =>
+          import('./features/cases/case-form/case-form.component').then(
+            (m) => m.CaseFormComponent,
+          ),
+      },
+      {
+        path: 'cases/:id',
+        canActivate: [permissionGuard],
+        data: { permission: 'CASE_READ' },
+        loadComponent: () =>
+          import('./features/cases/case-detail/case-detail.component').then(
+            (m) => m.CaseDetailComponent,
+          ),
+      },
+      // Sprint 15+ feature routes are added here, each with its own `data: { permission: '...' }`
+      // guarded by permissionGuard — none exist yet (Sprint 14 scope: Clientes + Casos only).
     ],
   },
   { path: '**', redirectTo: 'app' },

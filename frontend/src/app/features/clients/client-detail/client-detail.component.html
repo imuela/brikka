@@ -1,0 +1,24 @@
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+} @else if (client() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <div class="page-header">
+    <h1>{{ client()!.firstName }} {{ client()!.lastName }}</h1>
+    <a
+      *appHasPermission="'CLIENT_UPDATE'"
+      mat-flat-button
+      color="primary"
+      [routerLink]="['/app/clients', clientId, 'edit']">
+      Editar
+    </a>
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Email:</strong> {{ client()!.email }}</p>
+      <p><strong>Teléfono:</strong> {{ client()!.phone }}</p>
+      <p><strong>Estado:</strong> {{ client()!.status }}</p>
+    </mat-card-content>
+  </mat-card>
+}

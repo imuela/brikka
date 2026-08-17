@@ -1,0 +1,112 @@
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+}
+
+@if (theCase() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <div class="page-header">
+    <h1>{{ theCase()!.reference }}</h1>
+    <a
+      *appHasPermission="'CASE_UPDATE'"
+      mat-flat-button
+      color="primary"
+      [routerLink]="['/app/cases', caseId, 'edit']">
+      Editar
+    </a>
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Tipo de operación:</strong> {{ theCase()!.operationType }}</p>
+      <p><strong>Estado:</strong> {{ theCase()!.status }}</p>
+      <p><strong>Creado:</strong> {{ theCase()!.createdAt }}</p>
+      @if (theCase()!.cancelledAt) {
+        <p><strong>Cancelado:</strong> {{ theCase()!.cancelledAt }}</p>
+      }
+    </mat-card-content>
+    <mat-card-actions>
+      <button *appHasPermission="'CASE_CHANGE_STATUS'" mat-button (click)="openChangeStatus()">
+        Cambiar estado
+      </button>
+      <button *appHasPermission="'CASE_CANCEL'" mat-button color="warn" (click)="openCancel()">
+        Cancelar
+      </button>
+      <button *appHasPermission="'CASE_REOPEN'" mat-button (click)="openReopen()">Reabrir</button>
+    </mat-card-actions>
+  </mat-card>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Asignaciones</h2>
+      <button *appHasPermission="'CASE_ASSIGN'" mat-flat-button color="primary" (click)="openAssign()">
+        Asignar
+      </button>
+    </div>
+    @if (assignments() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (assignments()!.length === 0) {
+      <p>Sin asignaciones.</p>
+    } @else {
+      <table mat-table [dataSource]="assignments()!">
+        <ng-container matColumnDef="userId">
+          <th mat-header-cell *matHeaderCellDef>Usuario</th>
+          <td mat-cell *matCellDef="let assignment">{{ assignment.userId }}</td>
+        </ng-container>
+        <ng-container matColumnDef="assignmentType">
+          <th mat-header-cell *matHeaderCellDef>Tipo</th>
+          <td mat-cell *matCellDef="let assignment">{{ assignment.assignmentType }}</td>
+        </ng-container>
+        <ng-container matColumnDef="active">
+          <th mat-header-cell *matHeaderCellDef>Activa</th>
+          <td mat-cell *matCellDef="let assignment">{{ assignment.active ? 'Sí' : 'No' }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="assignmentColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: assignmentColumns"></tr>
+      </table>
+    }
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Clientes del caso</h2>
+      <button *appHasPermission="'CASE_UPDATE'" mat-flat-button color="primary" (click)="openAddClient()">
+        Añadir cliente
+      </button>
+    </div>
+    @if (clients() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (clients()!.length === 0) {
+      <p>Sin clientes asociados.</p>
+    } @else {
+      <table mat-table [dataSource]="clients()!">
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Nombre</th>
+          <td mat-cell *matCellDef="let client">{{ client.firstName }} {{ client.lastName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="participationType">
+          <th mat-header-cell *matHeaderCellDef>Participación</th>
+          <td mat-cell *matCellDef="let client">{{ client.participationType }}</td>
+        </ng-container>
+        <ng-container matColumnDef="isPrimary">
+          <th mat-header-cell *matHeaderCellDef>Titular principal</th>
+          <td mat-cell *matCellDef="let client">{{ client.isPrimary ? 'Sí' : 'No' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let client">
+            <button
+              *appHasPermission="'CASE_UPDATE'"
+              mat-icon-button
+              (click)="removeClient(client.clientId)"
+              aria-label="Quitar cliente">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="clientColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: clientColumns"></tr>
+      </table>
+    }
+  </div>
+}

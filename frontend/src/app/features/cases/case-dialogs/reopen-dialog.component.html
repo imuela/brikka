@@ -1,0 +1,33 @@
+<h2 mat-dialog-title>Reabrir caso</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <mat-form-field>
+      <mat-label>Estado destino</mat-label>
+      <mat-select formControlName="targetStatus" required>
+        @for (status of statuses; track status) {
+          <mat-option [value]="status">{{ status }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Motivo (opcional)</mat-label>
+      <input matInput formControlName="reason" />
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Volver</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Reabrir
+      }
+    </button>
+  </mat-dialog-actions>
+</form>
