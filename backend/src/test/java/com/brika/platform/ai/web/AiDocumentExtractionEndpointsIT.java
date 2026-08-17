@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.audit.AuditEvent;
+import com.brika.platform.audit.AuditEventRepository;
 import com.brika.platform.casemgmt.web.CreateCaseApiRequest;
 import com.brika.platform.casemgmt.web.CreateCaseAssignmentApiRequest;
 import com.brika.platform.document.DocumentTypeRepository;
@@ -99,6 +101,7 @@ class AiDocumentExtractionEndpointsIT {
   @Autowired private UserProvisioningService userProvisioningService;
   @Autowired private DocumentTypeRepository documentTypeRepository;
   @Autowired private DataSource dataSource;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -206,6 +209,18 @@ class AiDocumentExtractionEndpointsIT {
         .andExpect(jsonPath("$.provider").value("none"))
         .andExpect(jsonPath("$.model").value("none"))
         .andExpect(jsonPath("$.documentVersionId").value(versionId.toString()));
+
+    AuditEvent event =
+        auditEventRepository.findAll().stream()
+            .filter(
+                e ->
+                    "AI_DOCUMENT_EXTRACTION_REQUESTED".equals(e.action())
+                        && documentId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(event.companyId()).isEqualTo(companyId);
+    assertThat(event.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(event.resourceType()).isEqualTo("DOCUMENT");
   }
 
   @Test

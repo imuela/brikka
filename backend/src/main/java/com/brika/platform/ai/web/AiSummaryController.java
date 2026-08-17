@@ -1,6 +1,7 @@
 package com.brika.platform.ai.web;
 
 import com.brika.platform.ai.AiUseCaseService;
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.casemgmt.CaseAccessResult;
 import com.brika.platform.casemgmt.CaseAccessService;
 import java.util.UUID;
@@ -19,11 +20,15 @@ public class AiSummaryController {
 
   private final CaseAccessService caseAccessService;
   private final AiUseCaseService aiUseCaseService;
+  private final AuditEventWriter auditEventWriter;
 
   public AiSummaryController(
-      CaseAccessService caseAccessService, AiUseCaseService aiUseCaseService) {
+      CaseAccessService caseAccessService,
+      AiUseCaseService aiUseCaseService,
+      AuditEventWriter auditEventWriter) {
     this.caseAccessService = caseAccessService;
     this.aiUseCaseService = aiUseCaseService;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @PostMapping("/api/v1/cases/{caseId}/ai/summary")
@@ -33,8 +38,17 @@ public class AiSummaryController {
       @RequestBody AiUseCaseApiRequest request) {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "AI_SUMMARIZE", caseId);
-    return AiUseCaseResponse.from(
+    var result =
         aiUseCaseService.summarize(
-            access.tenantId(), access.theCase().id(), access.user().id(), request.context()));
+            access.tenantId(), access.theCase().id(), access.user().id(), request.context());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "AI_SUMMARY_REQUESTED",
+        "CASE",
+        access.theCase().id(),
+        "{\"caseId\":\"" + access.theCase().id() + "\"}");
+    return AiUseCaseResponse.from(result);
   }
 }

@@ -8,12 +8,13 @@ import java.util.UUID;
  * only on this interface, so swapping the mechanism later (e.g. async via RabbitMQ) does not change
  * any caller.
  *
- * <p>Sprint 11: no domain service calls this yet. The V1 catalog of auditable actions is not
- * defined in any approved document ("acciones sensibles", 06_SECURITY_SPECIFICATION.md §7, and
- * "cuando corresponda", 17_API_SPECIFICATION_DETAILED.md line 251, are both deliberately
- * unenumerated) — wiring arbitrary actions now would mean inventing an audit policy that hasn't
- * been approved. This interface and {@link SynchronousAuditEventWriter} exist as prepared
- * infrastructure only, per Sprint 11 D11-5.
+ * <p>Sprint 12 (D12-2, {@code ADR-AUDIT-002}): connected to the 9 categories of {@code
+ * FUNCTIONAL_SPECIFICATION.md} §24 "Auditoría funcional" that have a concrete, already-implemented
+ * endpoint — see {@code ADR-AUDIT-002} for the full catalog and for the 3 categories deliberately
+ * left unconnected (login, exportaciones, integraciones) because no real hook exists for them
+ * without inventing new functionality. {@code requestId} is captured internally by the
+ * implementation from the request's correlation id (MDC) — callers never need to touch MDC
+ * themselves, keeping every call site a single, uniform statement.
  */
 public interface AuditEventWriter {
 
@@ -24,6 +25,5 @@ public interface AuditEventWriter {
       String action,
       String resourceType,
       UUID resourceId,
-      String requestId,
       String metadataJson);
 }

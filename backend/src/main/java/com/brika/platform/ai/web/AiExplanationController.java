@@ -1,6 +1,7 @@
 package com.brika.platform.ai.web;
 
 import com.brika.platform.ai.AiUseCaseService;
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.casemgmt.CaseAccessResult;
 import com.brika.platform.casemgmt.CaseAccessService;
 import com.brika.platform.common.error.ResourceNotFoundException;
@@ -27,14 +28,17 @@ public class AiExplanationController {
   private final CaseAccessService caseAccessService;
   private final AiUseCaseService aiUseCaseService;
   private final ScoringResultRepository scoringResultRepository;
+  private final AuditEventWriter auditEventWriter;
 
   public AiExplanationController(
       CaseAccessService caseAccessService,
       AiUseCaseService aiUseCaseService,
-      ScoringResultRepository scoringResultRepository) {
+      ScoringResultRepository scoringResultRepository,
+      AuditEventWriter auditEventWriter) {
     this.caseAccessService = caseAccessService;
     this.aiUseCaseService = aiUseCaseService;
     this.scoringResultRepository = scoringResultRepository;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @PostMapping("/api/v1/scoring-results/{id}/ai/explanation")
@@ -51,8 +55,17 @@ public class AiExplanationController {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "AI_USE", scoringResult.caseId());
 
-    return AiUseCaseResponse.from(
+    var result =
         aiUseCaseService.explain(
-            access.tenantId(), access.theCase().id(), access.user().id(), request.context()));
+            access.tenantId(), access.theCase().id(), access.user().id(), request.context());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "AI_EXPLANATION_REQUESTED",
+        "SCORING_RESULT",
+        id,
+        "{\"scoringResultId\":\"" + id + "\"}");
+    return AiUseCaseResponse.from(result);
   }
 }

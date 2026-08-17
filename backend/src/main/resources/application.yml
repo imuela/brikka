@@ -80,7 +80,6 @@ management:
       probes:
         enabled: true
 
-# Sprint 1: persistence + Flyway only. No JPA entities, no RBAC, no business
-# logic. DB_* defaults match the Sprint 0 docker-compose Postgres service
+# DB_* defaults match the Sprint 0 docker-compose Postgres service
 # (127.0.0.1:15432/brika) so `./mvnw spring-boot:run` works against it
 # out of the box. See 25_CLAUDE_CODE_EXECUTION_GUIDE.md.

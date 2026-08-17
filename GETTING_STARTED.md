@@ -76,6 +76,14 @@ export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="/var/run/docker.sock"
 
 No hace falta con Docker Desktop estándar ni en el runner de CI.
 
+Colima (y otros backends sin el daemon Ryuk de reaper estándar) también puede necesitar desactivar Ryuk, o Testcontainers se queda esperando indefinidamente al arrancar el primer contenedor de un test:
+
+```bash
+export TESTCONTAINERS_RYUK_DISABLED=true
+```
+
+Con Ryuk desactivado, los contenedores de test no se limpian automáticamente al terminar la JVM — puede acumularse basura en `docker ps -a` tras varias ejecuciones; bórrala manualmente si hace falta (`docker container prune`). No hace falta con Docker Desktop estándar ni en el runner de CI.
+
 ## 5. Frontend (esqueleto, sin features de negocio)
 
 ```bash

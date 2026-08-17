@@ -2,9 +2,11 @@ package com.brika.platform.audit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.brika.platform.common.observability.CorrelationIdFilter;
 import com.brika.platform.identity.CompanyRepository;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -14,9 +16,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Sprint 11: verifies SynchronousAuditEventWriter delegates to AuditEventRepository and every field
- * survives the round trip. No caller wires this writer to any domain service yet (D11-5) — this
- * test exercises the writer directly, the only way it can be exercised in this sprint.
+ * Sprint 11/12: verifies SynchronousAuditEventWriter delegates to AuditEventRepository and every
+ * field survives the round trip, including {@code requestId} captured internally from MDC (Sprint
+ * 12 — the interface no longer takes it as a parameter). Since Sprint 12 (D12-2), domain
+ * controllers call this writer — see {@code ADR-AUDIT-002}.
  */
 @Testcontainers
 @SpringBootTest
@@ -47,15 +50,19 @@ class SynchronousAuditEventWriterIT {
 
     int before = auditEventRepository.findAll().size();
 
-    auditEventWriter.write(
-        companyId,
-        null,
-        null,
-        "WRITER_TEST_ACTION",
-        "WRITER_TEST_RESOURCE",
-        resourceId,
-        "req-writer-1",
-        "{\"via\":\"writer\"}");
+    MDC.put(CorrelationIdFilter.MDC_KEY, "req-writer-1");
+    try {
+      auditEventWriter.write(
+          companyId,
+          null,
+          null,
+          "WRITER_TEST_ACTION",
+          "WRITER_TEST_RESOURCE",
+          resourceId,
+          "{\"via\":\"writer\"}");
+    } finally {
+      MDC.remove(CorrelationIdFilter.MDC_KEY);
+    }
 
     var all = auditEventRepository.findAll();
     assertThat(all).hasSize(before + 1);

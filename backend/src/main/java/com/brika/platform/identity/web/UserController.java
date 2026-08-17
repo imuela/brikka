@@ -1,5 +1,6 @@
 package com.brika.platform.identity.web;
 
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.identity.CreateUserCommand;
@@ -9,7 +10,11 @@ import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRepository;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.security.AuthorizationService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,14 +38,20 @@ public class UserController {
   private final AuthorizationService authorizationService;
   private final UserRepository userRepository;
   private final UserProvisioningService userProvisioningService;
+  private final AuditEventWriter auditEventWriter;
+  private final ObjectMapper objectMapper;
 
   public UserController(
       AuthorizationService authorizationService,
       UserRepository userRepository,
-      UserProvisioningService userProvisioningService) {
+      UserProvisioningService userProvisioningService,
+      AuditEventWriter auditEventWriter,
+      ObjectMapper objectMapper) {
     this.authorizationService = authorizationService;
     this.userRepository = userRepository;
     this.userProvisioningService = userProvisioningService;
+    this.auditEventWriter = auditEventWriter;
+    this.objectMapper = objectMapper;
   }
 
   @GetMapping
@@ -73,6 +84,17 @@ public class UserController {
                   request.email(),
                   request.firstName(),
                   request.lastName()));
+      Map<String, Object> metadata = new LinkedHashMap<>();
+      metadata.put("role", role.name());
+      metadata.put("email", request.email());
+      auditEventWriter.write(
+          tenantId,
+          authorizationService.currentUser(authentication).id(),
+          null,
+          "USER_CREATED",
+          "USER",
+          created.id(),
+          toJson(metadata));
       return UserResponse.from(created);
     } catch (InvalidUserCompanyAssignmentException e) {
       throw new ValidationException("INVALID_ROLE_ASSIGNMENT", e.getMessage());
@@ -97,6 +119,14 @@ public class UserController {
     UUID tenantId = authorizationService.requireTenant(authentication);
     requireUserInTenant(id, tenantId);
     userRepository.disable(id);
+    auditEventWriter.write(
+        tenantId,
+        authorizationService.currentUser(authentication).id(),
+        null,
+        "USER_DISABLED",
+        "USER",
+        id,
+        toJson(Map.of("userId", id.toString())));
     return UserResponse.from(requireUserInTenant(id, tenantId));
   }
 
@@ -113,6 +143,14 @@ public class UserController {
       return UserRole.valueOf(role);
     } catch (IllegalArgumentException e) {
       throw new ValidationException("INVALID_ROLE", "Unknown role: " + role);
+    }
+  }
+
+  private String toJson(Object value) {
+    try {
+      return objectMapper.writeValueAsString(value);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Failed to serialize audit metadata", e);
     }
   }
 }

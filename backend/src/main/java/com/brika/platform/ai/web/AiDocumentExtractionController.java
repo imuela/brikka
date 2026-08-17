@@ -3,6 +3,7 @@ package com.brika.platform.ai.web;
 import com.brika.platform.ai.DocumentExtraction;
 import com.brika.platform.ai.DocumentExtractionRepository;
 import com.brika.platform.ai.DocumentExtractionService;
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.document.DocumentAccessResult;
@@ -34,18 +35,21 @@ public class AiDocumentExtractionController {
   private final DocumentExtractionRepository documentExtractionRepository;
   private final DocumentVersionRepository documentVersionRepository;
   private final ObjectMapper objectMapper;
+  private final AuditEventWriter auditEventWriter;
 
   public AiDocumentExtractionController(
       DocumentAccessService documentAccessService,
       DocumentExtractionService documentExtractionService,
       DocumentExtractionRepository documentExtractionRepository,
       DocumentVersionRepository documentVersionRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      AuditEventWriter auditEventWriter) {
     this.documentAccessService = documentAccessService;
     this.documentExtractionService = documentExtractionService;
     this.documentExtractionRepository = documentExtractionRepository;
     this.documentVersionRepository = documentVersionRepository;
     this.objectMapper = objectMapper;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @PostMapping("/api/v1/documents/{documentId}/ai/document-extractions")
@@ -63,6 +67,18 @@ public class AiDocumentExtractionController {
     DocumentExtraction extraction =
         documentExtractionService.request(
             access.tenantId(), documentId, request.documentVersionId());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "AI_DOCUMENT_EXTRACTION_REQUESTED",
+        "DOCUMENT",
+        documentId,
+        "{\"documentId\":\""
+            + documentId
+            + "\",\"documentVersionId\":\""
+            + request.documentVersionId()
+            + "\"}");
     return toResponse(extraction);
   }
 

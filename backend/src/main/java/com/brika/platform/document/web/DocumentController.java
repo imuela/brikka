@@ -1,5 +1,6 @@
 package com.brika.platform.document.web;
 
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.casemgmt.CaseAccessResult;
 import com.brika.platform.casemgmt.CaseAccessService;
 import com.brika.platform.common.error.ValidationException;
@@ -38,18 +39,21 @@ public class DocumentController {
   private final DocumentRepository documentRepository;
   private final DocumentService documentService;
   private final StorageProperties storageProperties;
+  private final AuditEventWriter auditEventWriter;
 
   public DocumentController(
       CaseAccessService caseAccessService,
       DocumentAccessService documentAccessService,
       DocumentRepository documentRepository,
       DocumentService documentService,
-      StorageProperties storageProperties) {
+      StorageProperties storageProperties,
+      AuditEventWriter auditEventWriter) {
     this.caseAccessService = caseAccessService;
     this.documentAccessService = documentAccessService;
     this.documentRepository = documentRepository;
     this.documentService = documentService;
     this.storageProperties = storageProperties;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @GetMapping("/api/v1/cases/{caseId}/documents")
@@ -106,6 +110,14 @@ public class DocumentController {
             file.getOriginalFilename(),
             file.getContentType(),
             access.user().id());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "DOCUMENT_VERSION_UPLOADED",
+        "DOCUMENT",
+        id,
+        "{\"documentId\":\"" + id + "\",\"versionId\":\"" + version.id() + "\"}");
     return DocumentVersionResponse.from(version);
   }
 
@@ -128,6 +140,20 @@ public class DocumentController {
         documentAccessService.requireDocumentAccess(authentication, permission, id);
     DocumentVersion reviewed =
         documentService.review(access.document(), decision, access.user().id(), request.comment());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "DOCUMENT_REVIEWED",
+        "DOCUMENT",
+        id,
+        "{\"documentId\":\""
+            + id
+            + "\",\"versionId\":\""
+            + reviewed.id()
+            + "\",\"decision\":\""
+            + decision
+            + "\"}");
     return DocumentVersionResponse.from(reviewed);
   }
 
@@ -165,6 +191,14 @@ public class DocumentController {
     DocumentAccessResult access =
         documentAccessService.requireDocumentAccess(authentication, "DOCUMENT_DOWNLOAD", id);
     DocumentVersion version = documentService.currentVersionOrThrow(access.document());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "DOCUMENT_DOWNLOADED",
+        "DOCUMENT",
+        id,
+        "{\"documentId\":\"" + id + "\",\"versionId\":\"" + version.id() + "\"}");
     return toDownloadResponse(version);
   }
 
@@ -175,6 +209,14 @@ public class DocumentController {
         documentAccessService.requireDocumentAccess(authentication, "DOCUMENT_DOWNLOAD", id);
     DocumentVersion version =
         documentService.versionOfDocumentOrThrow(access.document(), versionId);
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "DOCUMENT_DOWNLOADED",
+        "DOCUMENT",
+        id,
+        "{\"documentId\":\"" + id + "\",\"versionId\":\"" + version.id() + "\"}");
     return toDownloadResponse(version);
   }
 

@@ -1,5 +1,6 @@
 package com.brika.platform.identity.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -9,12 +10,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.audit.AuditEvent;
+import com.brika.platform.audit.AuditEventRepository;
 import com.brika.platform.identity.CompanyRepository;
 import com.brika.platform.identity.CreateUserCommand;
 import com.brika.platform.identity.User;
 import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +62,7 @@ class IdentityEndpointsIT {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   /** The stub decoder (StubJwtDecoderConfig) treats the bearer token itself as the JWT subject. */
   private record TestPrincipal(String externalIdentityId, User user) {
@@ -226,5 +231,58 @@ class IdentityEndpointsIT {
                 .header("Authorization", manager.bearer()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("DISABLED"));
+  }
+
+  @Test
+  void creatingAndDisablingAUserWritesAuditEvents() throws Exception {
+    UUID companyId = companyRepository.insert("Co AUD1", "Co AUD1", "TC-AUD1");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-aud1");
+
+    String createBody =
+        objectMapper.writeValueAsString(
+            new CreateUserApiRequest(
+                "audit-target@brika.test",
+                "Audit",
+                "Target",
+                "BROKER",
+                "ext-" + UUID.randomUUID()));
+    String response =
+        mockMvc
+            .perform(
+                post("/api/v1/users")
+                    .header("Authorization", manager.bearer())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createBody))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    UUID createdId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + createdId + "/disable")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk());
+
+    List<AuditEvent> events = auditEventRepository.findAll();
+    AuditEvent created =
+        events.stream()
+            .filter(e -> "USER_CREATED".equals(e.action()) && createdId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(created.companyId()).isEqualTo(companyId);
+    assertThat(created.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(created.resourceType()).isEqualTo("USER");
+    assertThat(created.metadataJson()).contains("BROKER");
+
+    AuditEvent disabled =
+        events.stream()
+            .filter(e -> "USER_DISABLED".equals(e.action()) && createdId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(disabled.companyId()).isEqualTo(companyId);
+    assertThat(disabled.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(disabled.resourceType()).isEqualTo("USER");
   }
 }

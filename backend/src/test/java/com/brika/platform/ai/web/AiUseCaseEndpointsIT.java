@@ -1,10 +1,13 @@
 package com.brika.platform.ai.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.audit.AuditEvent;
+import com.brika.platform.audit.AuditEventRepository;
 import com.brika.platform.casemgmt.web.CreateCaseApiRequest;
 import com.brika.platform.casemgmt.web.CreateCaseAssignmentApiRequest;
 import com.brika.platform.communication.web.CreateConversationApiRequest;
@@ -61,6 +64,7 @@ class AiUseCaseEndpointsIT {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -129,6 +133,15 @@ class AiUseCaseEndpointsIT {
         .andExpect(jsonPath("$.executed").value(false))
         .andExpect(jsonPath("$.output").doesNotExist())
         .andExpect(jsonPath("$.reason").isNotEmpty());
+
+    AuditEvent event =
+        auditEventRepository.findAll().stream()
+            .filter(e -> "AI_SUMMARY_REQUESTED".equals(e.action()) && caseId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(event.companyId()).isEqualTo(companyId);
+    assertThat(event.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(event.resourceType()).isEqualTo("CASE");
   }
 
   @Test
@@ -275,6 +288,18 @@ class AiUseCaseEndpointsIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.executed").value(false))
         .andExpect(jsonPath("$.reason").isNotEmpty());
+
+    AuditEvent event =
+        auditEventRepository.findAll().stream()
+            .filter(
+                e ->
+                    "AI_EXPLANATION_REQUESTED".equals(e.action())
+                        && resultId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(event.companyId()).isEqualTo(companyId);
+    assertThat(event.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(event.resourceType()).isEqualTo("SCORING_RESULT");
   }
 
   @Test
@@ -354,6 +379,18 @@ class AiUseCaseEndpointsIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$").isArray())
         .andExpect(jsonPath("$.length()").value(0));
+
+    AuditEvent event =
+        auditEventRepository.findAll().stream()
+            .filter(
+                e ->
+                    "AI_DRAFT_MESSAGE_REQUESTED".equals(e.action())
+                        && conversationId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(event.companyId()).isEqualTo(companyId);
+    assertThat(event.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(event.resourceType()).isEqualTo("CONVERSATION");
   }
 
   @Test

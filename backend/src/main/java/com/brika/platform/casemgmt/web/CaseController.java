@@ -1,5 +1,6 @@
 package com.brika.platform.casemgmt.web;
 
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.casemgmt.CancellationReason;
 import com.brika.platform.casemgmt.Case;
 import com.brika.platform.casemgmt.CaseAccessResult;
@@ -46,18 +47,21 @@ public class CaseController {
   private final CaseService caseService;
   private final CaseRepository caseRepository;
   private final ClientRepository clientRepository;
+  private final AuditEventWriter auditEventWriter;
 
   public CaseController(
       AuthorizationService authorizationService,
       CaseAccessService caseAccessService,
       CaseService caseService,
       CaseRepository caseRepository,
-      ClientRepository clientRepository) {
+      ClientRepository clientRepository,
+      AuditEventWriter auditEventWriter) {
     this.authorizationService = authorizationService;
     this.caseAccessService = caseAccessService;
     this.caseService = caseService;
     this.caseRepository = caseRepository;
     this.clientRepository = clientRepository;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @GetMapping
@@ -94,8 +98,16 @@ public class CaseController {
       @RequestBody UpdateCaseApiRequest request) {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CASE_UPDATE", id);
-    return CaseResponse.from(
-        caseService.updateOperationType(access.theCase(), request.operationType()));
+    Case updated = caseService.updateOperationType(access.theCase(), request.operationType());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "CASE_UPDATED",
+        "CASE",
+        id,
+        "{\"caseId\":\"" + id + "\"}");
+    return CaseResponse.from(updated);
   }
 
   @PostMapping("/{id}/status")
@@ -105,10 +117,25 @@ public class CaseController {
       @RequestBody ChangeCaseStatusApiRequest request) {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CASE_CHANGE_STATUS", id);
+    CaseStatus oldStatus = access.theCase().status();
     CaseStatus newStatus = parseCaseStatus(request.newStatus());
-    return CaseResponse.from(
-        caseService.changeStatus(
-            access.theCase(), newStatus, access.user().id(), request.reason()));
+    Case updated =
+        caseService.changeStatus(access.theCase(), newStatus, access.user().id(), request.reason());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "CASE_STATUS_CHANGED",
+        "CASE",
+        id,
+        "{\"caseId\":\""
+            + id
+            + "\",\"oldStatus\":\""
+            + oldStatus
+            + "\",\"newStatus\":\""
+            + newStatus
+            + "\"}");
+    return CaseResponse.from(updated);
   }
 
   @PostMapping("/{id}/cancel")
@@ -119,8 +146,17 @@ public class CaseController {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CASE_CANCEL", id);
     CancellationReason reason = parseCancellationReason(request.reason());
-    return CaseResponse.from(
-        caseService.cancel(access.theCase(), access.user().id(), reason, request.comment()));
+    Case updated =
+        caseService.cancel(access.theCase(), access.user().id(), reason, request.comment());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "CASE_CANCELLED",
+        "CASE",
+        id,
+        "{\"caseId\":\"" + id + "\",\"reason\":\"" + reason + "\"}");
+    return CaseResponse.from(updated);
   }
 
   @PostMapping("/{id}/reopen")
@@ -131,8 +167,17 @@ public class CaseController {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CASE_REOPEN", id);
     CaseStatus targetStatus = parseCaseStatus(request.targetStatus());
-    return CaseResponse.from(
-        caseService.reopen(access.theCase(), access.user().id(), request.reason(), targetStatus));
+    Case updated =
+        caseService.reopen(access.theCase(), access.user().id(), request.reason(), targetStatus);
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "CASE_REOPENED",
+        "CASE",
+        id,
+        "{\"caseId\":\"" + id + "\",\"targetStatus\":\"" + targetStatus + "\"}");
+    return CaseResponse.from(updated);
   }
 
   @PostMapping("/{id}/assignments")

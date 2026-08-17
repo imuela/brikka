@@ -67,6 +67,58 @@ Los cambios de arquitectura/reglas deben documentarse antes de implementarse.
 
 ---
 
+## ADR-BANKENGINE-001 — Bank Matching Engine (motor de evaluación)
+
+**Nota de procedimiento:** este ADR se implementó en Sprint 6B pero nunca se redactó formalmente, pese a ser citado desde entonces por `ADR-SCORING-001 D9-5` ("la fórmula de LTV reutiliza textualmente `ADR-BANKENGINE-001 D-A`") y por el propio `BankMatchingController` (javadoc: "ADR-BANKENGINE-001 §12"). Se reconstruye en Sprint 12 (D12-6) mediante lectura directa del código e íntegramente verificado contra la implementación — mismo procedimiento evidencial que `ADR-SCORING-001`.
+
+**Contexto:** `06_BANK_ENGINE_SPECIFICATION.md` §9 enumera 12 categorías de criterio bancario (ingresos, estabilidad, antigüedad, endeudamiento, LTV, ahorro, edad, tipo de inmueble, finalidad, perfil profesional, garantías, otros) sin definir DSL de reglas, campos evaluables, ni algoritmo de agregación — igual que ocurría con Scoring antes de `ADR-SCORING-001`.
+
+**D-B/D-F — DSL cerrado de 9 operadores sobre exactamente 3 campos evaluables.** `MatchOperator`: `EQUALS`, `NOT_EQUALS`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `IN`, `NOT_IN`, `BETWEEN` — todos sobre valores numéricos. `MatchField`: `LTV` (`computed.ltv`), `REQUESTED_AMOUNT` (`financingRequest.requestedAmount`), `TERM_MONTHS` (`financingRequest.termMonths`) — únicos 3 campos con fuente de datos real en el esquema; las 9 categorías restantes de §9 quedan fuera de alcance por ausencia de dato, no por decisión de producto. `MatchingRule(id, field, operator, value, severity, reason)`, `severity` ∈ `FAIL`/`WARNING`.
+
+**D-G — Validación de reglas en tiempo de escritura, re-validación en tiempo de evaluación como defensa en profundidad.** `CriteriaRulesValidator` rechaza en `POST/PUT` de `BankCriteriaVersion` (payload `{"rules":[...]}`, cada regla exactamente con las 6 claves `id/field/operator/value/severity/reason`, `id` único y con patrón `^[a-z0-9][a-z0-9-]{1,63}$`, `value` con forma coherente con el operador) cualquier regla que el motor no pueda interpretar — "regla desconocida en tiempo de evaluación" es estructuralmente inalcanzable, no defendida en runtime. `BankMatchingService.run()` re-ejecuta el mismo validador antes de evaluar; si falla (corrupción a nivel de BD), persiste `bank_match_results.global_result = ERROR` sin filas de regla, sin lanzar excepción al cliente.
+
+**D-A — Fórmula LTV (heredada literalmente por `ADR-SCORING-001 D9-5`).** `InputSnapshotFactory.computeLtv`: `ltv = requestedAmount / MIN(valuation, purchasePrice)`, con fallback al único denominador disponible si falta uno, `null` si faltan ambos, si `requestedAmount` es `null` o si el denominador es cero; escala 4, `HALF_UP`.
+
+**D-C — Snapshot construido siempre server-side; matching pre-submission, no ligado a `bank_request`.** `InputSnapshotFactory.build(caseId)` carga `Property` y el `FinancingRequest` más reciente del caso — nunca acepta el snapshot desde el cuerpo de la petición. Cero imports cruzados entre `com.brika.platform.bankmatching` y `com.brika.platform.bankrequest` en ningún sentido: el matching es una herramienta de análisis previa a la solicitud formal a banco, independiente de si existe o no un `BankRequest`.
+
+**Algoritmo de evaluación (`MatchingEngine`, puro y determinista, sin I/O):** por regla, si el campo del snapshot es `null` → `NOT_EVALUATED`; si no, `operator.apply(...)` → `PASS` si verdadero, o `severity` (`FAIL`/`WARNING`) si falso. Agregación global (`aggregateResults`, método `public` para ser reutilizado por `ADR-BANKENGINE-002`): precedencia `FAIL > WARNING > NOT_EVALUATED(todas) > PASS`. `MatchResult` tiene 5 valores (`PASS/FAIL/WARNING/NOT_EVALUATED/ERROR`); `ERROR` solo existe a nivel global, nunca por regla.
+
+**Persistencia — append-only, reproducible.** `bank_match_results` (`id, company_id, case_id, bank_id, bank_criteria_version_id, global_result, input_snapshot jsonb, evaluated_by, evaluated_at, created_at`) y `bank_match_rule_results` (`id, match_result_id, rule_id, field, operator, expected_value jsonb, evaluated_value jsonb, result, reason, created_at`) — ambos repositorios exponen únicamente `insert`/`findById`/`findAllByCaseId` (o `findAllByMatchResultId`), sin `update`. Un resultado ya persistido no cambia si `Property`/`FinancingRequest` se modifican después (reproducibilidad, verificada por test).
+
+**Endpoints:** `POST /api/v1/cases/{caseId}/banks/{bankId}/matching` (`BANK_MATCHING_RUN`), `GET /api/v1/cases/{caseId}/matching` (`BANK_MATCHING_READ`), `GET /api/v1/bank-match-results/{id}` (`BANK_MATCHING_READ`, con re-chequeo de tenant enmascarado como 404) — todos vía `CaseAccessService` (TENANT + ROLE/PERMISSION + CASE ASSIGNMENT). Permisos sembrados en `V13__bank_matching_engine.sql`: `SUPERADMIN`/`MANAGER`/`BROKER` para ambos; `CLIENT` sin acceso; `SUPERADMIN` sigue exigiendo `SUPPORT_SESSION` activa (`ADR-RBAC-001`, sin excepción para este módulo).
+
+**Decisiones fuera de alcance (respaldadas explícitamente):** las 9 categorías de criterio bancario sin campo de datos en el esquema (ingresos, estabilidad, antigüedad, endeudamiento, ahorro, edad, tipo de inmueble, finalidad, perfil profesional, garantías); overrides (ver `ADR-BANKENGINE-002` — excluidos explícitamente en el comentario de la propia migración `V13`); ejecución asíncrona (flujo íntegramente síncrono dentro de la request, sin cola ni evento); acoplamiento con `bank_request`.
+
+**Documentos afectados:** este documento (reconstrucción).
+
+**Estado:** APPROVED. Implementado en Sprint 6B (`V13__bank_matching_engine.sql`). Paquete `com.brika.platform.bankmatching` completo (incluyendo `ADR-BANKENGINE-002`): 31 archivos (27 main + 4 test), verificado mecánicamente. La porción atribuible en exclusiva a este ADR (excluyendo los 6 archivos main + 1 test de overrides de `V14`) es de 21 main + 3 test, con la salvedad de que `BankMatchingController`/`BankMatchResultResponse`/`RuleResultResponse` fueron posteriormente tocados en `V14` para exponer resultados efectivos — el reparto no es perfectamente limpio por archivo.
+
+## ADR-BANKENGINE-002 — Bank Matching: mecanismo de overrides
+
+**Nota de procedimiento:** mismo ejercicio de reconstrucción Sprint 12 (D12-6) que `ADR-BANKENGINE-001`, para el mecanismo de corrección manual implementado en Sprint 6C.
+
+**Contexto:** `06_BANK_ENGINE_SPECIFICATION.md` §11 ("Overrides") exige poder corregir manualmente un resultado automático por regla sin alterar el rastro de auditoría, registrando valor anterior, valor nuevo, usuario, fecha, motivo y regla afectada. `V13` (Sprint 6B) excluye explícitamente este mecanismo de su propio alcance (comentario de la migración: "Overrides (D-D) are explicitly out of scope and NOT created here").
+
+**D-D — Historial de overrides append-only, separado de las tablas originales, nunca las muta.** `bank_match_rule_overrides` (`V14`): `id, company_id, bank_match_rule_result_id, previous_result, new_result, reason, overridden_by, overridden_at, created_at`, con `CHECK (previous_result <> new_result)` a nivel de BD. `bank_match_results`/`bank_match_rule_results` (`V13`) permanecen completamente inmutables — el resultado efectivo se deriva siempre en tiempo de lectura, nunca se re-escribe sobre las filas originales. `BankMatchRuleOverrideRepository` expone únicamente `insert`/`findById`/`findAllByRuleResultId` (orden cronológico ascendente) — sin `update`.
+
+**Lógica de "resultado efectivo".** `BankMatchOverrideService.effectiveResult(ruleResult, history)`: sin historial, el resultado original se mantiene; con historial, gana el `newResult` de la entrada más reciente. `effectiveGlobalResult(originalGlobalResult, effectivePerRuleResults)` reutiliza literalmente `MatchingEngine.aggregateResults` (hecho `public` específicamente para este fin) sobre el conjunto de resultados efectivos por regla — nunca un valor cacheado. Solo son overrideables `PASS/FAIL/WARNING/NOT_EVALUATED` (`OVERRIDABLE_RESULTS`); `ERROR` no puede corregirse, consistente con que nunca aparece a nivel de regla.
+
+**Concurrencia optimista en la creación.** `BankMatchOverrideService.create(...)` valida `reason` (no vacío, ≤500 caracteres), que `previousResult`/`newResult` sean valores overrideables y distintos entre sí (`OVERRIDE_NOOP`, 400 si iguales), y recomputa el `effectiveResult` actual desde el historial vivo: si no coincide con el `previousResult` declarado por el llamador, lanza `ConflictException("OVERRIDE_STALE_PREVIOUS_RESULT", ...)` → 409, sin insertar fila. Evita que dos overrides concurrentes basados en el mismo estado "anterior" se pisen silenciosamente.
+
+**Endpoint:** `POST /api/v1/bank-match-rule-results/{ruleResultId}/overrides` (`BANK_MATCHING_OVERRIDE`). Resolución de acceso en 3 saltos: `ruleResultId → BankMatchRuleResult → matchResultId → BankMatchResult → caseId`, vía `CaseAccessService`, con re-chequeo de tenant enmascarado como 404 — mismo patrón de dos/tres saltos que `BankOfferController` (Sprint 6A).
+
+**Permiso restringido a `MANAGER`/`SUPERADMIN` — `BROKER` nunca lo tiene, ni con asignación de caso.** Sembrado en `V14__bank_matching_overrides.sql`: solo `MANAGER`/`SUPERADMIN`. Decisión de negocio implícita en el propio seed (corregir un resultado automático es una acción de supervisión, no operativa), confirmada por test dedicado (`brokerCanNeverOverrideEvenWithCaseAssignment`). `SUPERADMIN` sigue exigiendo `SUPPORT_SESSION` activa, sin excepción.
+
+**Exposición en las respuestas.** `BankMatchingController.toResponse` calcula, para cada regla, el historial completo de overrides y el resultado efectivo, y para el global el `effectiveGlobalResult` — ambos junto a (no en sustitución de) los valores originales inmutables: `BankMatchResultResponse.globalResult` vs `effectiveGlobalResult`; `RuleResultResponse.result` vs `effectiveResult`, más `overrideCount` y la lista completa `overrides`.
+
+**Decisiones fuera de alcance (respaldadas explícitamente):** ninguna notificación al overridear (sin imports de ningún paquete de notificación); ninguna re-creación automática de `bank_request` a partir de un override; ningún operador/campo DSL nuevo (mecanismo ortogonal a `MatchOperator`/`MatchField`).
+
+**Documentos afectados:** este documento (reconstrucción).
+
+**Estado:** APPROVED. Implementado en Sprint 6C (`V14__bank_matching_overrides.sql`), construido estrictamente sobre `ADR-BANKENGINE-001` sin modificar sus filas persistidas.
+
+---
+
 ## Cierre de arquitectura y documentación — ADRs de la segunda auditoría
 
 Los siguientes ADR resuelven las inconsistencias detectadas en la auditoría cruzada de documentación (ver `11_CROSS_DOCUMENT_REVIEW.md` y la revisión posterior). Todos quedan **APPROVED** por decisión explícita antes de iniciar Sprint 0.
@@ -154,6 +206,43 @@ Resuelve, con decisión explícita del promotor del proyecto, el alcance de Spri
 **Documentos afectados por esta adenda:** este documento, `16_POSTGRESQL_SCHEMA_SPECIFICATION.md`.
 
 **Estado:** APPROVED.
+
+## ADR-AUDIT-002 — Catálogo de auditoría funcional (D11-5, resolución)
+
+**Contexto:** D11-5 dejó la infraestructura de `audit_events` construida pero sin ningún escritor de dominio conectado, señalando que ni `06_SECURITY_SPECIFICATION.md` §7 ("acciones sensibles") ni `17_API_SPECIFICATION_DETAILED.md` (línea 251, "cuando corresponda") enumeran un catálogo cerrado de acciones auditables. Revisión Sprint 12 localiza `FUNCTIONAL_SPECIFICATION.md` §24 "Auditoría funcional" — documento ya aprobado, no descubierto en el análisis de Sprint 11 — que sí enumera un catálogo cerrado de 12 categorías: login, cambios de permisos, cambios relevantes de cliente, cambios de operación, cambios de estado, subida de documentos, revisión documental, descarga de documentos, exportaciones, cambios de configuración, uso sensible de IA, integraciones.
+
+**Decisión — D12-2: catálogo cerrado de 12 categorías, 9 mapeadas a hooks reales, 3 marcadas explícitamente NO_IMPLEMENTABLE.** Ninguna categoría se fuerza a un endpoint inventado. Correspondencia:
+
+| Categoría §24 | Acción(es) auditadas | Endpoint(s) | Estado |
+|---|---|---|---|
+| Cambios de permisos | `USER_CREATED`, `USER_DISABLED` | `POST /api/v1/users`, `POST /api/v1/users/{id}/disable` | Implementado |
+| Cambios relevantes de cliente | `CLIENT_UPDATED` | `PATCH /api/v1/clients/{id}` | Implementado |
+| Cambios de operación | `CASE_UPDATED` | `PATCH /api/v1/cases/{id}` | Implementado |
+| Cambios de estado | `CASE_STATUS_CHANGED`, `CASE_CANCELLED`, `CASE_REOPENED` | `POST /api/v1/cases/{id}/status`, `.../cancel`, `.../reopen` | Implementado |
+| Subida de documentos | `DOCUMENT_VERSION_UPLOADED` | `POST /api/v1/documents/{id}/versions` | Implementado |
+| Revisión documental | `DOCUMENT_REVIEWED` | `POST /api/v1/documents/{id}/review` | Implementado |
+| Descarga de documentos | `DOCUMENT_DOWNLOADED` | `GET /api/v1/documents/{id}/download`, `.../versions/{versionId}/download` | Implementado |
+| Cambios de configuración | `SCORING_RULESET_CREATED` | `POST /api/v1/scoring/rulesets` | Implementado (único cambio de configuración de plataforma con endpoint de escritura hoy) |
+| Uso sensible de IA | `AI_SUMMARY_REQUESTED`, `AI_EXPLANATION_REQUESTED`, `AI_DRAFT_MESSAGE_REQUESTED`, `AI_DOCUMENT_EXTRACTION_REQUESTED` | los 4 endpoints `POST .../ai/*` (Sprint 10) | Implementado |
+| Login | — | — | NO_IMPLEMENTABLE: la autenticación es un token OIDC externo (Keycloak); no existe endpoint de login propio que interceptar |
+| Exportaciones | — | — | NO_IMPLEMENTABLE: `REPORT_EXPORT` permanece `NOT_ASSIGNED` para los 4 roles (D11-3); ninguna capacidad de exportación existe |
+| Integraciones | — | — | NO_IMPLEMENTABLE: el paquete `integrations` es GET-only por decisión de Sprint 10 (`ADR-AI-001` adenda); no existe ninguna acción de integración que mute estado |
+
+15 puntos de instrumentación concretos (contando por separado los dos endpoints de descarga) en 9 controladores: `UserController`, `ClientController`, `CaseController`, `DocumentController`, `ScoringRulesetController`, `AiSummaryController`, `AiExplanationController`, `AiDraftMessageController`, `AiDocumentExtractionController`.
+
+**D12-2.1 — Contenido de `metadata`: información mínima, nunca PII completa.** Cada hook registra únicamente identificadores de recurso (UUIDs) y, cuando aporta valor de auditoría sin riesgo, un campo enumerado no sensible (p. ej. `role` en `USER_CREATED`, `oldStatus`/`newStatus` en `CASE_STATUS_CHANGED`). `CLIENT_UPDATED` deliberadamente omite los valores actualizados (nombre/email/teléfono) — solo el `clientId` — para no persistir PII de cliente dentro de `audit_events.metadata`, riesgo señalado explícitamente en el Implementation Plan y no invalidado por ninguna decisión posterior.
+
+**D12-2.2 — `AuditEventWriter.write(...)` pierde el parámetro `requestId`.** Los 9 escritores de dominio no necesitan obtener el `requestId` manualmente: `SynchronousAuditEventWriter` lo captura internamente vía `MDC.get(CorrelationIdFilter.MDC_KEY)`, el mismo mecanismo que ya usa `GlobalExceptionHandler` para correlacionar errores. Cambio de interfaz sin impacto retrocompatible real: `AuditEventWriter` no tenía llamadores fuera del paquete `audit` antes de este sprint (D11-5).
+
+**D12-2.3 — `SUPPORT_SESSION` (D11-1) se difiere formalmente más allá de Sprint 12.** D11-1 había señalado Sprint 12 como candidato. La autorización explícita de Sprint 12 → 12.1 no incluye `SUPPORT_SESSION` en su alcance (16 pasos, ninguno lo menciona). Se re-confirma sin cambios el comportamiento existente: sin `SUPPORT_SESSION`, `SUPERADMIN` no resuelve tenant y no puede ejercer ningún permiso `(SUPPORT_SESSION)`, incluidos los nuevos hooks de auditoría de este ADR sobre recursos tenant-owned. No se crea `support_sessions`, no se añaden endpoints, no se añade `support_session_id` a `audit_events`. Candidato para un sprint futuro no planificado en este documento.
+
+**Decisiones fuera de alcance (respaldadas explícitamente):** ampliar el catálogo de §24 con acciones no listadas (p. ej. auditar lecturas); auditar `SCORING_RULESET_MANAGE` distinto de `create` (no existe endpoint `update`/`delete` de rulesets); cualquier acción de `bankmatching`/`bankrequest`/`portal` (§24 no las nombra explícitamente y forzarlas sería inventar alcance).
+
+**Consecuencias:** `AuditEventWriter` (interfaz) y `SynchronousAuditEventWriter` modificados; 9 controladores modificados; nuevos tests de auditoría por acción (uno por fila de la tabla) más 3 tests E2E cross-módulo que verifican auditoría como parte de un flujo completo.
+
+**Documentos afectados:** este documento, `17_API_SPECIFICATION_DETAILED.md` (nota de estado de auditoría por endpoint, si aplica en una revisión futura).
+
+**Estado:** APPROVED. Implementado y validado en Sprint 12.
 
 ## ADR-COMMS-001 — Message Attachments
 
@@ -247,7 +336,7 @@ Resuelve, con decisión explícita del promotor del proyecto, el alcance de Spri
 
 **Contexto:** `08_SCORING.md`, `BRIKA_MASTER_SPEC.md` §"Componentes" y `FUNCTIONAL_SPECIFICATION.md` describen tres componentes de scoring — Client Score, Property Score, Operation Score — como herramienta explicable de apoyo al análisis hipotecario, con reglas configurables por rule set y versión, resultado con score/rating/fecha/versión/desglose, y conservación histórica para explicar decisiones anteriores. Ninguno de estos documentos define el DSL de reglas, los campos evaluables, el algoritmo de agregación, ni el contrato de los endpoints — igual que ocurría con Bank Matching antes de `ADR-BANKENGINE-001`.
 
-**Estado:** APPROVED. Implementado y validado en Sprint 9 (33 archivos: 23 main + 5 test bajo `com.brika.platform.scoring`, cero migraciones — el esquema `scoring_rulesets`/`scoring_rules`/`scoring_results` ya existía en `V1__initial_schema.sql`).
+**Estado:** APPROVED. Implementado y validado en Sprint 9 (33 archivos: 28 main + 5 test bajo `com.brika.platform.scoring`, cero migraciones — el esquema `scoring_rulesets`/`scoring_rules`/`scoring_results` ya existía en `V1__initial_schema.sql`). Corrección Sprint 12 (D12-6): el desglose 23+5 publicado originalmente no sumaba 33; recuento verificado mecánicamente (`find … -name "*.java" | wc -l`) confirma 28 main + 5 test.
 
 **Alcance:** Property Score + Operation Score únicamente. Client Score queda fuera de V1 (D9-1). Cálculo determinista y reproducible, sin llamadas de red/BD adicionales ni aleatoriedad dentro del motor de evaluación.
 

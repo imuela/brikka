@@ -1,5 +1,6 @@
 package com.brika.platform.scoring;
 
+import com.brika.platform.common.error.ConflictException;
 import com.brika.platform.common.error.ValidationException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,7 +53,22 @@ public class ScoringRulesetService {
     List<ScoringRuleDefinition> rules = validator.validateRules(rulesInput);
 
     String categoriesJson = toJson(Map.of("categories", categories));
-    UUID rulesetId = scoringRulesetRepository.insert(code, version, "ACTIVE", categoriesJson);
+    UUID rulesetId;
+    try {
+      rulesetId = scoringRulesetRepository.insert(code, version, "ACTIVE", categoriesJson);
+    } catch (DataIntegrityViolationException e) {
+      // Sprint 12 D12-5.1: uq_scoring_rulesets_code_version violation -> 409, not the previous
+      // uncaught 500. A duplicate (code, version) is a conflict with an existing resource, not a
+      // malformed request.
+      throw new ConflictException(
+          "SCORING_RULESET_ALREADY_EXISTS",
+          "A scoring ruleset with code \""
+              + code
+              + "\" and version \""
+              + version
+              + "\" already"
+              + " exists.");
+    }
 
     for (ScoringRuleDefinition rule : rules) {
       scoringRuleRepository.insert(rulesetId, rule.code(), rule.weight(), toJson(configOf(rule)));

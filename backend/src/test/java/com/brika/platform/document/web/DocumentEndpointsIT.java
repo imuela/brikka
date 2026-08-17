@@ -1,5 +1,6 @@
 package com.brika.platform.document.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -9,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.audit.AuditEvent;
+import com.brika.platform.audit.AuditEventRepository;
 import com.brika.platform.document.DocumentTypeRepository;
 import com.brika.platform.identity.CompanyRepository;
 import com.brika.platform.identity.CreateUserCommand;
@@ -18,6 +21,7 @@ import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -95,6 +99,7 @@ class DocumentEndpointsIT {
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
   @Autowired private DocumentTypeRepository documentTypeRepository;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -380,6 +385,16 @@ class DocumentEndpointsIT {
             post("/api/v1/documents/" + documentId + "/unpublish")
                 .header("Authorization", manager.bearer()))
         .andExpect(status().isOk());
+
+    List<AuditEvent> events =
+        auditEventRepository.findAll().stream()
+            .filter(e -> documentId.equals(e.resourceId()))
+            .toList();
+    assertThat(events).extracting(AuditEvent::action).contains("DOCUMENT_VERSION_UPLOADED");
+    assertThat(events).extracting(AuditEvent::action).contains("DOCUMENT_REVIEWED");
+    assertThat(events).filteredOn(e -> "DOCUMENT_DOWNLOADED".equals(e.action())).hasSize(2);
+    assertThat(events).allMatch(e -> companyId.equals(e.companyId()));
+    assertThat(events).allMatch(e -> manager.user().id().equals(e.actorUserId()));
   }
 
   @Test

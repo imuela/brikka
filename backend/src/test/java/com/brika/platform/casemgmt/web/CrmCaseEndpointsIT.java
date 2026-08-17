@@ -1,13 +1,18 @@
 package com.brika.platform.casemgmt.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.audit.AuditEvent;
+import com.brika.platform.audit.AuditEventRepository;
 import com.brika.platform.crm.web.CreateClientApiRequest;
+import com.brika.platform.crm.web.UpdateClientApiRequest;
 import com.brika.platform.identity.CompanyRepository;
 import com.brika.platform.identity.CreateUserCommand;
 import com.brika.platform.identity.User;
@@ -15,6 +20,7 @@ import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +63,7 @@ class CrmCaseEndpointsIT {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -362,5 +369,97 @@ class CrmCaseEndpointsIT {
                 .content(goodBody))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("CANCELLED"));
+  }
+
+  @Test
+  void updatingAClientWritesAnAuditEvent() throws Exception {
+    UUID companyId = companyRepository.insert("Co AUD2", "Co AUD2", "TC-AUD2");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-aud2");
+    UUID clientId = createClient(manager, "cli-aud2");
+
+    String updateBody =
+        objectMapper.writeValueAsString(
+            new UpdateClientApiRequest("Updated", "Name", "updated@brika.test", "600000001"));
+    mockMvc
+        .perform(
+            patch("/api/v1/clients/" + clientId)
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody))
+        .andExpect(status().isOk());
+
+    AuditEvent event =
+        auditEventRepository.findAll().stream()
+            .filter(e -> "CLIENT_UPDATED".equals(e.action()) && clientId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(event.companyId()).isEqualTo(companyId);
+    assertThat(event.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(event.resourceType()).isEqualTo("CLIENT");
+  }
+
+  @Test
+  void caseLifecycleActionsWriteAuditEvents() throws Exception {
+    UUID companyId = companyRepository.insert("Co AUD3", "Co AUD3", "TC-AUD3");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-aud3");
+    UUID caseId = createCase(manager);
+
+    String updateBody = objectMapper.writeValueAsString(new UpdateCaseApiRequest("MORTGAGE"));
+    mockMvc
+        .perform(
+            patch("/api/v1/cases/" + caseId)
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody))
+        .andExpect(status().isOk());
+
+    String statusBody =
+        objectMapper.writeValueAsString(new ChangeCaseStatusApiRequest("DOCUMENTATION", null));
+    UUID clientId = createClient(manager, "cli-aud3");
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/clients")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CaseClientApiRequest(clientId, "HOLDER", true))))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/status")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(statusBody))
+        .andExpect(status().isOk());
+
+    String cancelBody =
+        objectMapper.writeValueAsString(new CancelCaseApiRequest("ABANDONED", null));
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/cancel")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(cancelBody))
+        .andExpect(status().isOk());
+
+    String reopenBody =
+        objectMapper.writeValueAsString(new ReopenCaseApiRequest("Reactivated", "PRESTUDY"));
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/reopen")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(reopenBody))
+        .andExpect(status().isOk());
+
+    List<AuditEvent> events =
+        auditEventRepository.findAll().stream().filter(e -> caseId.equals(e.resourceId())).toList();
+    assertThat(events).extracting(AuditEvent::action).contains("CASE_UPDATED");
+    assertThat(events).extracting(AuditEvent::action).contains("CASE_STATUS_CHANGED");
+    assertThat(events).extracting(AuditEvent::action).contains("CASE_CANCELLED");
+    assertThat(events).extracting(AuditEvent::action).contains("CASE_REOPENED");
+    assertThat(events).allMatch(e -> companyId.equals(e.companyId()));
+    assertThat(events).allMatch(e -> "CASE".equals(e.resourceType()));
   }
 }

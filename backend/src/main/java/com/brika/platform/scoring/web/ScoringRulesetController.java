@@ -1,5 +1,6 @@
 package com.brika.platform.scoring.web;
 
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.scoring.ScoringRule;
 import com.brika.platform.scoring.ScoringRuleset;
 import com.brika.platform.scoring.ScoringRulesetService;
@@ -25,14 +26,17 @@ public class ScoringRulesetController {
   private final AuthorizationService authorizationService;
   private final ScoringRulesetService scoringRulesetService;
   private final ObjectMapper objectMapper;
+  private final AuditEventWriter auditEventWriter;
 
   public ScoringRulesetController(
       AuthorizationService authorizationService,
       ScoringRulesetService scoringRulesetService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      AuditEventWriter auditEventWriter) {
     this.authorizationService = authorizationService;
     this.scoringRulesetService = scoringRulesetService;
     this.objectMapper = objectMapper;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @PostMapping("/api/v1/scoring/rulesets")
@@ -42,6 +46,16 @@ public class ScoringRulesetController {
     ScoringRuleset ruleset =
         scoringRulesetService.create(
             request.code(), request.version(), request.categories(), request.rules());
+    // GLOBAL resource (no company_id) — audited with a null tenant, consistent with the
+    // GLOBAL scope pattern already used by BankController.
+    auditEventWriter.write(
+        null,
+        authorizationService.currentUser(authentication).id(),
+        null,
+        "SCORING_RULESET_CREATED",
+        "SCORING_RULESET",
+        ruleset.id(),
+        "{\"code\":\"" + ruleset.code() + "\",\"version\":\"" + ruleset.version() + "\"}");
     return toResponse(ruleset);
   }
 

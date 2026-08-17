@@ -1,6 +1,7 @@
 package com.brika.platform.ai.web;
 
 import com.brika.platform.ai.AiUseCaseService;
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.casemgmt.CaseAccessResult;
 import com.brika.platform.casemgmt.CaseAccessService;
 import com.brika.platform.common.error.ResourceNotFoundException;
@@ -25,14 +26,17 @@ public class AiDraftMessageController {
   private final CaseAccessService caseAccessService;
   private final AiUseCaseService aiUseCaseService;
   private final ConversationRepository conversationRepository;
+  private final AuditEventWriter auditEventWriter;
 
   public AiDraftMessageController(
       CaseAccessService caseAccessService,
       AiUseCaseService aiUseCaseService,
-      ConversationRepository conversationRepository) {
+      ConversationRepository conversationRepository,
+      AuditEventWriter auditEventWriter) {
     this.caseAccessService = caseAccessService;
     this.aiUseCaseService = aiUseCaseService;
     this.conversationRepository = conversationRepository;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @PostMapping("/api/v1/conversations/{id}/ai/draft-message")
@@ -50,8 +54,17 @@ public class AiDraftMessageController {
         caseAccessService.requireCaseAccess(
             authentication, "AI_DRAFT_MESSAGE", conversation.caseId());
 
-    return AiUseCaseResponse.from(
+    var result =
         aiUseCaseService.draftMessage(
-            access.tenantId(), access.theCase().id(), access.user().id(), request.context()));
+            access.tenantId(), access.theCase().id(), access.user().id(), request.context());
+    auditEventWriter.write(
+        access.tenantId(),
+        access.user().id(),
+        null,
+        "AI_DRAFT_MESSAGE_REQUESTED",
+        "CONVERSATION",
+        id,
+        "{\"conversationId\":\"" + id + "\"}");
+    return AiUseCaseResponse.from(result);
   }
 }

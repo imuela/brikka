@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.audit.AuditEvent;
+import com.brika.platform.audit.AuditEventRepository;
 import com.brika.platform.identity.CompanyRepository;
 import com.brika.platform.identity.CreateUserCommand;
 import com.brika.platform.identity.User;
@@ -60,6 +62,7 @@ class ScoringRulesetEndpointsIT {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
+  @Autowired private AuditEventRepository auditEventRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -264,5 +267,79 @@ class ScoringRulesetEndpointsIT {
                 .content(body))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_SCORING_RULES"));
+  }
+
+  /**
+   * Sprint 12 D12-5.1: duplicate (code, version) must be rejected with 409 CONFLICT, not the
+   * previous uncaught 500 (known non-blocking debt since the Sprint 9 Validation Gate, fixed here).
+   * Also confirms no partial persistence occurs on the second, rejected attempt.
+   */
+  @Test
+  void duplicateCodeAndVersionIsRejectedWithConflict() throws Exception {
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-sr9");
+    String body = validRulesetBody("DUPLICATE_SR9");
+
+    mockMvc
+        .perform(
+            post("/api/v1/scoring/rulesets")
+                .header("Authorization", superadmin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/api/v1/scoring/rulesets")
+                .header("Authorization", superadmin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("SCORING_RULESET_ALREADY_EXISTS"));
+
+    String listResponse =
+        mockMvc
+            .perform(get("/api/v1/scoring/rulesets").header("Authorization", superadmin.bearer()))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    long matches =
+        objectMapper.readTree(listResponse).findValues("code").stream()
+            .filter(node -> "DUPLICATE_SR9".equals(node.asText()))
+            .count();
+    org.assertj.core.api.Assertions.assertThat(matches)
+        .as("exactly one ruleset must exist after the rejected duplicate attempt")
+        .isEqualTo(1);
+  }
+
+  @Test
+  void creatingARulesetWritesAnAuditEventWithNullCompany() throws Exception {
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-sr10");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/api/v1/scoring/rulesets")
+                    .header("Authorization", superadmin.bearer())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validRulesetBody("PROPERTY_SCORE_SR10")))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    UUID rulesetId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+
+    AuditEvent event =
+        auditEventRepository.findAll().stream()
+            .filter(
+                e ->
+                    "SCORING_RULESET_CREATED".equals(e.action())
+                        && rulesetId.equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    org.assertj.core.api.Assertions.assertThat(event.companyId()).isNull();
+    org.assertj.core.api.Assertions.assertThat(event.actorUserId())
+        .isEqualTo(superadmin.user().id());
+    org.assertj.core.api.Assertions.assertThat(event.resourceType()).isEqualTo("SCORING_RULESET");
   }
 }

@@ -1,5 +1,6 @@
 package com.brika.platform.crm.web;
 
+import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.crm.Client;
 import com.brika.platform.crm.ClientRepository;
@@ -27,11 +28,15 @@ public class ClientController {
 
   private final AuthorizationService authorizationService;
   private final ClientRepository clientRepository;
+  private final AuditEventWriter auditEventWriter;
 
   public ClientController(
-      AuthorizationService authorizationService, ClientRepository clientRepository) {
+      AuthorizationService authorizationService,
+      ClientRepository clientRepository,
+      AuditEventWriter auditEventWriter) {
     this.authorizationService = authorizationService;
     this.clientRepository = clientRepository;
+    this.auditEventWriter = auditEventWriter;
   }
 
   @GetMapping
@@ -71,6 +76,16 @@ public class ClientController {
     requireClientInTenant(id, tenantId);
     clientRepository.update(
         id, request.firstName(), request.lastName(), request.email(), request.phone());
+    // Sprint 12 D12-2 (ADR-AUDIT-002): only the client id is recorded, never the updated field
+    // values — conservative default to avoid persisting client PII inside audit_events.metadata.
+    auditEventWriter.write(
+        tenantId,
+        authorizationService.currentUser(authentication).id(),
+        null,
+        "CLIENT_UPDATED",
+        "CLIENT",
+        id,
+        "{\"clientId\":\"" + id + "\"}");
     return ClientResponse.from(requireClientInTenant(id, tenantId));
   }
 
