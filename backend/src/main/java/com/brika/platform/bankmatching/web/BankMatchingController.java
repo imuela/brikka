@@ -1,15 +1,19 @@
 package com.brika.platform.bankmatching.web;
 
+import com.brika.platform.bankmatching.BankMatchOverrideService;
 import com.brika.platform.bankmatching.BankMatchResult;
 import com.brika.platform.bankmatching.BankMatchResultRepository;
+import com.brika.platform.bankmatching.BankMatchRuleOverride;
 import com.brika.platform.bankmatching.BankMatchRuleResult;
 import com.brika.platform.bankmatching.BankMatchRuleResultRepository;
 import com.brika.platform.bankmatching.BankMatchingService;
+import com.brika.platform.bankmatching.MatchResult;
 import com.brika.platform.casemgmt.CaseAccessResult;
 import com.brika.platform.casemgmt.CaseAccessService;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.core.Authentication;
@@ -31,6 +35,7 @@ public class BankMatchingController {
   private final BankMatchingService bankMatchingService;
   private final BankMatchResultRepository bankMatchResultRepository;
   private final BankMatchRuleResultRepository bankMatchRuleResultRepository;
+  private final BankMatchOverrideService bankMatchOverrideService;
   private final ObjectMapper objectMapper;
 
   public BankMatchingController(
@@ -38,11 +43,13 @@ public class BankMatchingController {
       BankMatchingService bankMatchingService,
       BankMatchResultRepository bankMatchResultRepository,
       BankMatchRuleResultRepository bankMatchRuleResultRepository,
+      BankMatchOverrideService bankMatchOverrideService,
       ObjectMapper objectMapper) {
     this.caseAccessService = caseAccessService;
     this.bankMatchingService = bankMatchingService;
     this.bankMatchResultRepository = bankMatchResultRepository;
     this.bankMatchRuleResultRepository = bankMatchRuleResultRepository;
+    this.bankMatchOverrideService = bankMatchOverrideService;
     this.objectMapper = objectMapper;
   }
 
@@ -85,30 +92,58 @@ public class BankMatchingController {
   }
 
   private BankMatchResultResponse toResponse(BankMatchResult result) {
-    List<RuleResultResponse> ruleResults =
-        bankMatchRuleResultRepository.findAllByMatchResultId(result.id()).stream()
-            .map(this::toResponse)
-            .toList();
+    List<BankMatchRuleResult> ruleResults =
+        bankMatchRuleResultRepository.findAllByMatchResultId(result.id());
+
+    List<RuleResultResponse> ruleResponses = new ArrayList<>();
+    List<MatchResult> effectivePerRule = new ArrayList<>();
+    for (BankMatchRuleResult ruleResult : ruleResults) {
+      List<BankMatchRuleOverride> history =
+          bankMatchOverrideService.historyForRuleResult(ruleResult.id());
+      MatchResult effective = bankMatchOverrideService.effectiveResult(ruleResult, history);
+      effectivePerRule.add(effective);
+      ruleResponses.add(toResponse(ruleResult, history, effective));
+    }
+
+    MatchResult effectiveGlobal =
+        bankMatchOverrideService.effectiveGlobalResult(result.globalResult(), effectivePerRule);
+
     return new BankMatchResultResponse(
         result.id(),
         result.caseId(),
         result.bankId(),
         result.bankCriteriaVersionId(),
         result.globalResult(),
+        effectiveGlobal.name(),
         result.evaluatedAt(),
         readJson(result.inputSnapshot()),
-        ruleResults);
+        ruleResponses);
   }
 
-  private RuleResultResponse toResponse(BankMatchRuleResult ruleResult) {
+  private RuleResultResponse toResponse(
+      BankMatchRuleResult ruleResult, List<BankMatchRuleOverride> history, MatchResult effective) {
     return new RuleResultResponse(
+        ruleResult.id(),
         ruleResult.ruleId(),
         ruleResult.field(),
         ruleResult.operator(),
         readJson(ruleResult.expectedValue()),
         ruleResult.evaluatedValue() == null ? null : readJson(ruleResult.evaluatedValue()),
         ruleResult.result(),
-        ruleResult.reason());
+        ruleResult.reason(),
+        effective.name(),
+        history.size(),
+        history.stream().map(this::toResponse).toList());
+  }
+
+  private BankMatchRuleOverrideResponse toResponse(BankMatchRuleOverride override) {
+    return new BankMatchRuleOverrideResponse(
+        override.id(),
+        override.previousResult(),
+        override.newResult(),
+        override.reason(),
+        override.overriddenBy(),
+        override.overriddenAt());
   }
 
   private Object readJson(String json) {

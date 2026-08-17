@@ -19,7 +19,8 @@ public class MatchingEngine {
     for (MatchingRule rule : ruleSet.rules()) {
       evaluations.add(evaluateRule(rule, snapshot));
     }
-    return new EngineEvaluation(evaluations, aggregate(evaluations));
+    List<MatchResult> results = evaluations.stream().map(RuleEvaluation::result).toList();
+    return new EngineEvaluation(evaluations, aggregateResults(results));
   }
 
   private RuleEvaluation evaluateRule(MatchingRule rule, InputSnapshot snapshot) {
@@ -46,15 +47,20 @@ public class MatchingEngine {
     return severity == MatchSeverity.FAIL ? MatchResult.FAIL : MatchResult.WARNING;
   }
 
-  /** ADR-BANKENGINE-001 §6: FAIL > WARNING > NOT_EVALUATED-total > PASS. */
-  private MatchResult aggregate(List<RuleEvaluation> evaluations) {
+  /**
+   * ADR-BANKENGINE-001 §6 / ADR-BANKENGINE-002 §3: FAIL > WARNING > NOT_EVALUATED-total > PASS.
+   * Public so BankMatchOverrideService can reuse the exact same aggregation rule to derive the
+   * effective global result from overridden per-rule results — the algorithm must never be
+   * duplicated, only the input (original vs. effective per-rule results) differs.
+   */
+  public MatchResult aggregateResults(List<MatchResult> results) {
     boolean anyFail = false;
     boolean anyWarning = false;
     boolean anyNotEvaluated = false;
     boolean anySignificant = false; // PASS, FAIL or WARNING — anything but NOT_EVALUATED
 
-    for (RuleEvaluation evaluation : evaluations) {
-      switch (evaluation.result()) {
+    for (MatchResult result : results) {
+      switch (result) {
         case FAIL -> {
           anyFail = true;
           anySignificant = true;

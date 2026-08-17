@@ -10,6 +10,7 @@ public record BankMatchResultResponse(
     UUID bankId,
     UUID bankCriteriaVersionId,
     String globalResult,
+    String effectiveGlobalResult,
     Instant evaluatedAt,
     Object inputSnapshot,
     List<RuleResultResponse> ruleResults) {}

@@ -40,6 +40,13 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
   }
 
+  @ExceptionHandler(ConflictException.class)
+  public ResponseEntity<ErrorResponse> handleConflict(ConflictException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    ErrorResponse body = new ErrorResponse(exception.code(), exception.getMessage(), requestId);
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
     String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);

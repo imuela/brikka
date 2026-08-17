@@ -1,6 +1,7 @@
 package com.brika.platform.bankmatching;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -60,5 +61,13 @@ public class BankMatchRuleResultRepository {
   public List<BankMatchRuleResult> findAllByMatchResultId(UUID matchResultId) {
     return jdbcTemplate.query(
         SELECT + " WHERE match_result_id = ? ORDER BY created_at", ROW_MAPPER, matchResultId);
+  }
+
+  /**
+   * ADR-BANKENGINE-002 §10: read-only, used by BankMatchOverrideService to resolve the target of an
+   * override. Never used to mutate this table — bank_match_rule_results remains immutable.
+   */
+  public Optional<BankMatchRuleResult> findById(UUID id) {
+    return jdbcTemplate.query(SELECT + " WHERE id = ?", ROW_MAPPER, id).stream().findFirst();
   }
 }

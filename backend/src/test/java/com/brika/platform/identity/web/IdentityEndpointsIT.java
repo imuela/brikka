@@ -108,9 +108,10 @@ class IdentityEndpointsIT {
     mockMvc
         .perform(get("/api/v1/me/permissions").header("Authorization", manager.bearer()))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.permissions", hasSize(74))) // 71 (ADR-RBAC-001) + 1
+        .andExpect(jsonPath("$.permissions", hasSize(75))) // 71 (ADR-RBAC-001) + 1
         // (CLIENT_PORTAL_ACCOUNT_CREATE, ADR-PORTAL-AUTH-001, V11) + 2
-        // (BANK_MATCHING_RUN/READ, ADR-BANKENGINE-001, V13)
+        // (BANK_MATCHING_RUN/READ, ADR-BANKENGINE-001, V13) + 1
+        // (BANK_MATCHING_OVERRIDE, ADR-BANKENGINE-002, V14)
         .andExpect(jsonPath("$.permissions", not(hasItem("AI_USE"))))
         .andExpect(jsonPath("$.permissions", hasItem("CASE_REOPEN")));
   }
