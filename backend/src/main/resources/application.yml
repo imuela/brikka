@@ -34,6 +34,21 @@ brika:
     portal-issuer-uri: ${OIDC_PORTAL_ISSUER_URI:http://localhost:18081/realms/brika-portal}
     portal-expected-audience: ${OIDC_PORTAL_EXPECTED_AUDIENCE:}
 
+  ai:
+    # D10-5: local/testable transport is the default so `mvn verify` never depends on a
+    # running Python process (LocalAiTaskDispatcher). Set to "http" only once a real
+    # ai-worker/ process is deployed and reachable (HttpAiTaskDispatcher).
+    worker-transport: ${AI_WORKER_TRANSPORT:local}
+    worker-url: ${AI_WORKER_URL:http://localhost:8100}
+    # Base URL the Worker uses to reach this Spring Boot instance's internal callback
+    # endpoint (ADR-AI-001) — only meaningful when worker-transport=http.
+    callback-base-url: ${AI_CALLBACK_BASE_URL:http://localhost:8080}
+    # Shared secret checked manually by AiExtractionCallbackController (not part of the
+    # JWT-based SecurityConfig chains). Empty by default: an unset secret makes the
+    # callback endpoint reject every request rather than silently accepting an
+    # unauthenticated one.
+    worker-callback-secret: ${AI_WORKER_CALLBACK_SECRET:}
+
   storage:
     # MinIO (Sprint 0 infra), S3-compatible (18_STORAGE_SPECIFICATION.md §2). The
     # bucket itself is created by the storage-init one-shot service, not here.

@@ -599,6 +599,28 @@ El backend debe aplicar filtros de tenant.
 
 RLS se considera una segunda línea de defensa y se activará en tablas donde aporte valor sin introducir complejidad injustificada.
 
+### 15.1 Revisión RLS — Sprint 11 (ADR-AUDIT-001 adenda, D11-4)
+
+Revisión documental/técnica, sin implementación. No se ha creado ninguna `CREATE POLICY`, ningún `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`, ningún interceptor de conexión, ninguna migración relacionada con RLS.
+
+**Tablas tenant-owned con `company_id` directo `NOT NULL`** (28 — candidatas naturales a una futura política RLS directa por columna): `users`, `clients`, `client_portal_accounts`, `cases`, `case_assignments`, `case_status_history`, `properties`, `document_requests`, `documents`, `document_publications`, `simulations`, `financing_requests`, `bank_contacts`, `bank_requests`, `bank_offers`, `final_financing`, `tasks`, `conversations`, `notifications`, `scoring_results`, `document_extractions`, `ai_usage`, `bank_match_results`, `bank_match_rule_overrides`, `activities`, `conversation_participants`, `message_attachments`, `company_subscriptions`.
+
+**Tenant-owned con `company_id` nullable** (excepción SUPERADMIN/GLOBAL-opcional; una política RLS necesitaría una rama `company_id IS NULL OR company_id = current_setting(...)`): `audit_events`, `integrations`.
+
+**Tenant-owned sin `company_id` directo** (derivable solo vía JOIN — una política RLS exigiría una subconsulta correlacionada, no una comparación directa de columna): `case_clients` (→ `cases`), `document_versions` (→ `documents`), `messages` (→ `conversations`), `bank_responses` (→ `bank_requests`), `bank_match_rule_results` (→ `bank_match_results`), `notification_deliveries` (→ `notifications`).
+
+**Catálogo GLOBAL, no tenant-owned** (RLS no aplica): `companies`, `roles`, `permissions`, `user_roles`, `role_permissions`, `document_types`, `banks`, `bank_products`, `bank_criteria_versions`, `plans`, `entitlements`, `plan_entitlements`, `document_requirements`, `scoring_rulesets`, `scoring_rules`.
+
+**Conclusión aprobada:**
+
+- El aislamiento actual es aplicativo. `TenantContext` + `AuthorizationService` + `CaseAccessService` + `DocumentAccessService` constituyen actualmente la autoridad de aislamiento, exhaustivamente probada (todo `*EndpointsIT` de Sprints 2-10 incluye un caso cross-tenant → 404).
+- RLS podría actuar como segunda línea de defensa ante un bug futuro que omita el filtro de tenant en alguno de esos componentes.
+- Actualmente no existe infraestructura para propagar de forma segura el tenant contextual a cada conexión JDBC del pool (sin `SET LOCAL app.current_company_id` ni interceptor Hikari equivalente).
+- Las conexiones Hikari son reutilizadas entre requests — introducir RLS ahora sin ese trabajo de infraestructura previo arriesgaría fugas o bloqueos de aislamiento si una conexión reutilizada no resetea correctamente el contexto de sesión.
+- Las 6 tablas "derivable por JOIN" complicarían las políticas (subconsulta correlacionada en vez de comparación directa).
+- `SUPERADMIN` (GLOBAL, sin tenant) y las 2 tablas con `company_id` nullable requerirían una rama de excepción explícita en cada política.
+- **No se considera justificado introducir RLS real en Sprint 11.** Queda como candidato para un sprint específico de hardening posterior (Sprint 12, `09_ROADMAP.md` Fase K), condicionado a que se construya primero la propagación segura de tenant a nivel de conexión.
+
 ## 16. Migraciones
 
 Flyway:

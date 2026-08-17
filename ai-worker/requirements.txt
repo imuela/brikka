@@ -1,0 +1,2 @@
+# Brika AI Worker (Sprint 10) — no external dependencies.
+# Uses only the Python standard library (http.server, urllib.request, json).

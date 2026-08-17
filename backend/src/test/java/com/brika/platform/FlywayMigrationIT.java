@@ -24,8 +24,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * document_versions.uploaded_by nullable and adds uploaded_by_client_id; V13 (ADR-BANKENGINE-001,
  * Sprint 6B) adds bank_match_results/bank_match_rule_results and the BANK_MATCHING_RUN/READ
  * permissions; V14 (ADR-BANKENGINE-002, Sprint 6C) adds bank_match_rule_overrides and the
- * BANK_MATCHING_OVERRIDE permission for MANAGER/SUPERADMIN. V8-V12 add no table; V13 adds two; V14
- * adds one. The exact role_permissions content is verified in RbacSeedIT.
+ * BANK_MATCHING_OVERRIDE permission for MANAGER/SUPERADMIN; V15 (Sprint 10, D10-1) grants the
+ * already-cataloged AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE permissions to
+ * SUPERADMIN/MANAGER/BROKER — no new permission code, only new role_permissions rows. V8-V12 add no
+ * table; V13 adds two; V14 adds one; V15 adds none. The exact role_permissions content is verified
+ * in RbacSeedIT.
  */
 @Testcontainers
 @SpringBootTest
@@ -54,7 +57,7 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(14);
+    assertThat(appliedMigrations).isEqualTo(15);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -98,9 +101,10 @@ class FlywayMigrationIT {
     // 221 APPROVED combinations from ADR-RBAC-001 (81+71+58+11) + 2 from ADR-PORTAL-AUTH-001
     // (MANAGER/BROKER x CLIENT_PORTAL_ACCOUNT_CREATE, V11) + 6 from ADR-BANKENGINE-001
     // (SUPERADMIN/MANAGER/BROKER x BANK_MATCHING_RUN/READ, V13) + 2 from ADR-BANKENGINE-002
-    // (MANAGER/SUPERADMIN x BANK_MATCHING_OVERRIDE, V14) = 231. Full breakdown and
-    // PENDING/NOT_ASSIGNED absence verified in RbacSeedIT.
-    assertThat(rolePermissionCount).isEqualTo(231);
+    // (MANAGER/SUPERADMIN x BANK_MATCHING_OVERRIDE, V14) = 231 + 12 from Sprint 10 D10-1
+    // (SUPERADMIN/MANAGER/BROKER x AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE,
+    // V15) = 243. Full breakdown and PENDING/NOT_ASSIGNED absence verified in RbacSeedIT.
+    assertThat(rolePermissionCount).isEqualTo(243);
 
     Boolean reviewCommentExists =
         jdbc.queryForObject(

@@ -26,8 +26,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * CLIENT_PORTAL_ACCOUNT_CREATE); V13__bank_matching_engine.sql (ADR-BANKENGINE-001, Sprint 6B) adds
  * 6 more (SUPERADMIN/MANAGER/BROKER x BANK_MATCHING_RUN/READ); V14__bank_matching_overrides.sql
  * (ADR-BANKENGINE-002, Sprint 6C) adds 2 more (MANAGER/SUPERADMIN x BANK_MATCHING_OVERRIDE,
- * deliberately excluding BROKER and CLIENT) — counts below reflect the full schema state after
- * every migration, i.e. 221 + 2 + 6 + 2 = 231.
+ * deliberately excluding BROKER and CLIENT); V15__ai_use_permissions.sql (Sprint 10, D10-1) adds 12
+ * more (SUPERADMIN/MANAGER/BROKER x AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE,
+ * deliberately excluding CLIENT) — counts below reflect the full schema state after every
+ * migration, i.e. 221 + 2 + 6 + 2 + 12 = 243. Of the original 16 PENDING combinations, only the 4
+ * AI_MANAGE_CONFIGURATION/AI_READ_USAGE x MANAGER/BROKER combinations remain PENDING (still not
+ * seeded, out of Sprint 10 scope).
  */
 @Testcontainers
 @SpringBootTest
@@ -57,10 +61,10 @@ class RbacSeedIT {
   }
 
   @Test
-  void totalRolePermissionCountIsExactly231() {
+  void totalRolePermissionCountIsExactly243() {
     Integer count = jdbc().queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);
-    assertThat(count).isEqualTo(231);
-    assertThat(rolePermissionRepository.count()).isEqualTo(231);
+    assertThat(count).isEqualTo(243);
+    assertThat(rolePermissionRepository.count()).isEqualTo(243);
   }
 
   @Test
@@ -72,7 +76,7 @@ class RbacSeedIT {
   @Test
   void rolePermissionRepositoryResolvesPermissionCodesForSuperadmin() {
     Role superadmin = roleRepository.findByCode("SUPERADMIN");
-    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(84);
+    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(88);
   }
 
   @Test
@@ -94,15 +98,23 @@ class RbacSeedIT {
         .containsExactlyInAnyOrderEntriesOf(
             Map.of(
                 "SUPERADMIN",
-                    84L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13) + 1 (ADR-BANKENGINE-002,
-                // V14)
-                "MANAGER", 75L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 1
-                // (ADR-BANKENGINE-002, V14)
-                "BROKER", 61L, // 58 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13)
+                    88L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13) + 1 (ADR-BANKENGINE-002,
+                // V14) + 4 (Sprint 10 D10-1, V15: AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/
+                // AI_DRAFT_MESSAGE)
+                "MANAGER", 79L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 1
+                // (ADR-BANKENGINE-002, V14) + 4 (Sprint 10 D10-1, V15)
+                "BROKER", 65L, // 58 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 4
+                // (Sprint 10 D10-1, V15)
                 "CLIENT", 11L));
   }
 
-  private static List<String[]> pendingCombinations() {
+  /**
+   * Sprint 10 D10-1 (V15) grants SUPERADMIN/MANAGER/BROKER x AI_USE/AI_DOCUMENT_ANALYZE/
+   * AI_SUMMARIZE/AI_DRAFT_MESSAGE — these 12 combinations moved out of PENDING into seeded. Only
+   * AI_MANAGE_CONFIGURATION/AI_READ_USAGE x MANAGER/BROKER remain PENDING (out of Sprint 10 scope,
+   * SUPERADMIN already had both since V9).
+   */
+  private static List<String[]> nowGrantedByV15() {
     return List.of(
         new String[] {"SUPERADMIN", "AI_USE"},
         new String[] {"MANAGER", "AI_USE"},
@@ -115,7 +127,11 @@ class RbacSeedIT {
         new String[] {"BROKER", "AI_SUMMARIZE"},
         new String[] {"SUPERADMIN", "AI_DRAFT_MESSAGE"},
         new String[] {"MANAGER", "AI_DRAFT_MESSAGE"},
-        new String[] {"BROKER", "AI_DRAFT_MESSAGE"},
+        new String[] {"BROKER", "AI_DRAFT_MESSAGE"});
+  }
+
+  private static List<String[]> pendingCombinations() {
+    return List.of(
         new String[] {"MANAGER", "AI_MANAGE_CONFIGURATION"},
         new String[] {"BROKER", "AI_MANAGE_CONFIGURATION"},
         new String[] {"MANAGER", "AI_READ_USAGE"},
@@ -123,11 +139,38 @@ class RbacSeedIT {
   }
 
   @Test
-  void exactlySixteenPendingCombinationsExistInCatalogAndNoneAreSeeded() {
-    assertThat(pendingCombinations()).hasSize(16);
+  void exactlyFourPendingCombinationsExistInCatalogAndNoneAreSeeded() {
+    assertThat(pendingCombinations()).hasSize(4);
     for (String[] pair : pendingCombinations()) {
       assertCombinationNotSeeded(pair[0], pair[1]);
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("nowGrantedByV15")
+  void v15AiUsePermissionsAreSeededForSuperadminManagerBroker(
+      String roleCode, String permissionCode) {
+    Integer count =
+        jdbc()
+            .queryForObject(
+                "SELECT COUNT(*) FROM role_permissions rp"
+                    + " JOIN roles r ON r.id = rp.role_id"
+                    + " JOIN permissions p ON p.id = rp.permission_id"
+                    + " WHERE r.code = ? AND p.code = ?",
+                Integer.class,
+                roleCode,
+                permissionCode);
+    assertThat(count).as("%s x %s must be seeded by V15", roleCode, permissionCode).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @MethodSource("v15AiPermissionCodes")
+  void clientNeverReceivesAnyAiUsePermission(String permissionCode) {
+    assertCombinationNotSeeded("CLIENT", permissionCode);
+  }
+
+  private static List<String> v15AiPermissionCodes() {
+    return List.of("AI_USE", "AI_DOCUMENT_ANALYZE", "AI_SUMMARIZE", "AI_DRAFT_MESSAGE");
   }
 
   private static List<String[]> sampleNotAssignedCombinations() {

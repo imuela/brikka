@@ -141,6 +141,20 @@ Los siguientes ADR resuelven las inconsistencias detectadas en la auditoría cru
 
 **Estado:** APPROVED.
 
+### Adenda Sprint 11 — Resolución D11-1 a D11-5
+
+Resuelve, con decisión explícita del promotor del proyecto, el alcance de Sprint 11 (Audit + Reporting + Hardening):
+
+- **D11-1 (SUPPORT_SESSION):** se difiere explícitamente, de nuevo, a un sprint posterior (candidato: Sprint 12 — `09_ROADMAP.md` Fase K). No forma parte del bullet list autoritativo de Sprint 11 (`25_CLAUDE_CODE_EXECUTION_GUIDE.md`). `TenantContext` mantiene sin cambios el comportamiento "SUPERADMIN sin sesión = sin tenant resuelto" en todos los módulos, incluidos los nuevos de este sprint. No se crea `support_sessions`, no se añaden endpoints de apertura/cierre, no se añade `support_session_id` a `audit_events`.
+- **D11-2 (Reporting):** `FUNCTIONAL_SPECIFICATION.md` §22 no define contrato de datos suficiente (indicadores, agregaciones, formato) para implementar `/reports` sin inventar contenido de negocio. Reporting funcional queda explícitamente fuera de Sprint 11, pendiente de una decisión de producto futura que defina el catálogo de indicadores V1. `REPORT_READ` permanece sembrado sin cambios (APPROVED SUPPORT_SESSION para SUPERADMIN, APPROVED TENANT para MANAGER, NOT_ASSIGNED BROKER/CLIENT) pero sin ningún endpoint que lo consuma todavía.
+- **D11-3 (Exports):** `REPORT_EXPORT` permanece `NOT_ASSIGNED` para los 4 roles, sin cambios. No se implementa ninguna capacidad de exportación (CSV/PDF/XLSX) en Sprint 11.
+- **D11-4 (RLS):** Sprint 11 entrega una revisión técnica/documental de RLS (ver §15 actualizado de `16_POSTGRESQL_SCHEMA_SPECIFICATION.md`), no políticas `CREATE POLICY` reales. Ninguna tabla existente se modifica. La conclusión y recomendación quedan documentadas para una decisión de implementación posterior.
+- **D11-5 (Audit Events):** se construye la infraestructura de persistencia de `audit_events` (modelo, repositorio, `AuditEventWriter`/`SynchronousAuditEventWriter` — mismo patrón que `ActivityPublisher`/`SynchronousActivityPublisher` de Sprint 3) y un endpoint de lectura SUPERADMIN-only (`AUDIT_READ`, GLOBAL, sin `SUPPORT_SESSION`). Ninguna acción de dominio existente (Sprints 2-10) queda instrumentada para escribir en `audit_events` en este sprint: la documentación ("acciones sensibles", `06_SECURITY_SPECIFICATION.md` §7; "cuando corresponda", `17_API_SPECIFICATION_DETAILED.md` línea 251) no enumera ninguna acción concreta de forma inequívoca. Catálogo de acciones auditables queda pendiente de una decisión de seguridad/producto explícita. Infraestructura preparada, sin escritores de dominio conectados.
+
+**Documentos afectados por esta adenda:** este documento, `16_POSTGRESQL_SCHEMA_SPECIFICATION.md`.
+
+**Estado:** APPROVED.
+
 ## ADR-COMMS-001 — Message Attachments
 
 **Contexto:** `FUNCTIONAL_SPECIFICATION.md` §14 y el permiso `MESSAGE_ATTACHMENT_UPLOAD` (`14_DEFINITIVE_PERMISSION_CATALOG.md` §12) prometen adjuntos en mensajes; no existía tabla de soporte.
@@ -229,6 +243,42 @@ Los siguientes ADR resuelven las inconsistencias detectadas en la auditoría cru
 
 **Estado:** APPROVED.
 
+## ADR-SCORING-001 — Scoring Engine V1
+
+**Contexto:** `08_SCORING.md`, `BRIKA_MASTER_SPEC.md` §"Componentes" y `FUNCTIONAL_SPECIFICATION.md` describen tres componentes de scoring — Client Score, Property Score, Operation Score — como herramienta explicable de apoyo al análisis hipotecario, con reglas configurables por rule set y versión, resultado con score/rating/fecha/versión/desglose, y conservación histórica para explicar decisiones anteriores. Ninguno de estos documentos define el DSL de reglas, los campos evaluables, el algoritmo de agregación, ni el contrato de los endpoints — igual que ocurría con Bank Matching antes de `ADR-BANKENGINE-001`.
+
+**Estado:** APPROVED. Implementado y validado en Sprint 9 (33 archivos: 23 main + 5 test bajo `com.brika.platform.scoring`, cero migraciones — el esquema `scoring_rulesets`/`scoring_rules`/`scoring_results` ya existía en `V1__initial_schema.sql`).
+
+**Alcance:** Property Score + Operation Score únicamente. Client Score queda fuera de V1 (D9-1). Cálculo determinista y reproducible, sin llamadas de red/BD adicionales ni aleatoriedad dentro del motor de evaluación.
+
+**D9-1 — Client Score excluido; sin nuevo modelo de datos financieros de cliente.** Solo Property Score y Operation Score se implementan. No existe ninguna tabla ni campo de datos financieros de cliente en el esquema (`clients` no los tiene); ningún caso de uso de IA ni de scoring los introduce (ver también D10-3, Sprint 10, que cita esta misma decisión).
+
+**D9-2 — DSL cerrado de 9 operadores, desacoplado de Bank Matching.** `ScoreOperator`: `EQUALS`, `NOT_EQUALS`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `IN`, `NOT_IN`, `BETWEEN`. Deliberadamente independiente de `com.brika.platform.bankmatching.MatchOperator` — sin acoplamiento entre dominios, aunque la disciplina de validación es análoga. Ningún operador puede añadirse sin una nueva decisión ADR. El `weight` de una regla puede ser negativo (penalización).
+
+**D9-3 — Categorías: lista ascendente por `maxScore` con exactamente un catch-all `null` como último elemento.** Validado en escritura (`ScoringRulesValidator`: no vacío, nombres únicos, máx. 50 caracteres, orden ascendente, exactamente un `maxScore=null` y debe ser el último). Resuelto en motor (`ScoringEngine.resolveCategory`): primera categoría (ascendente) cuyo `maxScore >= totalScore`.
+
+**D9-4 — Operation Score limitado a `termMonths` y `requestedAmount`.** Ambos obtenidos exclusivamente de `FinancingRequest` (el más reciente por `case_id`, ya que `financing_requests` no tiene `UNIQUE(case_id)` — mismo criterio "más reciente gana" usado en el resto del proyecto).
+
+**D9-5 — Property Score limitado a `valuation`, `purchasePrice` y `LTV` calculado.** `valuation`/`purchasePrice` de `Property`. La fórmula de LTV reutiliza textualmente `ADR-BANKENGINE-001 D-A`: `ltv = requestedAmount / MIN(valuation, purchasePrice)`, con fallback al único denominador disponible, `null` si no hay ninguno o `requestedAmount` es `null`, escala 4, `HALF_UP` — decisión heredada, no nueva.
+
+**D9-6 — `scoring_rulesets` es GLOBAL, sin `company_id`.** Mismo patrón que `bank_criteria_versions`: el catálogo de reglas no es propiedad de ninguna empresa. `ScoringRulesetController` nunca resuelve tenant (`requireTenant()` no se invoca). `ScoringService.run()` evalúa **todos** los `scoring_ruleset` con `status='ACTIVE'` (D9-11), independientemente de quién los creó.
+
+**D9-7 — Infraestructura mínima de autoría/consulta de `scoring_rulesets`.** `POST /api/v1/scoring/rulesets` (`SCORING_RULESET_MANAGE`, SUPERADMIN-only) y `GET /api/v1/scoring/rulesets` (`SCORING_RULESET_READ`, SUPERADMIN/MANAGER/BROKER — permisos ya sembrados en V9, sin migración nueva). El servicio nunca inventa contenido de negocio (pesos, umbrales, reglas) — únicamente valida contra el DSL cerrado (D9-2/D9-3/D9-4/D9-5) y persiste exactamente lo que el llamante (SUPERADMIN) envía.
+
+**D9-8/D9-9/D9-10:** sin evidencia verificable en código, tests o documentación existente. No se reconstruyen ni se infieren.
+
+**D9-11 — Semántica de ejecución: `run` evalúa cada ruleset ACTIVE contra un único snapshot, persistiendo un `scoring_result` inmutable por ruleset.** `ScoringService.run(companyId, caseId)`: construye un `ScoreInputSnapshot` servidor una sola vez por invocación; para cada `scoring_ruleset` ACTIVE, reevalúa (defensa en profundidad, replicando la práctica de `BankMatchingService`) y persiste un `scoring_result` append-only (nunca `UPDATE`). Una base de datos sin ningún `scoring_ruleset` creado rechaza `run` con `NO_ACTIVE_SCORING_RULESET`. Los resultados ya persistidos no cambian si `Property`/`FinancingRequest` se modifican después (reproducibilidad).
+
+**Endpoints case-scoped:** `POST /api/v1/cases/{caseId}/scoring/run` (`SCORING_RUN`) y `GET /api/v1/cases/{caseId}/scoring/results` (`SCORING_READ`), vía `CaseAccessService` (TENANT + ROLE/PERMISSION + CASE ASSIGNMENT, mismo patrón que todo recurso case-scoped desde Sprint 3). El snapshot siempre se construye server-side — nunca se acepta desde el cuerpo de la petición. Permisos ya sembrados en V9 (`SCORING_RUN`/`SCORING_READ`: SUPERADMIN/MANAGER/BROKER), decisión heredada de `ADR-RBAC-001`, no nueva.
+
+**Decisiones fuera de alcance (respaldadas explícitamente):** Client Score (D9-1); RabbitMQ/procesamiento asíncrono del cálculo (ningún archivo lo referencia — el cálculo es siempre síncrono dentro de la request); modificación de Bank Matching (`scoring` no importa `com.brika.platform.bankmatching` en ningún punto, confirmado por ausencia total de dicho import).
+
+**Relación con Sprint 9:** este ADR documenta íntegramente la implementación ya construida y validada (`SPRINT 9 — VALIDATION GATE`, 240/240 tests). No introduce, modifica ni corrige ningún comportamiento.
+
+**Estado de implementación:** completo, validado, sin commit (pendiente del cierre de baseline Sprint 9-11). Deuda técnica conocida y **no corregida por este ADR**: `POST /scoring/rulesets` con `code`+`version` duplicado devuelve HTTP 500 en lugar de 400 (`uq_scoring_rulesets_code_version` sin manejo de `DataIntegrityViolationException` en `GlobalExceptionHandler`).
+
+**Documentos afectados:** ninguno adicional — este ADR documenta retroactivamente una implementación ya reflejada en `08_SCORING.md`, `BRIKA_MASTER_SPEC.md`, `FUNCTIONAL_SPECIFICATION.md` a nivel de alcance de producto, sin requerir cambios en ellos.
+
 ## ADR-AI-001 — Python Worker / pgvector
 
 **Contexto:** `03_TECHNICAL_SPECIFICATION.md` introducía un worker Python y pgvector como componentes auxiliares sin que `BRIKA_MASTER_SPEC.md` los reconociera como decisión de stack aprobada (§15/§20).
@@ -245,6 +295,18 @@ Arquitectura conceptual:
 **Documentos afectados:** `BRIKA_MASTER_SPEC.md`, `03_TECHNICAL_SPECIFICATION.md`, `21_AI_V1_SCOPE.md`, `06_SECURITY_SPECIFICATION.md`, `23_CLOUD_DEPLOYMENT_SPECIFICATION.md`.
 
 **Estado:** APPROVED.
+
+### Adenda Sprint 10 — Resolución D10-1 a D10-6
+
+Resuelve, con decisión explícita del promotor del proyecto, los puntos que ADR-AI-001 dejaba abiertos para poder implementar Sprint 10 (AI Gateway + Integrations):
+
+- **D10-1 (permisos):** se conceden `AI_USE`/`AI_DOCUMENT_ANALYZE`/`AI_SUMMARIZE`/`AI_DRAFT_MESSAGE` a `SUPERADMIN`/`MANAGER`/`BROKER` (12 combinaciones, `V15__ai_use_permissions.sql`) — mismo mecanismo que V11/V13/V14, ningún código de permiso nuevo. `AI_MANAGE_CONFIGURATION`/`AI_READ_USAGE` para `MANAGER`/`BROKER` permanecen `PENDING` (fuera de alcance de Sprint 10). Ver tabla IA actualizada más abajo.
+- **D10-2 (proveedor IA):** ningún proveedor externo aprobado en V1. Se implementa `AiProvider`/`NoOpAiProvider` (nunca reporta éxito fabricado), mismo patrón que `EmailSender`/`NoOpEmailSender` (Sprint 8).
+- **D10-3 (casos de uso):** de `21_AI_V1_SCOPE.md` §2, solo 4 casos de uso tienen contrato suficiente para implementarse sin inventar reglas de negocio: extracción documental (async, vía Worker), resumen/explicación/redacción de mensaje (síncronos, vía `AiProvider`, sin Worker). `get_client_financial_profile` queda explícitamente excluido (consistente con D9-1, Sprint 9: no existe modelo de datos financieros de cliente).
+- **D10-4/D10-5 (Worker + transporte):** se construye un Worker Python real y separado (`ai-worker/`), stateless, sin acceso ni credenciales de PostgreSQL (ADR-AI-001 sin cambios). El wiring RabbitMQ real no es implementable sin inventar nombres de exchange/queue/routing-key (`20_RABBITMQ_SPECIFICATION.md` solo documenta el evento `ai.document.analysis.requested` y un sobre genérico). Resolución: `AiTaskDispatcher` con dos implementaciones — `LocalAiTaskDispatcher` (por defecto, in-process, sin red) y `HttpAiTaskDispatcher` (HTTP real hacia el Worker, activable por configuración, no es RabbitMQ real). El endpoint interno de callback (`POST /internal/ai/document-extractions/{id}/callback`, ya previsto en ADR-AI-001) queda protegido por secreto compartido verificado manualmente, fuera de las cadenas de seguridad basadas en JWT.
+- **D10-6 (alcance excluido):** `get_client_financial_profile` fuera de alcance (ver D10-3). Ningún caso de uso RAG/embeddings se activa (ADR-AI-001 ya lo dejaba condicionado a aprobación expresa, que no se produce en Sprint 10).
+
+**Documentos afectados por esta adenda:** este documento (tabla IA más abajo), `V15__ai_use_permissions.sql`.
 
 ---
 
@@ -437,10 +499,10 @@ Formato por celda: `ESTADO` y, cuando aplica, `(SCOPE)`. Scopes usados: `GLOBAL`
 
 | Permiso | SUPERADMIN | MANAGER | BROKER | CLIENT | Notas |
 |---|---|---|---|---|---|
-| `AI_USE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Falta decisión de producto: qué caso de uso IA (`21_AI_V1_SCOPE.md`) está aprobado por rol. No asignar hasta entonces |
-| `AI_DOCUMENT_ANALYZE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Igual |
-| `AI_SUMMARIZE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Igual |
-| `AI_DRAFT_MESSAGE` | PENDING | PENDING | PENDING | NOT_ASSIGNED | Igual |
+| `AI_USE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Resuelto Sprint 10 D10-1 (adenda ADR-AI-001, `V15`); mismo patrón de scope que `SCORING_RUN`/`SCORING_READ` (vía `CaseAccessService`/`DocumentAccessService`); explicación de scoring (sin permiso dedicado) mapeada a este permiso |
+| `AI_DOCUMENT_ANALYZE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Igual |
+| `AI_SUMMARIZE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Igual |
+| `AI_DRAFT_MESSAGE` | APPROVED (SUPPORT_SESSION) | APPROVED (TENANT) | APPROVED (CASE) | NOT_ASSIGNED | Igual |
 | `AI_MANAGE_CONFIGURATION` | APPROVED (GLOBAL) | PENDING | PENDING | NOT_ASSIGNED | Configuración de IA es responsabilidad de plataforma (`BRIKA_MASTER_SPEC.md` §13) |
 | `AI_READ_USAGE` | APPROVED (GLOBAL) | PENDING | PENDING | NOT_ASSIGNED | Igual |
 
@@ -510,9 +572,9 @@ Reglas obligatorias: no cambia el rol de `SUPERADMIN`; no concede permisos nuevo
 
 **`SUPPORT_SESSION` no se implementa en Sprint 2** — `25_CLAUDE_CODE_EXECUTION_GUIDE.md` no lo contempla explícitamente en el alcance de ningún sprint todavía. Los 57 permisos `(SUPPORT_SESSION)` pueden sembrarse en `role_permissions` durante Sprint 2 (la concesión es segura por sí sola: sin `TenantContext` con verificación de sesión, que tampoco se implementa todavía, no hay ningún endpoint que pueda ejercerlos), pero **ningún endpoint o servicio debe consumirlos** hasta que existan `support_sessions`, la verificación de sesión en `TenantContext`, y la columna `support_session_id` en `audit_events`. Sprint 2 sí debe implementar, desde el primer commit de `TenantContext`, la regla "`SUPERADMIN` sin sesión activa = sin tenant resuelto" como comportamiento por defecto.
 
-### Estados PENDING (16 combinaciones)
+### Estados PENDING (4 combinaciones)
 
-`AI_USE`, `AI_DOCUMENT_ANALYZE`, `AI_SUMMARIZE`, `AI_DRAFT_MESSAGE` para `SUPERADMIN`/`MANAGER`/`BROKER` (12 combinaciones) y `AI_MANAGE_CONFIGURATION`/`AI_READ_USAGE` para `MANAGER`/`BROKER` (4 combinaciones). Ningún endpoint de IA puede consumir estos permisos hasta que exista una decisión de producto explícita sobre qué caso de uso de `21_AI_V1_SCOPE.md` está aprobado para qué rol — recomendado antes de Sprint 10 (AI Gateway).
+`AI_MANAGE_CONFIGURATION`/`AI_READ_USAGE` para `MANAGER`/`BROKER`. Las 12 combinaciones `AI_USE`/`AI_DOCUMENT_ANALYZE`/`AI_SUMMARIZE`/`AI_DRAFT_MESSAGE` × `SUPERADMIN`/`MANAGER`/`BROKER` que figuraban aquí quedaron resueltas y sembradas en Sprint 10 (D10-1, adenda ADR-AI-001, `V15__ai_use_permissions.sql`).
 
 ### NOT_ASSIGNED
 
