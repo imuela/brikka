@@ -43,6 +43,17 @@ Response:
 
 `GET /api/v1/me` incluye también los `entitlements` vigentes de la suscripción de la empresa, para que el frontend pueda ocultar funcionalidades no contratadas (sin que esto sustituya la comprobación de autorización en backend — `ADR-PLATFORM-001`).
 
+## 4A. Companies
+
+Contrato detallado ausente hasta Sprint 12.1 (`ADR-PLATFORM-002`), diseñado por analogía con `/users`: PATCH para datos, endpoint dedicado por cada transición de estado.
+
+- GET /companies (`COMPANY_READ`) — SUPERADMIN: todas las empresas. MANAGER: únicamente la propia (alcance TENANT).
+- POST /companies (`COMPANY_CREATE`) — SUPERADMIN exclusivo.
+- GET /companies/{id} (`COMPANY_READ`) — MANAGER solo si `id` es su propia empresa; en otro caso, 404 (enmascarado, igual que cualquier lookup cross-tenant).
+- PATCH /companies/{id} (`COMPANY_UPDATE`) — `legalName`/`tradeName`/`taxId`. Nunca acepta `status`.
+- POST /companies/{id}/suspend (`COMPANY_SUSPEND`) — SUPERADMIN exclusivo. `ACTIVE → SUSPENDED`. Sin endpoint de reactivación (ningún permiso lo habilita).
+- DELETE /companies/{id} (`COMPANY_DELETE`) — SUPERADMIN exclusivo. Transición lógica a `DELETED` (`ADR-PLATFORM-002` D-MASTER-2) — nunca un borrado físico de la fila.
+
 ## 4B. Plans / Subscriptions
 
 Uso exclusivo SUPERADMIN (`ADR-PLATFORM-001`).
@@ -52,7 +63,7 @@ Uso exclusivo SUPERADMIN (`ADR-PLATFORM-001`).
 - GET /plans/{id}
 - PATCH /plans/{id}
 - GET /companies/{id}/subscription
-- PUT /companies/{id}/subscription
+- PUT /companies/{id}/subscription — upsert: crea la suscripción si la empresa no tiene una, o actualiza plan/estado si ya existe (`company_subscriptions.company_id` es `UNIQUE`).
 - POST /companies/{id}/subscription/cancel
 
 Sin endpoints de facturación/pago: fuera de V1.
@@ -132,6 +143,15 @@ Filtro recomendado: `GET /document-requirements?operationType=...`
 - GET /banks/{id}
 - GET /banks/{id}/products
 - GET /banks/{id}/criteria
+
+Catálogo global (`ADR-BANKENGINE-001`), lectura abierta a todo rol interno (`BANK_READ`). Además existen endpoints de escritura, uso exclusivo SUPERADMIN, ausentes de esta sección hasta la revisión de Sprint 12.1 pese a estar ya implementados y protegidos por RBAC desde Sprint 5/6B:
+
+- POST /banks (`BANK_CREATE`)
+- PATCH /banks/{id} (`BANK_UPDATE`)
+- POST /banks/{id}/products (`BANK_UPDATE`)
+- PATCH /bank-products/{id} (`BANK_UPDATE`)
+- POST /banks/{id}/criteria (`BANK_CRITERIA_MANAGE`) — crea una nueva `BankCriteriaVersion`; las reglas se validan íntegramente en escritura (`ADR-BANKENGINE-001 D-G`)
+- PATCH /bank-criteria-versions/{id} (`BANK_CRITERIA_MANAGE`)
 
 ## 13. Bank contacts
 
