@@ -9,7 +9,7 @@ import { MatTableModule } from '@angular/material/table';
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
-import { CASE_STATUS_LABELS } from '../../../shared/labels/status-labels';
+import { CASE_STATUS_LABELS, OPERATION_TYPE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { Case } from '../case.model';
 import { CasesService } from '../cases.service';
@@ -40,6 +40,7 @@ export class CaseListComponent {
   readonly error = signal<string | null>(null);
   readonly displayedColumns = ['reference', 'operationType', 'status', 'createdAt'];
   readonly caseStatusLabels = CASE_STATUS_LABELS;
+  readonly operationTypeLabels = OPERATION_TYPE_LABELS;
 
   constructor() {
     this.casesService.list().subscribe({

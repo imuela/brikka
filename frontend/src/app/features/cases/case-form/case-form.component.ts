@@ -3,17 +3,21 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { OPERATION_TYPE_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { OPERATION_TYPES } from '../case.model';
 import { CasesService } from '../cases.service';
 
 /**
  * Create (/app/cases/new) and edit (/app/cases/:id/edit) share this component. `operationType` is
- * the only field either endpoint accepts (CreateCaseApiRequest/UpdateCaseApiRequest) — free text,
- * no catalog documented anywhere (backend javadoc), so no dropdown is invented here.
+ * the only field either endpoint accepts (CreateCaseApiRequest/UpdateCaseApiRequest). Sprint 20
+ * (ADR-PROCESS-008): populated from OPERATION_TYPES — a frontend-only closed catalog approved
+ * explicitly by the project owner (the backend field itself stays free text, no CHECK constraint).
  */
 @Component({
   selector: 'app-case-form',
@@ -21,9 +25,10 @@ import { CasesService } from '../cases.service';
   imports: [
     ReactiveFormsModule,
     MatFormFieldModule,
-    MatInputModule,
+    MatSelectModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './case-form.component.html',
   styleUrl: './case-form.component.scss',
@@ -38,6 +43,8 @@ export class CaseFormComponent {
   readonly isEditMode = this.caseId !== null;
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly operationTypes = OPERATION_TYPES;
+  readonly operationTypeLabels = OPERATION_TYPE_LABELS;
 
   readonly form = this.fb.nonNullable.group({
     operationType: ['', Validators.required],

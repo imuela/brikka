@@ -3,7 +3,11 @@
 <form [formGroup]="form" (ngSubmit)="submit()" class="field-row">
   <mat-form-field>
     <mat-label>Tipo de operación</mat-label>
-    <input matInput formControlName="operationType" required />
+    <mat-select formControlName="operationType" required>
+      @for (type of operationTypes; track type) {
+        <mat-option [value]="type">{{ type | statusLabel: operationTypeLabels }}</mat-option>
+      }
+    </mat-select>
   </mat-form-field>
 
   @if (error()) {

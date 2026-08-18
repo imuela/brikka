@@ -8,7 +8,7 @@ import { MatTableModule } from '@angular/material/table';
 
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
-import { CASE_STATUS_LABELS } from '../../../shared/labels/status-labels';
+import { CASE_STATUS_LABELS, OPERATION_TYPE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { PortalCase } from '../portal-case.model';
 import { PortalCaseService } from '../portal-case.service';
@@ -40,6 +40,7 @@ export class PortalDashboardComponent {
   readonly notifications = signal<PortalNotification[] | null>(null);
   readonly error = signal<string | null>(null);
   readonly caseStatusLabels = CASE_STATUS_LABELS;
+  readonly operationTypeLabels = OPERATION_TYPE_LABELS;
   readonly caseColumns = ['reference', 'operationType', 'status', 'createdAt'];
 
   constructor() {

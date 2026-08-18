@@ -3,15 +3,14 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
-import { ROLE_LABELS } from '../../../shared/labels/status-labels';
+import { ASSIGNMENT_TYPE_LABELS, ROLE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
-import { AssignableUser, CaseAssignment } from '../case.model';
+import { ASSIGNMENT_TYPES, AssignableUser, CaseAssignment } from '../case.model';
 import { CasesService } from '../cases.service';
 
 export interface AssignDialogData {
@@ -20,7 +19,9 @@ export interface AssignDialogData {
 
 /**
  * `assignmentType` is free text in the backend contract (CreateCaseAssignmentApiRequest — no
- * catalog documented anywhere), so it stays a plain text field rather than an invented dropdown.
+ * catalog documented anywhere). Sprint 20 (ADR-PROCESS-008): populated from ASSIGNMENT_TYPES — a
+ * frontend-only closed catalog approved explicitly by the project owner (the backend field itself
+ * stays free text, no CHECK constraint).
  */
 @Component({
   selector: 'app-assign-dialog',
@@ -30,7 +31,6 @@ export interface AssignDialogData {
     MatDialogModule,
     MatFormFieldModule,
     MatSelectModule,
-    MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
     StatusLabelPipe,
@@ -47,6 +47,8 @@ export class AssignDialogComponent {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly roleLabels = ROLE_LABELS;
+  readonly assignmentTypes = ASSIGNMENT_TYPES;
+  readonly assignmentTypeLabels = ASSIGNMENT_TYPE_LABELS;
 
   readonly form = this.fb.nonNullable.group({
     userId: ['', Validators.required],

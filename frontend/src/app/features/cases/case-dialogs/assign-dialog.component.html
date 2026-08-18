@@ -15,7 +15,11 @@
 
     <mat-form-field>
       <mat-label>Tipo de asignación</mat-label>
-      <input matInput formControlName="assignmentType" required />
+      <mat-select formControlName="assignmentType" required>
+        @for (type of assignmentTypes; track type) {
+          <mat-option [value]="type">{{ type | statusLabel: assignmentTypeLabels }}</mat-option>
+        }
+      </mat-select>
     </mat-form-field>
 
     @if (error()) {

@@ -9,9 +9,11 @@ import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { TASK_TYPE_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { AssignableUser } from '../../cases/case.model';
 import { CasesService } from '../../cases/cases.service';
-import { Task } from '../task.model';
+import { TASK_TYPES, Task } from '../task.model';
 import { TaskService } from '../task.service';
 
 export interface CreateTaskDialogData {
@@ -21,9 +23,9 @@ export interface CreateTaskDialogData {
   caseId: string | null;
 }
 
-/** type is free text (varchar(100), no CHECK constraint — see Task.java), so it stays a plain
- * text field rather than an invented catalog, same reasoning as assignmentType in
- * AssignDialogComponent. */
+/** type is free text (varchar(100), no CHECK constraint — see Task.java). Sprint 20
+ * (ADR-PROCESS-008): populated from TASK_TYPES — a frontend-only closed catalog approved
+ * explicitly by the project owner (the backend field itself stays free text). */
 @Component({
   selector: 'app-create-task-dialog',
   standalone: true,
@@ -35,6 +37,7 @@ export interface CreateTaskDialogData {
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './create-task-dialog.component.html',
 })
@@ -48,6 +51,8 @@ export class CreateTaskDialogComponent {
   readonly users = signal<AssignableUser[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly taskTypes = TASK_TYPES;
+  readonly taskTypeLabels = TASK_TYPE_LABELS;
 
   readonly form = this.fb.nonNullable.group({
     type: ['', Validators.required],

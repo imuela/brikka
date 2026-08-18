@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Símbolo Brikka">
+  <title>Brikka</title>
+  <defs>
+    <linearGradient id="brikka-b-spine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D5FD1"/>
+      <stop offset="100%" stop-color="#123E8C"/>
+    </linearGradient>
+    <linearGradient id="brikka-b-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6BB0FF"/>
+      <stop offset="100%" stop-color="#328CFA"/>
+    </linearGradient>
+    <linearGradient id="brikka-b-bottom" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#328CFA"/>
+      <stop offset="100%" stop-color="#1D5FD1"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="4" width="7" height="24" rx="3" fill="url(#brikka-b-spine)"/>
+  <rect x="10" y="4" width="16" height="12" rx="6" fill="url(#brikka-b-top)"/>
+  <rect x="10" y="16" width="17" height="12" rx="6" fill="url(#brikka-b-bottom)"/>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Brikka">
+  <title>Brikka</title>
+  <defs>
+    <linearGradient id="brikka-favicon-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#328CFA"/>
+      <stop offset="100%" stop-color="#123E8C"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="url(#brikka-favicon-bg)"/>
+  <g fill="#FFFFFF">
+    <rect x="8" y="6" width="4.5" height="20" rx="2"/>
+    <rect x="11.5" y="6" width="12.5" height="9" rx="4.5"/>
+    <rect x="11.5" y="15" width="13.5" height="9" rx="4.5"/>
+  </g>
+</svg>

@@ -49,19 +49,19 @@ describe('AssignDialogComponent', () => {
     fixture.detectChanges();
     flushUsers();
 
-    fixture.componentInstance.form.setValue({ userId: 'u1', assignmentType: 'BROKER' });
+    fixture.componentInstance.form.setValue({ userId: 'u1', assignmentType: 'PRIMARY' });
     fixture.componentInstance.submit();
 
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ userId: 'u1', assignmentType: 'BROKER' });
-    req.flush({ id: 'a1', caseId: 'k1', userId: 'u1', assignmentType: 'BROKER', active: true });
+    expect(req.request.body).toEqual({ userId: 'u1', assignmentType: 'PRIMARY' });
+    req.flush({ id: 'a1', caseId: 'k1', userId: 'u1', assignmentType: 'PRIMARY', active: true });
 
     expect(dialogRef.close).toHaveBeenCalledWith({
       id: 'a1',
       caseId: 'k1',
       userId: 'u1',
-      assignmentType: 'BROKER',
+      assignmentType: 'PRIMARY',
       active: true,
     });
   });
@@ -82,7 +82,7 @@ describe('AssignDialogComponent', () => {
     fixture.detectChanges();
     flushUsers();
 
-    fixture.componentInstance.form.setValue({ userId: 'u1', assignmentType: 'BROKER' });
+    fixture.componentInstance.form.setValue({ userId: 'u1', assignmentType: 'PRIMARY' });
     fixture.componentInstance.submit();
 
     httpMock

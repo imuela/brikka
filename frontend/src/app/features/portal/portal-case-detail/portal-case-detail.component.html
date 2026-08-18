@@ -9,7 +9,10 @@
 
   <mat-card>
     <mat-card-content>
-      <p><strong>Tipo de operación:</strong> {{ theCase()!.operationType }}</p>
+      <p>
+        <strong>Tipo de operación:</strong>
+        {{ theCase()!.operationType | statusLabel: operationTypeLabels }}
+      </p>
       <p><strong>Estado:</strong> {{ theCase()!.status | statusLabel: caseStatusLabels }}</p>
       <p><strong>Iniciada:</strong> {{ theCase()!.createdAt | date: 'dd/MM/yyyy' }}</p>
     </mat-card-content>

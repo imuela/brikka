@@ -31,6 +31,22 @@ export type CancellationReason = (typeof CANCELLATION_REASONS)[number];
 export const PARTICIPATION_TYPES = ['HOLDER', 'CO_HOLDER', 'GUARANTOR', 'OTHER'] as const;
 export type ParticipationType = (typeof PARTICIPATION_TYPES)[number];
 
+/** Sprint 20 (ADR-PROCESS-008): operationType is free text in the backend contract (no CHECK
+ * constraint, no enum — see CreateCaseApiRequest.java) and was previously a plain text input for
+ * exactly that reason. This is a frontend-only closed catalog approved explicitly by the project
+ * owner during Sprint 20 (Brikka is a mortgage-only product), not derived from any backend enum —
+ * the backend still accepts any string. Legacy data seeded as "MORTGAGE" before this sprint was
+ * migrated to PURCHASE (V16__normalize_operation_type_seed_data.sql). */
+export const OPERATION_TYPES = ['PURCHASE', 'REFINANCE', 'SELF_BUILD', 'SECOND_MORTGAGE'] as const;
+export type OperationType = (typeof OPERATION_TYPES)[number];
+
+/** Sprint 20 (ADR-PROCESS-008): assignmentType is free text in the backend contract (no CHECK
+ * constraint, no enum — see CreateCaseAssignmentApiRequest.java). Frontend-only closed catalog
+ * approved explicitly by the project owner during Sprint 20; the backend still accepts any
+ * string. PRIMARY is the only value in real use before this sprint and remains valid unchanged. */
+export const ASSIGNMENT_TYPES = ['PRIMARY', 'SECONDARY', 'REVIEWER'] as const;
+export type AssignmentType = (typeof ASSIGNMENT_TYPES)[number];
+
 /** Mirrors backend CaseResponse. */
 export interface Case {
   id: string;
@@ -61,7 +77,8 @@ export interface CaseClient {
   isPrimary: boolean;
 }
 
-/** Mirrors backend CreateCaseApiRequest — operationType is free text, no catalog exists. */
+/** Mirrors backend CreateCaseApiRequest. `operationType` is `string` (see note on
+ * ChangeCaseStatusRequest.newStatus above) — populated from OPERATION_TYPES. */
 export interface CreateCaseRequest {
   operationType: string;
 }
@@ -91,8 +108,8 @@ export interface ReopenCaseRequest {
   targetStatus: string;
 }
 
-/** Mirrors backend CreateCaseAssignmentApiRequest — assignmentType is free text, no catalog
- * exists. */
+/** Mirrors backend CreateCaseAssignmentApiRequest. `assignmentType` is `string` (see note on
+ * ChangeCaseStatusRequest.newStatus above) — populated from ASSIGNMENT_TYPES. */
 export interface CreateCaseAssignmentRequest {
   userId: string;
   assignmentType: string;

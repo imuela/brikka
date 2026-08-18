@@ -1,3 +1,17 @@
+/** Sprint 20 (ADR-PROCESS-008): type is free text in the backend contract (varchar(100), no CHECK
+ * constraint — see Task.java). Frontend-only closed catalog approved explicitly by the project
+ * owner; the backend still accepts any string. DOCUMENT_REVIEW and CALL are the values in real use
+ * before this sprint and remain valid unchanged. */
+export const TASK_TYPES = [
+  'DOCUMENT_REVIEW',
+  'CALL',
+  'CLIENT_FOLLOWUP',
+  'BANK_SUBMISSION',
+  'INTERNAL',
+  'GENERAL',
+] as const;
+export type TaskType = (typeof TASK_TYPES)[number];
+
 /** Mirrors backend com.brika.platform.task.web.TaskResponse (17_API_SPECIFICATION_DETAILED.md §17).
  * caseId/assignedTo are nullable — a task may exist independent of any case, and be unassigned. */
 export interface Task {
@@ -15,8 +29,8 @@ export interface Task {
   updatedAt: string;
 }
 
-/** Mirrors CreateTaskApiRequest. type is free text (varchar(100), no CHECK constraint in the
- * schema — see Task.java), so it stays a plain text field rather than an invented catalog. */
+/** Mirrors CreateTaskApiRequest. `type` is `string` (see note on
+ * ChangeCaseStatusRequest.newStatus in case.model.ts) — populated from TASK_TYPES. */
 export interface CreateTaskRequest {
   caseId: string | null;
   assignedTo: string | null;

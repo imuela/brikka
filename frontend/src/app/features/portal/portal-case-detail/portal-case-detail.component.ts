@@ -14,6 +14,7 @@ import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import {
   CASE_STATUS_LABELS,
   DOCUMENT_REQUEST_STATUS_LABELS,
+  OPERATION_TYPE_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { MessageAttachment } from '../../communications/communication.model';
@@ -69,6 +70,7 @@ export class PortalCaseDetailComponent {
 
   readonly caseStatusLabels = CASE_STATUS_LABELS;
   readonly documentRequestStatusLabels = DOCUMENT_REQUEST_STATUS_LABELS;
+  readonly operationTypeLabels = OPERATION_TYPE_LABELS;
   readonly documentColumns = ['type', 'version', 'publishedAt'];
   readonly requestColumns = ['type', 'status', 'dueAt', 'actions'];
 

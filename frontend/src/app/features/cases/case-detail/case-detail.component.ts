@@ -13,6 +13,7 @@ import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
 import {
+  ASSIGNMENT_TYPE_LABELS,
   BANK_OFFER_STATUS_LABELS,
   BANK_REQUEST_STATUS_LABELS,
   CASE_STATUS_LABELS,
@@ -21,9 +22,12 @@ import {
   DOCUMENT_REQUEST_STATUS_LABELS,
   FINANCING_REQUEST_STATUS_LABELS,
   MATCH_RESULT_LABELS,
+  OPERATION_TYPE_LABELS,
   PARTICIPATION_TYPE_LABELS,
+  PROPERTY_TYPE_LABELS,
   REVIEW_STATUS_LABELS,
   TASK_STATUS_LABELS,
+  TASK_TYPE_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { Bank } from '../../banks/bank.model';
@@ -102,8 +106,12 @@ export class CaseDetailComponent {
   readonly bankRequestStatusLabels = BANK_REQUEST_STATUS_LABELS;
   readonly bankOfferStatusLabels = BANK_OFFER_STATUS_LABELS;
   readonly taskStatusLabels = TASK_STATUS_LABELS;
+  readonly taskTypeLabels = TASK_TYPE_LABELS;
   readonly conversationTypeLabels = CONVERSATION_TYPE_LABELS;
   readonly conversationStatusLabels = CONVERSATION_STATUS_LABELS;
+  readonly operationTypeLabels = OPERATION_TYPE_LABELS;
+  readonly assignmentTypeLabels = ASSIGNMENT_TYPE_LABELS;
+  readonly propertyTypeLabels = PROPERTY_TYPE_LABELS;
   private readonly casesService = inject(CasesService);
   private readonly propertyService = inject(PropertyService);
   private readonly documentsService = inject(DocumentsService);

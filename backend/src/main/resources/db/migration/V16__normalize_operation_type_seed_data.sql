@@ -1,0 +1,11 @@
+-- Sprint 20 (ADR-PROCESS-008): the frontend introduces a closed catalog for cases.operation_type
+-- (PURCHASE/REFINANCE/SELF_BUILD/SECOND_MORTGAGE), approved explicitly by the project owner. This
+-- column itself remains free text on the backend (no CHECK constraint is added here — only the
+-- frontend enforces the closed set, matching the sprint's scope of "no modificar backend salvo
+-- imprescindible"). The only real data affected by this catalog decision is the "MORTGAGE" value
+-- used throughout Sprints 14-19 as example/demo data (no other operation_type value has ever been
+-- written) — this migration is a one-time data correction, not a schema change, so the existing
+-- demo/test cases keep a value that is valid under the new frontend catalog instead of showing an
+-- unrecognised raw code. PURCHASE is chosen as the closest real-world equivalent (a mortgage case
+-- with no further detail is overwhelmingly a purchase in practice).
+UPDATE cases SET operation_type = 'PURCHASE' WHERE operation_type = 'MORTGAGE';

@@ -1,5 +1,7 @@
 {
   "realm": "brika-portal",
+  "displayName": "Brikka",
+  "displayNameHtml": "<strong>Brikka</strong>",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,

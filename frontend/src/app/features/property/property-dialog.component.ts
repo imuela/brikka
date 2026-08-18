@@ -5,10 +5,13 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../core/http/api-error';
 import { friendlyErrorMessage } from '../../core/http/error-messages';
-import { Property } from './property.model';
+import { PROPERTY_TYPE_LABELS } from '../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../shared/pipes/status-label.pipe';
+import { PROPERTY_TYPES, Property } from './property.model';
 import { PropertyService } from './property.service';
 
 export interface PropertyDialogData {
@@ -18,7 +21,8 @@ export interface PropertyDialogData {
 
 /** address is schemaless jsonb on the backend — street/city/postalCode/province are the frontend's
  * chosen minimal field set, not a backend-documented schema (see property.model.ts). Empty fields
- * are dropped from the submitted address so we don't persist blank keys the user never filled. */
+ * are dropped from the submitted address so we don't persist blank keys the user never filled.
+ * propertyType is populated from PROPERTY_TYPES (Sprint 20, ADR-PROCESS-008). */
 @Component({
   selector: 'app-property-dialog',
   standalone: true,
@@ -27,8 +31,10 @@ export interface PropertyDialogData {
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './property-dialog.component.html',
 })
@@ -41,6 +47,8 @@ export class PropertyDialogComponent {
   readonly isEditMode = this.data.property !== null;
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly propertyTypes = PROPERTY_TYPES;
+  readonly propertyTypeLabels = PROPERTY_TYPE_LABELS;
 
   readonly form = this.fb.nonNullable.group({
     propertyType: [this.data.property?.propertyType ?? '', Validators.required],

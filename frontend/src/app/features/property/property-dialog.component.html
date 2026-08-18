@@ -3,7 +3,11 @@
   <mat-dialog-content class="field-row">
     <mat-form-field>
       <mat-label>Tipo de inmueble</mat-label>
-      <input matInput formControlName="propertyType" required />
+      <mat-select formControlName="propertyType" required>
+        @for (type of propertyTypes; track type) {
+          <mat-option [value]="type">{{ type | statusLabel: propertyTypeLabels }}</mat-option>
+        }
+      </mat-select>
     </mat-form-field>
 
     <mat-form-field>

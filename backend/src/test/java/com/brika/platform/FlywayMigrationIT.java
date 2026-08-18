@@ -15,7 +15,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Sprint 1 smoke test: the application context must boot against a real, empty PostgreSQL instance
- * and Flyway must run every migration (V1-V14) successfully. This is the same physical schema
+ * and Flyway must run every migration (V1-V16) successfully. This is the same physical schema
  * described in 16_POSTGRESQL_SCHEMA_SPECIFICATION.md — no JPA entities exist yet, so this test
  * asserts against raw JDBC metadata rather than a domain model. V8 (ADR-IDENTITY-001) makes
  * users.company_id nullable; V9 (ADR-RBAC-001) seeds role_permissions; V10 (Sprint 4) adds
@@ -28,7 +28,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * already-cataloged AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE permissions to
  * SUPERADMIN/MANAGER/BROKER — no new permission code, only new role_permissions rows. V8-V12 add no
  * table; V13 adds two; V14 adds one; V15 adds none. The exact role_permissions content is verified
- * in RbacSeedIT.
+ * in RbacSeedIT. V16 (Sprint 20, ADR-PROCESS-008) is a data-only correction (no schema change): the
+ * only cases.operation_type value in real use, "MORTGAGE", is updated to "PURCHASE" to be valid
+ * under the new frontend-only OPERATION_TYPES catalog approved in that sprint.
  */
 @Testcontainers
 @SpringBootTest
@@ -57,7 +59,7 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(15);
+    assertThat(appliedMigrations).isEqualTo(16);
 
     Integer tableCount =
         jdbc.queryForObject(

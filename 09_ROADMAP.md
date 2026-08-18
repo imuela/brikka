@@ -18,6 +18,7 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 | J — Audit/Reporting/AI | Sprint 10, Sprint 11 |
 | K — Hardening | Sprint 12 |
 | L — Frontend V1 | Sprint 13, Sprint 14, Sprint 15, Sprint 16, Sprint 17, Sprint 18, Sprint 19 (`ADR-PROCESS-004`, `ADR-PROCESS-005`, `ADR-PROCESS-006`, `ADR-PROCESS-007`) |
+| M — Rebranding Brikka + normalización UX | Sprint 20 (`ADR-PROCESS-008`) — última fase antes de la auditoría general (Sprint 21 en adelante) |
 
 ## Fase A — Consolidación documental
 - especificación;
@@ -108,6 +109,14 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 - Tasks/Comunicaciones internas/Notificaciones (Sprint 17, `ADR-PROCESS-005`);
 - Administración: Users/Companies/Plans/Subscriptions (Sprint 18, `ADR-PROCESS-006`);
 - Portal Cliente (Sprint 19, `ADR-PROCESS-007`, `ADR-PORTAL-AUTH-001`) — sin ningún bloque de Fase L pendiente tras este sprint.
+
+## Fase M — Rebranding Brikka + normalización UX
+- marca visible del producto: Brika → **Brikka** (identificadores técnicos internos preservados);
+- imagen de marca analizada y documentada (`docs/branding/BRIKKA_BRAND_GUIDELINES.md`, `BRIKKA_BRAND_REVIEW.md`), **pendiente de aprobación humana** — no considerada una identidad de marca definitiva por el mero hecho de estar documentada;
+- auditoría y normalización de textos visibles en español en toda la aplicación (interno + Portal Cliente);
+- 4 campos "Tipo" (operación, inmueble, asignación, tarea) convertidos de texto libre a catálogo cerrado aprobado explícitamente por el responsable del proyecto (Sprint 20, `ADR-PROCESS-008`) — ninguno tenía un catálogo real preexistente en backend ni frontend.
+
+**A partir de aquí comienza la auditoría general del proyecto (Sprint 21 en adelante).** Ningún trabajo de auditoría se ha iniciado todavía — es explícitamente el siguiente bloque, no parte de este sprint.
 
 ## Regla de progreso
 

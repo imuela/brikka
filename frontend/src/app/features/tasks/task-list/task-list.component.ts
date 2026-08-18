@@ -11,7 +11,7 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
-import { TASK_STATUS_LABELS } from '../../../shared/labels/status-labels';
+import { TASK_STATUS_LABELS, TASK_TYPE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { AssignableUser } from '../../cases/case.model';
 import { CasesService } from '../../cases/cases.service';
@@ -48,6 +48,7 @@ export class TaskListComponent {
   readonly users = signal<AssignableUser[]>([]);
   readonly error = signal<string | null>(null);
   readonly taskStatusLabels = TASK_STATUS_LABELS;
+  readonly taskTypeLabels = TASK_TYPE_LABELS;
   readonly displayedColumns = [
     'title',
     'type',

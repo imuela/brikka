@@ -159,3 +159,43 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
   SUSPENDED: 'Suspendida',
   CANCELLED: 'Cancelada',
 };
+
+/** Sprint 20 (ADR-PROCESS-008): OPERATION_TYPES (features/cases/case.model.ts) — frontend-only
+ * closed catalog, backend field remains free text (no CHECK constraint). */
+export const OPERATION_TYPE_LABELS: Record<string, string> = {
+  PURCHASE: 'Compra de vivienda',
+  REFINANCE: 'Subrogación / cambio de banco',
+  SELF_BUILD: 'Autopromoción',
+  SECOND_MORTGAGE: 'Segunda hipoteca',
+};
+
+/** Sprint 20 (ADR-PROCESS-008): PROPERTY_TYPES (features/property/property.model.ts) —
+ * frontend-only closed catalog, backend field remains free text (no CHECK constraint). */
+export const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  FLAT: 'Piso',
+  HOUSE: 'Casa',
+  CHALET: 'Chalet',
+  STUDIO: 'Estudio',
+  COMMERCIAL_PREMISES: 'Local comercial',
+  LAND: 'Suelo / parcela',
+  GARAGE: 'Garaje',
+};
+
+/** Sprint 20 (ADR-PROCESS-008): ASSIGNMENT_TYPES (features/cases/case.model.ts) —
+ * frontend-only closed catalog, backend field remains free text (no CHECK constraint). */
+export const ASSIGNMENT_TYPE_LABELS: Record<string, string> = {
+  PRIMARY: 'Responsable principal',
+  SECONDARY: 'Colaborador',
+  REVIEWER: 'Revisor',
+};
+
+/** Sprint 20 (ADR-PROCESS-008): TASK_TYPES (features/tasks/task.model.ts) — frontend-only
+ * closed catalog, backend field remains free text (varchar(100), no CHECK constraint). */
+export const TASK_TYPE_LABELS: Record<string, string> = {
+  DOCUMENT_REVIEW: 'Revisión de documentación',
+  CALL: 'Llamada',
+  CLIENT_FOLLOWUP: 'Seguimiento al cliente',
+  BANK_SUBMISSION: 'Envío a banco',
+  INTERNAL: 'Tarea interna',
+  GENERAL: 'General',
+};

@@ -28,7 +28,7 @@ const theCase = {
   companyId: 'co1',
   reference: 'REF-1',
   status: 'PRESTUDY',
-  operationType: 'MORTGAGE',
+  operationType: 'PURCHASE',
   createdBy: 'u1',
   createdAt: '2026-08-17T10:00:00Z',
   cancelledAt: null,
@@ -49,7 +49,7 @@ describe('CaseFormComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.isEditMode).toBe(false);
 
-    fixture.componentInstance.form.setValue({ operationType: 'MORTGAGE' });
+    fixture.componentInstance.form.setValue({ operationType: 'PURCHASE' });
     fixture.componentInstance.submit();
 
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases`);
@@ -71,7 +71,7 @@ describe('CaseFormComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.form.value.operationType).toBe('MORTGAGE');
+    expect(fixture.componentInstance.form.value.operationType).toBe('PURCHASE');
 
     fixture.componentInstance.submit();
     const patchReq = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`);
@@ -98,7 +98,7 @@ describe('CaseFormComponent', () => {
 
     const fixture = TestBed.createComponent(CaseFormComponent);
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({ operationType: 'MORTGAGE' });
+    fixture.componentInstance.form.setValue({ operationType: 'PURCHASE' });
     fixture.componentInstance.submit();
 
     httpMock

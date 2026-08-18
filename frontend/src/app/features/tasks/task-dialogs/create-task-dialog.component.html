@@ -3,7 +3,11 @@
   <mat-dialog-content class="field-row">
     <mat-form-field>
       <mat-label>Tipo</mat-label>
-      <input matInput formControlName="type" required />
+      <mat-select formControlName="type" required>
+        @for (type of taskTypes; track type) {
+          <mat-option [value]="type">{{ type | statusLabel: taskTypeLabels }}</mat-option>
+        }
+      </mat-select>
     </mat-form-field>
 
     <mat-form-field>
