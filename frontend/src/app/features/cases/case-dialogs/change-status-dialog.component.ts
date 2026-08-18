@@ -8,6 +8,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { CASE_STATUS_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { CASE_STATUSES, Case } from '../case.model';
 import { CasesService } from '../cases.service';
 
@@ -26,6 +29,7 @@ export interface ChangeStatusDialogData {
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './change-status-dialog.component.html',
 })
@@ -36,6 +40,7 @@ export class ChangeStatusDialogComponent {
   private readonly data = inject<ChangeStatusDialogData>(MAT_DIALOG_DATA);
 
   readonly statuses = CASE_STATUSES;
+  readonly caseStatusLabels = CASE_STATUS_LABELS;
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -55,7 +60,7 @@ export class ChangeStatusDialogComponent {
       next: (theCase) => this.dialogRef.close(theCase),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

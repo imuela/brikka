@@ -112,7 +112,7 @@ describe('CreateDocumentRequestDialogComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`)
       .flush({ code: 'FORBIDDEN', message: 'Access denied.', requestId: 'r1' }, { status: 403, statusText: 'Forbidden' });
 
-    expect(fixture.componentInstance.error()).toBe('Access denied.');
+    expect(fixture.componentInstance.error()).toBe('No tienes permisos para realizar esta acción.');
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 

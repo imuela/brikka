@@ -3,7 +3,9 @@
   {{ sessionStore.user()?.email }}
 </button>
 <mat-menu #menu="matMenu">
-  <div class="user-menu-role" mat-menu-item disabled>{{ sessionStore.role() }}</div>
+  <div class="user-menu-role" mat-menu-item disabled>
+    {{ sessionStore.role() | statusLabel: roleLabels }}
+  </div>
   <button mat-menu-item (click)="logout()">
     <mat-icon>logout</mat-icon>
     <span>Cerrar sesión</span>

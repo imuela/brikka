@@ -49,7 +49,7 @@ describe('ClientListComponent', () => {
       .flush({ code: 'FORBIDDEN', message: 'Access denied.', requestId: 'r1' }, { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Access denied.');
+    expect(fixture.nativeElement.textContent).toContain('No tienes permisos para realizar esta acción.');
   });
 
   it('hides "Nuevo cliente" without CLIENT_CREATE and shows it once granted', () => {

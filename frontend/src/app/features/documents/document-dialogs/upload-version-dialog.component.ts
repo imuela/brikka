@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CaseDocumentVersion } from '../document.model';
 import { DocumentsService } from '../documents.service';
 
@@ -46,7 +47,7 @@ export class UploadVersionDialogComponent {
       next: (version) => this.dialogRef.close(version),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

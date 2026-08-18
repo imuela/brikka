@@ -56,3 +56,10 @@ body {
   align-items: center;
   justify-content: space-between;
 }
+
+/* Auditoría UX pre-Sprint 16: evita que las tablas (más sus columnas de acciones, a menudo con
+ * varios botones) desborden o se recorten en viewports estrechos — el contenedor se desplaza
+ * horizontalmente en vez de romper el layout de la página. */
+.table-scroll {
+  overflow-x: auto;
+}

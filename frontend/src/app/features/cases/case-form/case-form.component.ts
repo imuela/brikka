@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CasesService } from '../cases.service';
 
 /**
@@ -46,7 +47,7 @@ export class CaseFormComponent {
     if (this.caseId) {
       this.casesService.get(this.caseId).subscribe({
         next: (theCase) => this.form.patchValue({ operationType: theCase.operationType }),
-        error: (err: ApiError) => this.error.set(err.message),
+        error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
       });
     }
   }
@@ -67,7 +68,7 @@ export class CaseFormComponent {
       next: (theCase) => this.router.navigate(['/app/cases', theCase.id]),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

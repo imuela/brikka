@@ -80,7 +80,7 @@ describe('UploadVersionDialogComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/documents/d1/versions`)
       .flush({ code: 'UNSUPPORTED_MIME_TYPE', message: 'Unsupported file type.', requestId: 'r1' }, { status: 400, statusText: 'Bad Request' });
 
-    expect(fixture.componentInstance.error()).toBe('Unsupported file type.');
+    expect(fixture.componentInstance.error()).toBe('El tipo de fichero no está permitido.');
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 

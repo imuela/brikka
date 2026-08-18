@@ -5,7 +5,7 @@
       <mat-label>Nuevo estado</mat-label>
       <mat-select formControlName="newStatus" required>
         @for (status of statuses; track status) {
-          <mat-option [value]="status">{{ status }}</mat-option>
+          <mat-option [value]="status">{{ status | statusLabel: caseStatusLabels }}</mat-option>
         }
       </mat-select>
     </mat-form-field>

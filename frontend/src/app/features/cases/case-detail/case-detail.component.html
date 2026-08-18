@@ -19,10 +19,10 @@
   <mat-card>
     <mat-card-content>
       <p><strong>Tipo de operación:</strong> {{ theCase()!.operationType }}</p>
-      <p><strong>Estado:</strong> {{ theCase()!.status }}</p>
-      <p><strong>Creado:</strong> {{ theCase()!.createdAt }}</p>
+      <p><strong>Estado:</strong> {{ theCase()!.status | statusLabel: caseStatusLabels }}</p>
+      <p><strong>Creado:</strong> {{ theCase()!.createdAt | date: 'dd/MM/yyyy HH:mm' }}</p>
       @if (theCase()!.cancelledAt) {
-        <p><strong>Cancelado:</strong> {{ theCase()!.cancelledAt }}</p>
+        <p><strong>Cancelado:</strong> {{ theCase()!.cancelledAt | date: 'dd/MM/yyyy HH:mm' }}</p>
       }
     </mat-card-content>
     <mat-card-actions>
@@ -48,10 +48,11 @@
     } @else if (assignments()!.length === 0) {
       <p>Sin asignaciones.</p>
     } @else {
+      <div class="table-scroll">
       <table mat-table [dataSource]="assignments()!">
         <ng-container matColumnDef="userId">
           <th mat-header-cell *matHeaderCellDef>Usuario</th>
-          <td mat-cell *matCellDef="let assignment">{{ assignment.userId }}</td>
+          <td mat-cell *matCellDef="let assignment">{{ userName(assignment.userId) }}</td>
         </ng-container>
         <ng-container matColumnDef="assignmentType">
           <th mat-header-cell *matHeaderCellDef>Tipo</th>
@@ -64,6 +65,7 @@
         <tr mat-header-row *matHeaderRowDef="assignmentColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: assignmentColumns"></tr>
       </table>
+      </div>
     }
   </div>
 
@@ -79,6 +81,7 @@
     } @else if (clients()!.length === 0) {
       <p>Sin clientes asociados.</p>
     } @else {
+      <div class="table-scroll">
       <table mat-table [dataSource]="clients()!">
         <ng-container matColumnDef="name">
           <th mat-header-cell *matHeaderCellDef>Nombre</th>
@@ -86,7 +89,9 @@
         </ng-container>
         <ng-container matColumnDef="participationType">
           <th mat-header-cell *matHeaderCellDef>Participación</th>
-          <td mat-cell *matCellDef="let client">{{ client.participationType }}</td>
+          <td mat-cell *matCellDef="let client">
+            {{ client.participationType | statusLabel: participationTypeLabels }}
+          </td>
         </ng-container>
         <ng-container matColumnDef="isPrimary">
           <th mat-header-cell *matHeaderCellDef>Titular principal</th>
@@ -107,6 +112,7 @@
         <tr mat-header-row *matHeaderRowDef="clientColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: clientColumns"></tr>
       </table>
+      </div>
     }
   </div>
 
@@ -128,10 +134,16 @@
     } @else {
       <p><strong>Tipo:</strong> {{ property()!.propertyType }}</p>
       @if (property()!.valuation !== null) {
-        <p><strong>Valoración:</strong> {{ property()!.valuation }} €</p>
+        <p>
+          <strong>Valoración:</strong>
+          {{ property()!.valuation | currency: 'EUR' : 'symbol' : '1.0-2' }}
+        </p>
       }
       @if (property()!.purchasePrice !== null) {
-        <p><strong>Precio de compra:</strong> {{ property()!.purchasePrice }} €</p>
+        <p>
+          <strong>Precio de compra:</strong>
+          {{ property()!.purchasePrice | currency: 'EUR' : 'symbol' : '1.0-2' }}
+        </p>
       }
     }
   </div>
@@ -152,6 +164,7 @@
     } @else if (documents()!.length === 0) {
       <p>Sin documentos todavía.</p>
     } @else {
+      <div class="table-scroll">
       <table mat-table [dataSource]="documents()!">
         <ng-container matColumnDef="type">
           <th mat-header-cell *matHeaderCellDef>Tipo</th>
@@ -161,7 +174,9 @@
         </ng-container>
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
-          <td mat-cell *matCellDef="let document">{{ document.status }}</td>
+          <td mat-cell *matCellDef="let document">
+            {{ document.status | statusLabel: reviewStatusLabels }}
+          </td>
         </ng-container>
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef></th>
@@ -206,6 +221,7 @@
         <tr mat-header-row *matHeaderRowDef="documentColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: documentColumns"></tr>
       </table>
+      </div>
     }
   </div>
 
@@ -221,6 +237,7 @@
     } @else if (documentRequests()!.length === 0) {
       <p>Sin solicitudes todavía.</p>
     } @else {
+      <div class="table-scroll">
       <table mat-table [dataSource]="documentRequests()!">
         <ng-container matColumnDef="type">
           <th mat-header-cell *matHeaderCellDef>Tipo</th>
@@ -236,12 +253,14 @@
         </ng-container>
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
-          <td mat-cell *matCellDef="let request">{{ request.status }}</td>
+          <td mat-cell *matCellDef="let request">
+            {{ request.status | statusLabel: documentRequestStatusLabels }}
+          </td>
         </ng-container>
         <ng-container matColumnDef="dueAt">
           <th mat-header-cell *matHeaderCellDef>Fecha límite</th>
           <td mat-cell *matCellDef="let request">
-            {{ request.dueAt ? (request.dueAt | date: 'shortDate') : '—' }}
+            {{ request.dueAt ? (request.dueAt | date: 'dd/MM/yyyy') : '—' }}
           </td>
         </ng-container>
         <ng-container matColumnDef="actions">
@@ -263,6 +282,7 @@
         <tr mat-header-row *matHeaderRowDef="documentRequestColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: documentRequestColumns"></tr>
       </table>
+      </div>
     }
   </div>
 }

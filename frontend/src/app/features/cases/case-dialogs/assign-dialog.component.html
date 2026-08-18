@@ -6,7 +6,8 @@
       <mat-select formControlName="userId" required>
         @for (user of users(); track user.id) {
           <mat-option [value]="user.id">
-            {{ user.firstName }} {{ user.lastName }} ({{ user.email }}, {{ user.role }})
+            {{ user.firstName }} {{ user.lastName }} ({{ user.email }},
+            {{ user.role | statusLabel: roleLabels }})
           </mat-option>
         }
       </mat-select>

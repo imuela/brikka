@@ -7,6 +7,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CaseDocument, DocumentType } from '../document.model';
 import { DocumentsService } from '../documents.service';
 
@@ -53,7 +54,7 @@ export class CreateDocumentDialogComponent {
       next: (document) => this.dialogRef.close(document),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

@@ -8,6 +8,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { PARTICIPATION_TYPE_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { Client } from '../../clients/client.model';
 import { ClientsService } from '../../clients/clients.service';
 import { PARTICIPATION_TYPES } from '../case.model';
@@ -30,6 +33,7 @@ export interface AddClientDialogData {
     MatCheckboxModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './add-client-dialog.component.html',
 })
@@ -42,6 +46,7 @@ export class AddClientDialogComponent {
 
   readonly clients = signal<Client[] | null>(null);
   readonly participationTypes = PARTICIPATION_TYPES;
+  readonly participationTypeLabels = PARTICIPATION_TYPE_LABELS;
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -54,7 +59,7 @@ export class AddClientDialogComponent {
   constructor() {
     this.clientsService.list().subscribe({
       next: (clients) => this.clients.set(clients),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -69,7 +74,7 @@ export class AddClientDialogComponent {
       next: () => this.dialogRef.close(true),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

@@ -1,0 +1,68 @@
+/**
+ * Auditoría UX/i18n pre-Sprint 16: única fuente de verdad para traducir al español los valores
+ * de enum que el backend ya expone (nunca se modifican los valores internos que viajan a la API,
+ * solo su representación visible). Un valor no presente en el mapa se muestra tal cual — evita
+ * ocultar un estado real por una etiqueta desactualizada en vez de fallar en silencio.
+ */
+
+/** Mirrors backend CaseStatus (13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §2). */
+export const CASE_STATUS_LABELS: Record<string, string> = {
+  PRESTUDY: 'Preestudio',
+  DOCUMENTATION: 'Documentación',
+  ANALYSIS: 'Análisis',
+  BANK_SEARCH: 'Búsqueda de banco',
+  BANK_SUBMISSION: 'Envío a banco',
+  BANK_REVIEW: 'Revisión bancaria',
+  OFFER: 'Oferta',
+  FORMALIZATION: 'Formalización',
+  COMPLETED: 'Completada',
+  CANCELLED: 'Cancelada',
+};
+
+/** Mirrors backend CancellationReason (13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §6). */
+export const CANCELLATION_REASON_LABELS: Record<string, string> = {
+  CLIENT_REQUEST: 'Solicitud del cliente',
+  INELIGIBLE: 'No cumple los requisitos',
+  NO_FINANCING: 'Sin financiación',
+  PROPERTY_ISSUE: 'Problema con el inmueble',
+  DUPLICATE: 'Duplicado',
+  ABANDONED: 'Abandonada',
+  OTHER: 'Otro',
+};
+
+/** Mirrors backend ParticipationType (chk_case_clients_participation_type). */
+export const PARTICIPATION_TYPE_LABELS: Record<string, string> = {
+  HOLDER: 'Titular',
+  CO_HOLDER: 'Cotitular',
+  GUARANTOR: 'Avalista',
+  OTHER: 'Otro',
+};
+
+/** Mirrors backend ReviewStatus (documents.status and document_versions.review_status). */
+export const REVIEW_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente',
+  APPROVED: 'Aprobado',
+  REJECTED: 'Rechazado',
+};
+
+/** Mirrors backend DocumentRequestStatus. */
+export const DOCUMENT_REQUEST_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente',
+  FULFILLED: 'Cumplida',
+  CANCELLED: 'Cancelada',
+};
+
+/** clients.status has no documented enum — 'ACTIVE' is the only value the backend ever writes
+ * (ClientRepository.insert, hardcoded default). */
+export const CLIENT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activo',
+};
+
+/** Mirrors backend UserRole (roles.code, ADR-RBAC-001). Internal values are kept as-is for API
+ * calls and permission checks — only the visible label changes. */
+export const ROLE_LABELS: Record<string, string> = {
+  SUPERADMIN: 'Superadministrador',
+  MANAGER: 'Manager',
+  BROKER: 'Broker',
+  CLIENT: 'Cliente',
+};

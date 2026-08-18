@@ -76,7 +76,7 @@ describe('ReviewDocumentDialogComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/documents/d1/review`)
       .flush({ code: 'NO_VERSION_TO_REVIEW', message: 'Document has no uploaded version yet.', requestId: 'r1' }, { status: 400, statusText: 'Bad Request' });
 
-    expect(fixture.componentInstance.error()).toBe('Document has no uploaded version yet.');
+    expect(fixture.componentInstance.error()).toBe('El documento no tiene ninguna versión pendiente de revisión.');
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 

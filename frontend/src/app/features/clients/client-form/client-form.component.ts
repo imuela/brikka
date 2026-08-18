@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ClientsService } from '../clients.service';
 
 /**
@@ -50,7 +51,7 @@ export class ClientFormComponent {
     if (this.clientId) {
       this.clientsService.get(this.clientId).subscribe({
         next: (client) => this.form.patchValue(client),
-        error: (err: ApiError) => this.error.set(err.message),
+        error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
       });
     }
   }
@@ -71,7 +72,7 @@ export class ClientFormComponent {
       next: (client) => this.router.navigate(['/app/clients', client.id]),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

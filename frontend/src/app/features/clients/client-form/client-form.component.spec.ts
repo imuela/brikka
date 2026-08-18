@@ -106,6 +106,6 @@ describe('ClientFormComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients`)
       .flush({ code: 'VALIDATION_ERROR', message: 'Invalid email.', requestId: 'r1' }, { status: 400, statusText: 'Bad Request' });
 
-    expect(fixture.componentInstance.error()).toBe('Invalid email.');
+    expect(fixture.componentInstance.error()).toBe('No se han podido guardar los cambios. Revisa los datos introducidos.');
   });
 });

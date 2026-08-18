@@ -61,7 +61,7 @@ describe('ReopenDialogComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/reopen`)
       .flush({ code: 'INVALID_TRANSITION', message: 'Cannot reopen into a terminal status.', requestId: 'r1' }, { status: 409, statusText: 'Conflict' });
 
-    expect(fixture.componentInstance.error()).toBe('Cannot reopen into a terminal status.');
+    expect(fixture.componentInstance.error()).toBe('No es posible realizar ese cambio de estado en este momento.');
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 });

@@ -5,7 +5,9 @@
       <mat-label>Motivo</mat-label>
       <mat-select formControlName="reason" required>
         @for (reason of reasons; track reason) {
-          <mat-option [value]="reason">{{ reason }}</mat-option>
+          <mat-option [value]="reason">
+            {{ reason | statusLabel: cancellationReasonLabels }}
+          </mat-option>
         }
       </mat-select>
     </mat-form-field>

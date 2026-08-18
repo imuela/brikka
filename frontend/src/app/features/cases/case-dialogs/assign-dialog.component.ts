@@ -8,6 +8,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { ROLE_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { AssignableUser, CaseAssignment } from '../case.model';
 import { CasesService } from '../cases.service';
 
@@ -30,6 +33,7 @@ export interface AssignDialogData {
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './assign-dialog.component.html',
 })
@@ -42,6 +46,7 @@ export class AssignDialogComponent {
   readonly users = signal<AssignableUser[] | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly roleLabels = ROLE_LABELS;
 
   readonly form = this.fb.nonNullable.group({
     userId: ['', Validators.required],
@@ -51,7 +56,7 @@ export class AssignDialogComponent {
   constructor() {
     this.casesService.listAssignableUsers().subscribe({
       next: (users) => this.users.set(users),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -66,7 +71,7 @@ export class AssignDialogComponent {
       next: (assignment) => this.dialogRef.close(assignment),
       error: (err: ApiError) => {
         this.loading.set(false);
-        this.error.set(err.message);
+        this.error.set(friendlyErrorMessage(err));
       },
     });
   }

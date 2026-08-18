@@ -14,7 +14,7 @@
       <mat-label>Tipo de participación</mat-label>
       <mat-select formControlName="participationType" required>
         @for (type of participationTypes; track type) {
-          <mat-option [value]="type">{{ type }}</mat-option>
+          <mat-option [value]="type">{{ type | statusLabel: participationTypeLabels }}</mat-option>
         }
       </mat-select>
     </mat-form-field>

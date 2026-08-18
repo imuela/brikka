@@ -8,6 +8,7 @@ import { of } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { errorInterceptor } from '../../../core/http/error.interceptor';
 import { SessionStore } from '../../../core/session/session.store';
+import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
 import { CaseDetailComponent } from './case-detail.component';
 
 const theCase = {
@@ -47,6 +48,7 @@ describe('CaseDetailComponent', () => {
   function flushInitialLoad() {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
@@ -64,6 +66,7 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`)
       .flush([{ id: 'a1', caseId: 'k1', userId: 'u1', assignmentType: 'BROKER', active: true }]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`)
       .flush([{ clientId: 'c1', firstName: 'Ada', lastName: 'Lovelace', participationType: 'HOLDER', isPrimary: true }]);
@@ -88,6 +91,7 @@ describe('CaseDetailComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`)
       .flush({ code: 'CASE_NOT_FOUND', message: 'Case not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
@@ -97,7 +101,7 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Case not found.');
+    expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
   });
 
   it('gates the action buttons by their exact backend permission', () => {
@@ -187,11 +191,52 @@ describe('CaseDetailComponent', () => {
       .flush([{ id: 'a2', caseId: 'k1', userId: 'u2', assignmentType: 'MANAGER', active: true }]);
   });
 
-  it('removeClient calls DELETE then reloads the client list', () => {
+  it('removeClient opens a confirmation dialog before doing anything else', () => {
     const fixture = TestBed.createComponent(CaseDetailComponent);
     fixture.detectChanges();
     flushInitialLoad();
     fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.removeClient('c1');
+
+    expect(openSpy).toHaveBeenCalledWith(
+      ConfirmDialogComponent,
+      expect.objectContaining({ data: expect.objectContaining({ title: 'Quitar cliente' }) }),
+    );
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/cases/k1/clients/c1`);
+  });
+
+  it('removeClient does not call DELETE when the confirmation is cancelled', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of(false),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.removeClient('c1');
+
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/cases/k1/clients/c1`);
+  });
+
+  it('removeClient calls DELETE then reloads the client list once confirmed', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of(true),
+    } as MatDialogRef<unknown, unknown>);
 
     fixture.componentInstance.removeClient('c1');
 

@@ -30,8 +30,10 @@ export class AuthCallbackComponent {
       const returnUrl = await this.authService.handleCallback(window.location.href);
       await this.sessionService.hydrate();
       await this.router.navigateByUrl(returnUrl);
-    } catch (error) {
-      this.errorMessage.set(error instanceof Error ? error.message : 'Error de autenticación.');
+    } catch {
+      // The underlying Error (state/code mismatch, Keycloak error param, token exchange
+      // failure) is internal/technical — never surfaced raw to the user, only via devtools.
+      this.errorMessage.set('No se ha podido completar el inicio de sesión. Inténtalo de nuevo.');
     }
   }
 

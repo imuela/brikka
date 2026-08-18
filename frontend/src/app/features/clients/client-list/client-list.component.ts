@@ -7,6 +7,9 @@ import { MatTableModule } from '@angular/material/table';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { CLIENT_STATUS_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { Client } from '../client.model';
 import { ClientsService } from '../clients.service';
 
@@ -20,6 +23,7 @@ import { ClientsService } from '../clients.service';
     MatIconModule,
     MatProgressSpinnerModule,
     HasPermissionDirective,
+    StatusLabelPipe,
   ],
   templateUrl: './client-list.component.html',
   styleUrl: './client-list.component.scss',
@@ -30,11 +34,12 @@ export class ClientListComponent {
   readonly clients = signal<Client[] | null>(null);
   readonly error = signal<string | null>(null);
   readonly displayedColumns = ['name', 'email', 'phone', 'status'];
+  readonly clientStatusLabels = CLIENT_STATUS_LABELS;
 
   constructor() {
     this.clientsService.list().subscribe({
       next: (clients) => this.clients.set(clients),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 }

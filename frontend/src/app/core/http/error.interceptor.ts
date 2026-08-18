@@ -31,7 +31,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         authService.clearSession();
         void router.navigate(['/login']);
         return throwError(
-          () => ({ status: 401, code: null, message: 'Session expired.', requestId: null }) satisfies ApiError,
+          () =>
+            ({
+              status: 401,
+              code: null,
+              message: 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
+              requestId: null,
+            }) satisfies ApiError,
         );
       }
 

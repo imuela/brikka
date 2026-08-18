@@ -110,7 +110,7 @@ describe('PropertyDialogComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
       .flush({ code: 'VALIDATION_ERROR', message: 'Invalid property type.', requestId: 'r1' }, { status: 400, statusText: 'Bad Request' });
 
-    expect(fixture.componentInstance.error()).toBe('Invalid property type.');
+    expect(fixture.componentInstance.error()).toBe('No se han podido guardar los cambios. Revisa los datos introducidos.');
   });
 
   it('cancel() closes the dialog without a result', () => {

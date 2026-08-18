@@ -68,6 +68,6 @@ describe('ClientDetailComponent', () => {
       .flush({ code: 'CLIENT_NOT_FOUND', message: 'Client not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Client not found.');
+    expect(fixture.nativeElement.textContent).toContain('No se ha encontrado el cliente solicitado.');
   });
 });

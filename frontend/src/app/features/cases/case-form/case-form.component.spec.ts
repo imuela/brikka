@@ -105,6 +105,6 @@ describe('CaseFormComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases`)
       .flush({ code: 'VALIDATION_ERROR', message: 'Invalid operation type.', requestId: 'r1' }, { status: 400, statusText: 'Bad Request' });
 
-    expect(fixture.componentInstance.error()).toBe('Invalid operation type.');
+    expect(fixture.componentInstance.error()).toBe('No se han podido guardar los cambios. Revisa los datos introducidos.');
   });
 });

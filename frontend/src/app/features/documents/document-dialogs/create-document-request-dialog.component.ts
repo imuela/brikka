@@ -8,6 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CaseClient } from '../../cases/case.model';
 import { CasesService } from '../../cases/cases.service';
 import { CaseDocumentRequest, DocumentType } from '../document.model';
@@ -59,7 +60,7 @@ export class CreateDocumentRequestDialogComponent {
   constructor() {
     this.casesService.listClients(this.data.caseId).subscribe({
       next: (clients) => this.caseClients.set(clients),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -82,7 +83,7 @@ export class CreateDocumentRequestDialogComponent {
         next: (request) => this.dialogRef.close(request),
         error: (err: ApiError) => {
           this.loading.set(false);
-          this.error.set(err.message);
+          this.error.set(friendlyErrorMessage(err));
         },
       });
   }

@@ -9,6 +9,7 @@
   } @else if (versions()!.length === 0) {
     <p>Sin versiones todavía.</p>
   } @else {
+    <div class="table-scroll">
     <table mat-table [dataSource]="versions()!">
       <ng-container matColumnDef="versionNumber">
         <th mat-header-cell *matHeaderCellDef>Versión</th>
@@ -20,11 +21,15 @@
       </ng-container>
       <ng-container matColumnDef="reviewStatus">
         <th mat-header-cell *matHeaderCellDef>Estado</th>
-        <td mat-cell *matCellDef="let version">{{ version.reviewStatus }}</td>
+        <td mat-cell *matCellDef="let version">
+          {{ version.reviewStatus | statusLabel: reviewStatusLabels }}
+        </td>
       </ng-container>
       <ng-container matColumnDef="uploadedAt">
         <th mat-header-cell *matHeaderCellDef>Subido</th>
-        <td mat-cell *matCellDef="let version">{{ version.uploadedAt | date: 'short' }}</td>
+        <td mat-cell *matCellDef="let version">
+          {{ version.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}
+        </td>
       </ng-container>
       <ng-container matColumnDef="actions">
         <th mat-header-cell *matHeaderCellDef></th>
@@ -37,6 +42,7 @@
       <tr mat-header-row *matHeaderRowDef="columns"></tr>
       <tr mat-row *matRowDef="let row; columns: columns"></tr>
     </table>
+    </div>
   }
 </mat-dialog-content>
 

@@ -18,7 +18,7 @@
     <mat-card-content>
       <p><strong>Email:</strong> {{ client()!.email }}</p>
       <p><strong>Teléfono:</strong> {{ client()!.phone }}</p>
-      <p><strong>Estado:</strong> {{ client()!.status }}</p>
+      <p><strong>Estado:</strong> {{ client()!.status | statusLabel: clientStatusLabels }}</p>
     </mat-card-content>
   </mat-card>
 }

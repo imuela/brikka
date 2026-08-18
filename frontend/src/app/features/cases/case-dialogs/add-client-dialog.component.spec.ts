@@ -81,7 +81,7 @@ describe('AddClientDialogComponent', () => {
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`)
       .flush({ code: 'DUPLICATE', message: 'Client already linked to this case.', requestId: 'r1' }, { status: 409, statusText: 'Conflict' });
 
-    expect(fixture.componentInstance.error()).toBe('Client already linked to this case.');
+    expect(fixture.componentInstance.error()).toBe('La operación no se ha podido completar por un conflicto con el estado actual.');
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 });

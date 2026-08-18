@@ -7,6 +7,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
 
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { REVIEW_STATUS_LABELS } from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { CaseDocumentVersion } from '../document.model';
 import { DocumentsService } from '../documents.service';
 
@@ -26,6 +29,7 @@ export interface VersionsDialogData {
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    StatusLabelPipe,
   ],
   templateUrl: './versions-dialog.component.html',
 })
@@ -37,18 +41,19 @@ export class VersionsDialogComponent {
   readonly versions = signal<CaseDocumentVersion[] | null>(null);
   readonly error = signal<string | null>(null);
   readonly columns = ['versionNumber', 'originalFilename', 'reviewStatus', 'uploadedAt', 'actions'];
+  readonly reviewStatusLabels = REVIEW_STATUS_LABELS;
 
   constructor() {
     this.documentsService.listVersions(this.data.documentId).subscribe({
       next: (versions) => this.versions.set(versions),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
   download(versionId: string): void {
     this.documentsService.downloadVersion(this.data.documentId, versionId).subscribe({
       next: (download) => window.open(download.url, '_blank'),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 

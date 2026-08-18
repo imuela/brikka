@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiError } from '../../core/http/api-error';
+import { friendlyErrorMessage } from '../../core/http/error-messages';
 import { Property } from './property.model';
 import { PropertyService } from './property.service';
 
@@ -79,7 +80,7 @@ export class PropertyDialogComponent {
         next: (property) => this.dialogRef.close(property),
         error: (err: ApiError) => {
           this.loading.set(false);
-          this.error.set(err.message);
+          this.error.set(friendlyErrorMessage(err));
         },
       });
   }

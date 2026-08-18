@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,6 +10,15 @@ import { MatTableModule } from '@angular/material/table';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
+import {
+  CASE_STATUS_LABELS,
+  DOCUMENT_REQUEST_STATUS_LABELS,
+  PARTICIPATION_TYPE_LABELS,
+  REVIEW_STATUS_LABELS,
+} from '../../../shared/labels/status-labels';
+import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import {
   CaseDocument,
   CaseDocumentRequest,
@@ -30,7 +39,7 @@ import { AssignDialogComponent } from '../case-dialogs/assign-dialog.component';
 import { CancelDialogComponent } from '../case-dialogs/cancel-dialog.component';
 import { ChangeStatusDialogComponent } from '../case-dialogs/change-status-dialog.component';
 import { ReopenDialogComponent } from '../case-dialogs/reopen-dialog.component';
-import { Case, CaseAssignment, CaseClient } from '../case.model';
+import { AssignableUser, Case, CaseAssignment, CaseClient } from '../case.model';
 import { CasesService } from '../cases.service';
 
 @Component({
@@ -39,17 +48,23 @@ import { CasesService } from '../cases.service';
   imports: [
     RouterLink,
     DatePipe,
+    CurrencyPipe,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
     MatTableModule,
     MatProgressSpinnerModule,
     HasPermissionDirective,
+    StatusLabelPipe,
   ],
   templateUrl: './case-detail.component.html',
   styleUrl: './case-detail.component.scss',
 })
 export class CaseDetailComponent {
+  readonly caseStatusLabels = CASE_STATUS_LABELS;
+  readonly participationTypeLabels = PARTICIPATION_TYPE_LABELS;
+  readonly reviewStatusLabels = REVIEW_STATUS_LABELS;
+  readonly documentRequestStatusLabels = DOCUMENT_REQUEST_STATUS_LABELS;
   private readonly casesService = inject(CasesService);
   private readonly propertyService = inject(PropertyService);
   private readonly documentsService = inject(DocumentsService);
@@ -59,6 +74,7 @@ export class CaseDetailComponent {
   readonly caseId = this.route.snapshot.paramMap.get('id')!;
   readonly theCase = signal<Case | null>(null);
   readonly assignments = signal<CaseAssignment[] | null>(null);
+  readonly assignableUsers = signal<AssignableUser[]>([]);
   readonly clients = signal<CaseClient[] | null>(null);
   readonly error = signal<string | null>(null);
   readonly clientColumns = ['name', 'participationType', 'isPrimary', 'actions'];
@@ -77,11 +93,15 @@ export class CaseDetailComponent {
   constructor() {
     this.loadCase();
     this.loadAssignments();
+    this.casesService.listAssignableUsers().subscribe({
+      next: (users) => this.assignableUsers.set(users),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
     this.loadClients();
     this.loadProperty();
     this.documentsService.listDocumentTypes().subscribe({
       next: (types) => this.documentTypes.set(types),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
     this.loadDocuments();
     this.loadDocumentRequests();
@@ -90,21 +110,21 @@ export class CaseDetailComponent {
   private loadCase(): void {
     this.casesService.get(this.caseId).subscribe({
       next: (theCase) => this.theCase.set(theCase),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
   private loadAssignments(): void {
     this.casesService.listAssignments(this.caseId).subscribe({
       next: (assignments) => this.assignments.set(assignments),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
   private loadClients(): void {
     this.casesService.listClients(this.caseId).subscribe({
       next: (clients) => this.clients.set(clients),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -164,10 +184,27 @@ export class CaseDetailComponent {
   }
 
   removeClient(clientId: string): void {
-    this.casesService.removeClient(this.caseId, clientId).subscribe({
-      next: () => this.loadClients(),
-      error: (err: ApiError) => this.error.set(err.message),
-    });
+    const client = this.clients()?.find((c) => c.clientId === clientId);
+    const name = client ? `${client.firstName} ${client.lastName}` : 'este cliente';
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Quitar cliente',
+          message: `¿Seguro que quieres quitar a ${name} de esta operación? Esta acción no se puede deshacer.`,
+          confirmLabel: 'Quitar',
+        },
+        width: '400px',
+      })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+        this.casesService.removeClient(this.caseId, clientId).subscribe({
+          next: () => this.loadClients(),
+          error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+        });
+      });
   }
 
   private loadProperty(): void {
@@ -180,7 +217,7 @@ export class CaseDetailComponent {
       error: (err: ApiError) => {
         this.propertyLoading.set(false);
         if (err.status !== 404) {
-          this.error.set(err.message);
+          this.error.set(friendlyErrorMessage(err));
         }
       },
     });
@@ -203,7 +240,7 @@ export class CaseDetailComponent {
   private loadDocuments(): void {
     this.documentsService.list(this.caseId).subscribe({
       next: (documents) => this.documents.set(documents),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -253,27 +290,27 @@ export class CaseDetailComponent {
 
   publish(documentId: string): void {
     this.documentsService.publish(documentId).subscribe({
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
   unpublish(documentId: string): void {
     this.documentsService.unpublish(documentId).subscribe({
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
   download(documentId: string): void {
     this.documentsService.downloadCurrent(documentId).subscribe({
       next: (download) => window.open(download.url, '_blank'),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
   private loadDocumentRequests(): void {
     this.documentsService.listRequests(this.caseId).subscribe({
       next: (requests) => this.documentRequests.set(requests),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -294,7 +331,7 @@ export class CaseDetailComponent {
   updateDocumentRequestStatus(id: string, status: string): void {
     this.documentsService.updateRequest(id, { status }).subscribe({
       next: () => this.loadDocumentRequests(),
-      error: (err: ApiError) => this.error.set(err.message),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
     });
   }
 
@@ -304,5 +341,10 @@ export class CaseDetailComponent {
     }
     const client = this.clients()?.find((c) => c.clientId === clientId);
     return client ? `${client.firstName} ${client.lastName}` : clientId;
+  }
+
+  userName(userId: string): string {
+    const user = this.assignableUsers().find((u) => u.id === userId);
+    return user ? `${user.firstName} ${user.lastName}` : userId;
   }
 }
