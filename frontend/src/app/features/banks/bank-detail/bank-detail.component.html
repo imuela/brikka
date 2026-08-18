@@ -1,0 +1,104 @@
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+}
+
+@if (bank() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <div class="page-header">
+    <h1>{{ bank()!.name }}</h1>
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Código:</strong> {{ bank()!.code }}</p>
+      <p><strong>Estado:</strong> {{ bank()!.status | statusLabel: bankStatusLabels }}</p>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Productos</h2>
+      <button
+        *appHasPermission="'BANK_UPDATE'"
+        mat-flat-button
+        color="primary"
+        (click)="openCreateProduct()">
+        Nuevo producto
+      </button>
+    </div>
+    @if (products() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (products()!.length === 0) {
+      <p>Sin productos todavía.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="products()!">
+        <ng-container matColumnDef="code">
+          <th mat-header-cell *matHeaderCellDef>Código</th>
+          <td mat-cell *matCellDef="let product">{{ product.code }}</td>
+        </ng-container>
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Nombre</th>
+          <td mat-cell *matCellDef="let product">{{ product.name }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let product">
+            {{ product.status | statusLabel: bankStatusLabels }}
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="productColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: productColumns"></tr>
+      </table>
+      </div>
+    }
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Criterios</h2>
+      <button
+        *appHasPermission="'BANK_CRITERIA_MANAGE'"
+        mat-flat-button
+        color="primary"
+        (click)="openCreateCriteria()">
+        Nueva versión de criterios
+      </button>
+    </div>
+    @if (criteria() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (criteria()!.length === 0) {
+      <p>Sin criterios todavía.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="criteria()!">
+        <ng-container matColumnDef="version">
+          <th mat-header-cell *matHeaderCellDef>Versión</th>
+          <td mat-cell *matCellDef="let version">{{ version.version }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let version">
+            {{ version.status | statusLabel: bankStatusLabels }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="effectiveFrom">
+          <th mat-header-cell *matHeaderCellDef>Vigente desde</th>
+          <td mat-cell *matCellDef="let version">
+            {{ version.effectiveFrom | date: 'dd/MM/yyyy' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="effectiveTo">
+          <th mat-header-cell *matHeaderCellDef>Vigente hasta</th>
+          <td mat-cell *matCellDef="let version">
+            {{ version.effectiveTo ? (version.effectiveTo | date: 'dd/MM/yyyy') : '—' }}
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="criteriaColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: criteriaColumns"></tr>
+      </table>
+      </div>
+    }
+  </div>
+}

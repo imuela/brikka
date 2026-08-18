@@ -141,6 +141,41 @@ No incluye todavía lógica de negocio ni RBAC funcional.
 - pruebas de carga en áreas críticas;
 - preparación de despliegue.
 
+### Extensión del roadmap — Frontend V1 (`ADR-PROCESS-004`)
+
+El plan original terminaba en el Sprint 12 (backend, "Release"). El objetivo del proyecto pasó a ser una V1 funcional y usable completa de Brika, no detener el desarrollo artificialmente en el Sprint 12 — ver `ADR-PROCESS-004` para el contexto completo. Los sprints siguientes se definen incrementalmente, uno a uno, siguiendo el mismo proceso (Fase 0 → opciones candidatas basadas en backend ya existente → decisión explícita del responsable del proyecto), nunca por adelantado.
+
+### Sprint 13 — Frontend foundation (`ADR-FRONTEND-001`)
+
+- estructura base Angular (core/auth/shared/features), zoneless, standalone;
+- OIDC/PKCE contra Keycloak (realm `brika` versionado en `keycloak/brika-realm.json`, importado automáticamente);
+- `CorsConfigurationSource` mínimo en backend (bloqueante detectado en Fase 0, D1 de `ADR-FRONTEND-001`);
+- shell autenticado (layout, sesión, menú de usuario) que prueba el pipeline auth/sesión end to end;
+- Angular Material como librería UI (D4 de `ADR-FRONTEND-001`).
+
+### Sprint 14 — CRM + Operaciones (frontend)
+
+- Clientes: listado, detalle, alta/edición;
+- Casos: listado, detalle, alta/edición, cambio de estado, cancelación, reapertura, asignación, gestión de clientes del caso;
+- gating por `permissionGuard`/`*appHasPermission` contra el catálogo RBAC real (Sprint 2), nunca inventado.
+
+### Sprint 15 — Inmueble + Documentación (frontend) + Auditoría UX/i18n
+
+- Inmueble: registro/edición sobre el caso;
+- Documentos: creación, subida de versión, revisión, publicación/despublicación, descarga, historial de versiones;
+- Solicitudes de documentación: creación, cumplimentación, cancelación — `document-requirements` estrictamente de solo lectura (sin CRUD de catálogo);
+- gap-fix mínimo autorizado: `GET /api/v1/document-types`;
+- auditoría UX/i18n/presentación pre-Sprint 16: `LOCALE_ID` es-ES, etiquetas centralizadas de estados/roles, traducción centralizada de errores de API, formatos españoles (fecha/moneda), tablas responsive, confirmación antes de acciones destructivas (`removeClient`).
+
+### Sprint 16 — Financing / Simulations + Bank Matching / Ofertas (frontend) (`ADR-PROCESS-004`)
+
+- Información financiera de la operación: `FinancingRequest` (importe solicitado, plazo) — `GET`/`POST` anidados bajo el caso, `PATCH` standalone;
+- Simulación hipotecaria: `Simulation` — herramienta interna no vinculante, distinta de la financiación finalmente concedida (`FUNCTIONAL_SPECIFICATION.md` §10);
+- Matching bancario: `BankMatchingController` (ejecutar/listar/consultar resultado) sobre el catálogo de bancos/criterios ya existente (Sprint 5); `BankMatchOverrideController` (corrección manual de un resultado de regla, MANAGER/SUPERADMIN únicamente);
+- Solicitudes a banco → respuestas → ofertas → financiación final: `BankRequestController` (crear solicitud, registrar respuesta, crear oferta), `BankOfferController` (listar/consultar ofertas, seleccionar oferta final);
+- ningún endpoint, entidad, migración ni permiso nuevo — únicamente frontend sobre capacidades de backend ya operativas desde los Sprints 5, 6A y 6B;
+- fuera de alcance: Portal Cliente, Tasks/Communications/Notifications, administración (Users/Companies/Plans) — bloques independientes posteriores.
+
 ## 4. Cada sprint
 
 Debe producir:

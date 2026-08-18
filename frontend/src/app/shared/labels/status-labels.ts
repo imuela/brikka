@@ -66,3 +66,48 @@ export const ROLE_LABELS: Record<string, string> = {
   BROKER: 'Broker',
   CLIENT: 'Cliente',
 };
+
+/** Mirrors backend FinancingRequestStatus — server-controlled lifecycle marker, no documented
+ * business catalog (see FinancingRequestStatus.java javadoc). */
+export const FINANCING_REQUEST_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente',
+  IN_PROGRESS: 'En curso',
+  CLOSED: 'Cerrada',
+};
+
+/** Mirrors backend MatchResult (ADR-BANKENGINE-001 §4/§8). */
+export const MATCH_RESULT_LABELS: Record<string, string> = {
+  PASS: 'Cumple',
+  FAIL: 'No cumple',
+  WARNING: 'Advertencia',
+  NOT_EVALUATED: 'Sin evaluar',
+  ERROR: 'Error',
+};
+
+/** Mirrors backend bank_requests.status — server-controlled lifecycle marker, always 'SENT' in
+ * this sprint (no endpoint changes it — see BankRequestRepository javadoc). */
+export const BANK_REQUEST_STATUS_LABELS: Record<string, string> = {
+  SENT: 'Enviada',
+};
+
+/** Mirrors backend bank_responses.status — always 'RECEIVED' (server-controlled). */
+export const BANK_RESPONSE_STATUS_LABELS: Record<string, string> = {
+  RECEIVED: 'Recibida',
+};
+
+/** Mirrors backend bank_offers.status — always 'RECEIVED' (server-controlled). */
+export const BANK_OFFER_STATUS_LABELS: Record<string, string> = {
+  RECEIVED: 'Recibida',
+};
+
+/** Mirrors backend final_financing.status — always 'ACTIVE' (server-controlled). */
+export const FINAL_FINANCING_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activa',
+};
+
+/** Mirrors backend banks.status / bank_products.status — no documented business catalog beyond
+ * 'ACTIVE' (BankRepository.insert hardcodes it), but BANK_UPDATE (SUPERADMIN) can write an
+ * arbitrary value, so the pipe's raw-value fallback (see StatusLabelPipe) still applies. */
+export const BANK_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activo',
+};

@@ -56,6 +56,12 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -76,6 +82,12 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -99,6 +111,12 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
@@ -117,6 +135,10 @@ describe('CaseDetailComponent', () => {
       'Asignar',
       'Registrar inmueble',
       'Nuevo documento',
+      'Nueva simulación',
+      'Nueva solicitud de financiación',
+      'Ejecutar matching',
+      'Nueva solicitud a banco',
     ];
     for (const label of gatedLabels) {
       expect(fixture.nativeElement.textContent).not.toContain(label);
@@ -131,6 +153,14 @@ describe('CaseDetailComponent', () => {
       'PROPERTY_UPDATE',
       'DOCUMENT_READ',
       'DOCUMENT_CREATE',
+      'SIMULATION_READ',
+      'SIMULATION_CREATE',
+      'FINANCING_REQUEST_READ',
+      'FINANCING_REQUEST_CREATE',
+      'BANK_MATCHING_READ',
+      'BANK_MATCHING_RUN',
+      'BANK_REQUEST_READ',
+      'BANK_REQUEST_CREATE',
     ]);
     fixture.detectChanges();
 
@@ -153,6 +183,370 @@ describe('CaseDetailComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Documentos');
     expect(fixture.nativeElement.textContent).toContain('Solicitudes de documentos');
+  });
+
+  it('the Simulaciones and Financiación sections are gated by SIMULATION_READ / FINANCING_REQUEST_READ', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Simulaciones');
+    expect(fixture.nativeElement.textContent).not.toContain('Financiación');
+
+    sessionStore.setPermissions(['SIMULATION_READ', 'FINANCING_REQUEST_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Simulaciones');
+    expect(fixture.nativeElement.textContent).toContain('Financiación');
+  });
+
+  it('the Matching, Solicitudes a bancos and Ofertas sections are gated by their READ permission', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Matching bancario');
+    expect(fixture.nativeElement.textContent).not.toContain('Solicitudes a bancos');
+    expect(fixture.nativeElement.textContent).not.toContain('Ofertas');
+
+    sessionStore.setPermissions(['BANK_MATCHING_READ', 'BANK_REQUEST_READ', 'BANK_OFFER_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Matching bancario');
+    expect(fixture.nativeElement.textContent).toContain('Solicitudes a bancos');
+    expect(fixture.nativeElement.textContent).toContain('Ofertas');
+  });
+
+  it('bankName() resolves a known bank and falls back to the raw id otherwise', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
+      .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/banks`)
+      .flush([{ id: 'b1', code: 'DEVBANK', name: 'Banco Demo Desarrollo', status: 'ACTIVE', metadata: {} }]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+
+    expect(fixture.componentInstance.bankName('b1')).toBe('Banco Demo Desarrollo');
+    expect(fixture.componentInstance.bankName('unknown')).toBe('unknown');
+  });
+
+  it('openRunMatching opens the dialog and reloads match results after close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () =>
+        of({
+          id: 'm1',
+          caseId: 'k1',
+          bankId: 'b1',
+          bankCriteriaVersionId: 'c1',
+          globalResult: 'PASS',
+          effectiveGlobalResult: 'PASS',
+          evaluatedAt: '2026-08-18T10:00:00Z',
+          inputSnapshot: {},
+          ruleResults: [],
+        }),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openRunMatching();
+
+    expect(openSpy).toHaveBeenCalled();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+  });
+
+  it('openMatchingResultDetail opens the detail dialog with the given result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const result = {
+      id: 'm1',
+      caseId: 'k1',
+      bankId: 'b1',
+      bankCriteriaVersionId: 'c1',
+      globalResult: 'PASS',
+      effectiveGlobalResult: 'PASS',
+      evaluatedAt: '2026-08-18T10:00:00Z',
+      inputSnapshot: {},
+      ruleResults: [],
+    };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openMatchingResultDetail(result);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { caseId: 'k1', result } }),
+    );
+  });
+
+  it('openCreateBankRequest opens the dialog and reloads bank requests after close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const bankRequest = {
+      id: 'br1',
+      caseId: 'k1',
+      bankId: 'b1',
+      bankContactId: null,
+      status: 'SENT',
+      submittedAt: '2026-08-18T10:00:00Z',
+      contactSnapshot: {},
+      createdAt: '2026-08-18T10:00:00Z',
+      updatedAt: '2026-08-18T10:00:00Z',
+    };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(bankRequest) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openCreateBankRequest();
+
+    expect(openSpy).toHaveBeenCalled();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+  });
+
+  it('openCreateBankResponse opens the response dialog for the given bank request', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openCreateBankResponse('br1');
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { bankRequestId: 'br1' } }),
+    );
+  });
+
+  it('openCreateBankOffer opens the dialog and reloads offers after close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const offer = {
+      id: 'off1',
+      bankRequestId: 'br1',
+      bankId: 'b1',
+      status: 'RECEIVED',
+      amount: 180000,
+      interestRate: 3.2,
+      termMonths: 300,
+      payment: 870.5,
+      conditions: {},
+      receivedAt: '2026-08-18T10:00:00Z',
+      createdAt: '2026-08-18T10:00:00Z',
+      updatedAt: '2026-08-18T10:00:00Z',
+    };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(offer) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openCreateBankOffer('br1');
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { bankRequestId: 'br1' } }),
+    );
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+  });
+
+  it('selectOffer opens a confirmation dialog and does not call select when cancelled', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const offer = {
+      id: 'off1',
+      bankRequestId: 'br1',
+      bankId: 'b1',
+      status: 'RECEIVED',
+      amount: 180000,
+      interestRate: 3.2,
+      termMonths: 300,
+      payment: 870.5,
+      conditions: {},
+      receivedAt: '2026-08-18T10:00:00Z',
+      createdAt: '2026-08-18T10:00:00Z',
+      updatedAt: '2026-08-18T10:00:00Z',
+    };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.selectOffer(offer);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      ConfirmDialogComponent,
+      expect.objectContaining({ data: expect.objectContaining({ title: 'Seleccionar oferta final' }) }),
+    );
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/bank-offers/off1/select`);
+  });
+
+  it('selectOffer calls POST /select then reloads offers once confirmed', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const offer = {
+      id: 'off1',
+      bankRequestId: 'br1',
+      bankId: 'b1',
+      status: 'RECEIVED',
+      amount: 180000,
+      interestRate: 3.2,
+      termMonths: 300,
+      payment: 870.5,
+      conditions: {},
+      receivedAt: '2026-08-18T10:00:00Z',
+      createdAt: '2026-08-18T10:00:00Z',
+      updatedAt: '2026-08-18T10:00:00Z',
+    };
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of(true),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.selectOffer(offer);
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/bank-offers/off1/select`)
+      .flush({
+        id: 'ff1',
+        caseId: 'k1',
+        bankOfferId: 'off1',
+        status: 'ACTIVE',
+        finalizedAt: '2026-08-18T10:05:00Z',
+        createdAt: '2026-08-18T10:05:00Z',
+        updatedAt: '2026-08-18T10:05:00Z',
+      });
+
+    expect(fixture.componentInstance.finalFinancing()?.bankOfferId).toBe('off1');
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+  });
+
+  it('openCreateSimulation opens the dialog and reloads simulations after close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () =>
+        of({
+          id: 's1',
+          caseId: 'k1',
+          principal: 200000,
+          interestRate: 3.5,
+          termMonths: 300,
+          estimatedPayment: 950.25,
+          metadata: {},
+          createdBy: 'u1',
+          createdAt: '2026-08-17T10:00:00Z',
+        }),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openCreateSimulation();
+
+    expect(openSpy).toHaveBeenCalled();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+  });
+
+  it('openCreateFinancingRequest opens the dialog and reloads financing requests after close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const financingRequest = {
+      id: 'fr1',
+      caseId: 'k1',
+      status: 'PENDING',
+      requestedAmount: 180000,
+      termMonths: 300,
+      createdAt: '2026-08-17T10:00:00Z',
+      updatedAt: '2026-08-17T10:00:00Z',
+    };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(financingRequest) } as MatDialogRef<
+        unknown,
+        unknown
+      >);
+
+    fixture.componentInstance.openCreateFinancingRequest();
+
+    expect(openSpy).toHaveBeenCalled();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+  });
+
+  it('openUpdateFinancingRequest opens the dialog with the given request and reloads on close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const financingRequest = {
+      id: 'fr1',
+      caseId: 'k1',
+      status: 'PENDING',
+      requestedAmount: 180000,
+      termMonths: 300,
+      createdAt: '2026-08-17T10:00:00Z',
+      updatedAt: '2026-08-17T10:00:00Z',
+    };
+    const updated = { ...financingRequest, status: 'IN_PROGRESS' };
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(updated) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openUpdateFinancingRequest(financingRequest);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { financingRequest } }),
+    );
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
   });
 
   it('openChangeStatus opens the dialog and applies the returned case on close', () => {

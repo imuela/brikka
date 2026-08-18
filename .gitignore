@@ -16,3 +16,4 @@ frontend/.angular/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.claude/

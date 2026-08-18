@@ -1,0 +1,58 @@
+<h2 mat-dialog-title>Resultado del matching</h2>
+<mat-dialog-content>
+  <p>
+    <strong>Resultado global:</strong>
+    {{ result().globalResult | statusLabel: matchResultLabels }}
+    @if (result().effectiveGlobalResult !== result().globalResult) {
+      (efectivo: {{ result().effectiveGlobalResult | statusLabel: matchResultLabels }})
+    }
+  </p>
+  <p><strong>Evaluado:</strong> {{ result().evaluatedAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+
+  <div class="table-scroll">
+  <table mat-table [dataSource]="result().ruleResults">
+    <ng-container matColumnDef="field">
+      <th mat-header-cell *matHeaderCellDef>Campo</th>
+      <td mat-cell *matCellDef="let rule">{{ rule.field }}</td>
+    </ng-container>
+    <ng-container matColumnDef="operator">
+      <th mat-header-cell *matHeaderCellDef>Operador</th>
+      <td mat-cell *matCellDef="let rule">{{ rule.operator }}</td>
+    </ng-container>
+    <ng-container matColumnDef="expected">
+      <th mat-header-cell *matHeaderCellDef>Esperado</th>
+      <td mat-cell *matCellDef="let rule">{{ formatValue(rule.expectedValue) }}</td>
+    </ng-container>
+    <ng-container matColumnDef="evaluated">
+      <th mat-header-cell *matHeaderCellDef>Evaluado</th>
+      <td mat-cell *matCellDef="let rule">{{ formatValue(rule.evaluatedValue) }}</td>
+    </ng-container>
+    <ng-container matColumnDef="result">
+      <th mat-header-cell *matHeaderCellDef>Resultado</th>
+      <td mat-cell *matCellDef="let rule">
+        {{ rule.effectiveResult | statusLabel: matchResultLabels }}
+        @if (rule.overrideCount > 0) {
+          (corregido)
+        }
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let rule">
+        <button
+          *appHasPermission="'BANK_MATCHING_OVERRIDE'"
+          mat-button
+          (click)="openOverride(rule.id, rule.effectiveResult)">
+          Corregir
+        </button>
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="ruleColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: ruleColumns"></tr>
+  </table>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Cerrar</button>
+</mat-dialog-actions>

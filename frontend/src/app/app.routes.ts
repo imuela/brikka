@@ -109,8 +109,26 @@ export const routes: Routes = [
             (m) => m.CaseDetailComponent,
           ),
       },
-      // Sprint 15+ feature routes are added here, each with its own `data: { permission: '...' }`
-      // guarded by permissionGuard — none exist yet (Sprint 14 scope: Clientes + Casos only).
+      // Sprint 16: Bancos (catálogo global). "new" must precede ":id" so it is not matched as an
+      // id param — same rule as clients/cases above.
+      {
+        path: 'banks',
+        canActivate: [permissionGuard],
+        data: { permission: 'BANK_READ' },
+        loadComponent: () =>
+          import('./features/banks/bank-list/bank-list.component').then(
+            (m) => m.BankListComponent,
+          ),
+      },
+      {
+        path: 'banks/:id',
+        canActivate: [permissionGuard],
+        data: { permission: 'BANK_READ' },
+        loadComponent: () =>
+          import('./features/banks/bank-detail/bank-detail.component').then(
+            (m) => m.BankDetailComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'app' },

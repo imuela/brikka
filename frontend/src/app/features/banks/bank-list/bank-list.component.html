@@ -1,0 +1,36 @@
+<div class="page-header">
+  <h1>Bancos</h1>
+  <button *appHasPermission="'BANK_CREATE'" mat-flat-button color="primary" (click)="openCreateBank()">
+    <mat-icon>add</mat-icon>
+    Nuevo banco
+  </button>
+</div>
+
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+} @else if (banks() === null) {
+  <mat-spinner diameter="32" />
+} @else if (banks()!.length === 0) {
+  <p>No hay bancos registrados todavía.</p>
+} @else {
+  <div class="table-scroll">
+  <table mat-table [dataSource]="banks()!" class="banks-table">
+    <ng-container matColumnDef="code">
+      <th mat-header-cell *matHeaderCellDef>Código</th>
+      <td mat-cell *matCellDef="let bank">
+        <a [routerLink]="['/app/banks', bank.id]">{{ bank.code }}</a>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="name">
+      <th mat-header-cell *matHeaderCellDef>Nombre</th>
+      <td mat-cell *matCellDef="let bank">{{ bank.name }}</td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Estado</th>
+      <td mat-cell *matCellDef="let bank">{{ bank.status | statusLabel: bankStatusLabels }}</td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+  </div>
+}

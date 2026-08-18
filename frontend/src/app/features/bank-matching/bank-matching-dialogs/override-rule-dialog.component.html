@@ -1,0 +1,35 @@
+<h2 mat-dialog-title>Corregir resultado de regla</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <p><strong>Resultado actual:</strong> {{ data.currentResult | statusLabel: matchResultLabels }}</p>
+
+    <mat-form-field>
+      <mat-label>Nuevo resultado</mat-label>
+      <mat-select formControlName="newResult" required>
+        @for (result of results; track result) {
+          <mat-option [value]="result">{{ result | statusLabel: matchResultLabels }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Motivo</mat-label>
+      <textarea matInput formControlName="reason" required></textarea>
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Guardar corrección
+      }
+    </button>
+  </mat-dialog-actions>
+</form>

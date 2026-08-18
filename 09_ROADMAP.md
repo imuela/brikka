@@ -17,6 +17,7 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 | I — Scoring/Workflow | Sprint 8 (workflow ya en Sprint 3), Sprint 9 |
 | J — Audit/Reporting/AI | Sprint 10, Sprint 11 |
 | K — Hardening | Sprint 12 |
+| L — Frontend V1 | Sprint 13, Sprint 14, Sprint 15, Sprint 16 (`ADR-PROCESS-004`) |
 
 ## Fase A — Consolidación documental
 - especificación;
@@ -99,6 +100,12 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 - backups;
 - pruebas E2E;
 - despliegue.
+
+## Fase L — Frontend V1
+- CRM/Operaciones (clientes, casos);
+- Inmueble/Documentación;
+- Financing/Simulations/Bank Matching/Ofertas;
+- Portal Cliente, Tasks/Communications/Notifications y administración (Users/Companies/Plans) quedan como bloques independientes posteriores a esta fase, no incluidos en ella (`ADR-PROCESS-004`).
 
 ## Regla de progreso
 

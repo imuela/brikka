@@ -749,3 +749,27 @@ No se añade ningún `CHECK` constraint que ate `company_id IS NULL` al rol: el 
 **Documentos afectados:** este documento, `.env.example`, `docker-compose.yml`, `GETTING_STARTED.md`.
 
 **Estado:** APPROVED. Implementado en Sprint 13.
+
+## ADR-PROCESS-004 — Extensión del roadmap más allá de Sprint 12; definición de Sprint 16
+
+**Contexto:** `ADR-PROCESS-001` fijó `25_CLAUDE_CODE_EXECUTION_GUIDE.md` como "el único plan de ejecución sprint a sprint autoritativo", pero ese documento (y `09_ROADMAP.md`, que se referencia contra él) solo definía Sprint 0 → Sprint 12, terminando en "Sprint 12 — E2E + Security + Performance + Release" — es decir, el plan original consideraba el proyecto completo y listo para release en el Sprint 12, y era enteramente backend (no contemplaba frontend). Los Sprints 13 (frontend foundation), 14 (CRM/Operaciones), 15 (Inmueble/Documentación + auditoría UX/i18n) se ejecutaron y cerraron correctamente, pero como una extensión no documentada del plan: cada uno se autorizó de forma interactiva en su propia sesión, sin que `25_CLAUDE_CODE_EXECUTION_GUIDE.md` se actualizara para reflejarlo. Al solicitarse el inicio de Sprint 16, la Fase 0 correspondiente encontró que no existía ninguna definición oficial de "Sprint 16" en ningún documento del proyecto — se reportó explícitamente como bloqueante (regla `25_CLAUDE_CODE_EXECUTION_GUIDE.md` §"Regla de parada": "Si una decisión necesaria no está documentada... no inventar una solución estructural") y se presentaron opciones candidatas, basadas en capacidades de backend ya existentes sin frontend, para que el responsable del proyecto decidiera.
+
+**Decisión:**
+
+1. El roadmap se extiende deliberadamente más allá del Sprint 12. El objetivo actual del proyecto es completar una V1 funcional y usable completa de Brika (backend + frontend interno + Portal Cliente), no detener artificialmente el desarrollo en el Sprint 12 solo porque era el límite del plan original.
+2. Se formalizan retroactivamente, sin reescribir su historia (ya implementados y cerrados, con sus propios ADR — `ADR-FRONTEND-001` para Sprint 13; Sprints 14 y 15 sin ADR dedicado, documentados en sus respectivos informes de cierre de sesión y en `frontend/src/app/features/README.md`), los Sprints 13, 14 y 15 dentro de `25_CLAUDE_CODE_EXECUTION_GUIDE.md` §3, como continuación del mismo documento autoritativo.
+3. **Sprint 16 queda definido oficialmente como: Financing / Simulations + Bank Matching / Ofertas (frontend interno).** Objetivo: llevar al frontend interno (Broker/Manager) las capacidades de `financing` (`FinancingRequest`, `Simulation`), `bank`/`bankmatching` (catálogo de bancos, matching) y `bankrequest` (`BankRequest` → `BankResponse` → `BankOffer` → `FinalFinancing`) que ya existen y están operativas en el backend desde los Sprints 5, 6A y 6B — ningún endpoint, entidad ni migración nueva.
+4. **Razón de la elección:** es la continuidad natural e inmediata del flujo de negocio ya construido en el frontend (Cliente → Operación → Inmueble → Documentación, Sprints 14-15) hacia su siguiente tramo funcional documentado en `FUNCTIONAL_SPECIFICATION.md` §10 y §16-17 (`CASE → FINANCING REQUEST → BANK REQUEST → BANK RESPONSE → BANK OFFER → FINAL FINANCING`), reutilizando el mismo patrón arquitectónico (sección embebida en `case-detail`, gating por `*appHasPermission` contra el catálogo RBAC real) que Property y Documents ya establecieron.
+5. **Explícitamente fuera de Sprint 16, como bloques independientes posteriores:**
+   - **Portal Cliente** — separado por tener su propia frontera de seguridad (`CLAUDE.md` §7, `ADR-PORTAL-AUTH-001`) y ser, con diferencia, el bloque de trabajo pendiente más grande (backend 100% implementado desde Sprint 7, 0% de frontend).
+   - **Tasks / Communications / Notifications** — bloque operativo independiente, sin relación funcional directa con el flujo de financiación.
+   - **Users / Companies / Plans (administración)** — bloque administrativo independiente, no forma parte del flujo de negocio Cliente→Operación→...→Financiación.
+   - Ninguna funcionalidad no relacionada con Financing/Simulations/Bank Matching/Offers se añade a Sprint 16 sin autorización explícita adicional.
+
+**Alternativas consideradas:** detener el proyecto en el estado actual (Sprint 15) y considerar V1 completa sin frontend para Financing/Bank/Portal — descartada explícitamente por el responsable del proyecto, que autorizó continuar. Implementar Portal Cliente como Sprint 16 en su lugar — descartada por su mayor complejidad/alcance (frontera de seguridad separada) frente a la continuidad más directa que ofrece Financing/Bank Matching sobre el frontend ya existente.
+
+**Consecuencias:** `25_CLAUDE_CODE_EXECUTION_GUIDE.md` §3 pasa a incluir Sprint 13, 14, 15 y 16 (Sprints 17+ quedan sin definir hasta que se repita este mismo proceso — Fase 0, opciones candidatas, decisión explícita — al cierre de Sprint 16). Ningún código de producción, migración ni configuración se modifica por este ADR — es exclusivamente una decisión de alcance/documentación.
+
+**Documentos afectados:** este documento, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`.
+
+**Estado:** APPROVED.

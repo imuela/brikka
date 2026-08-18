@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,12 +13,27 @@ import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
 import {
+  BANK_OFFER_STATUS_LABELS,
+  BANK_REQUEST_STATUS_LABELS,
   CASE_STATUS_LABELS,
   DOCUMENT_REQUEST_STATUS_LABELS,
+  FINANCING_REQUEST_STATUS_LABELS,
+  MATCH_RESULT_LABELS,
   PARTICIPATION_TYPE_LABELS,
   REVIEW_STATUS_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { Bank } from '../../banks/bank.model';
+import { BankService } from '../../banks/bank.service';
+import { RunMatchingDialogComponent } from '../../bank-matching/bank-matching-dialogs/run-matching-dialog.component';
+import { MatchingResultDetailDialogComponent } from '../../bank-matching/bank-matching-dialogs/matching-result-detail-dialog.component';
+import { BankMatchResult } from '../../bank-matching/bank-matching.model';
+import { BankMatchingService } from '../../bank-matching/bank-matching.service';
+import { CreateBankOfferDialogComponent } from '../../bank-request/bank-request-dialogs/create-bank-offer-dialog.component';
+import { CreateBankRequestDialogComponent } from '../../bank-request/bank-request-dialogs/create-bank-request-dialog.component';
+import { CreateBankResponseDialogComponent } from '../../bank-request/bank-request-dialogs/create-bank-response-dialog.component';
+import { BankOffer, BankRequest, FinalFinancing } from '../../bank-request/bank-request.model';
+import { BankRequestService } from '../../bank-request/bank-request.service';
 import {
   CaseDocument,
   CaseDocumentRequest,
@@ -31,6 +46,11 @@ import { ReviewDocumentDialogComponent } from '../../documents/document-dialogs/
 import { UploadVersionDialogComponent } from '../../documents/document-dialogs/upload-version-dialog.component';
 import { VersionsDialogComponent } from '../../documents/document-dialogs/versions-dialog.component';
 import { DocumentsService } from '../../documents/documents.service';
+import { CreateFinancingRequestDialogComponent } from '../../financing/financing-dialogs/create-financing-request-dialog.component';
+import { CreateSimulationDialogComponent } from '../../financing/financing-dialogs/create-simulation-dialog.component';
+import { UpdateFinancingRequestDialogComponent } from '../../financing/financing-dialogs/update-financing-request-dialog.component';
+import { FinancingRequest, Simulation } from '../../financing/financing.model';
+import { FinancingService } from '../../financing/financing.service';
 import { Property } from '../../property/property.model';
 import { PropertyDialogComponent } from '../../property/property-dialog.component';
 import { PropertyService } from '../../property/property.service';
@@ -49,6 +69,7 @@ import { CasesService } from '../cases.service';
     RouterLink,
     DatePipe,
     CurrencyPipe,
+    DecimalPipe,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -65,9 +86,17 @@ export class CaseDetailComponent {
   readonly participationTypeLabels = PARTICIPATION_TYPE_LABELS;
   readonly reviewStatusLabels = REVIEW_STATUS_LABELS;
   readonly documentRequestStatusLabels = DOCUMENT_REQUEST_STATUS_LABELS;
+  readonly financingRequestStatusLabels = FINANCING_REQUEST_STATUS_LABELS;
+  readonly matchResultLabels = MATCH_RESULT_LABELS;
+  readonly bankRequestStatusLabels = BANK_REQUEST_STATUS_LABELS;
+  readonly bankOfferStatusLabels = BANK_OFFER_STATUS_LABELS;
   private readonly casesService = inject(CasesService);
   private readonly propertyService = inject(PropertyService);
   private readonly documentsService = inject(DocumentsService);
+  private readonly financingService = inject(FinancingService);
+  private readonly bankService = inject(BankService);
+  private readonly bankMatchingService = inject(BankMatchingService);
+  private readonly bankRequestService = inject(BankRequestService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
@@ -90,6 +119,24 @@ export class CaseDetailComponent {
   readonly documentRequests = signal<CaseDocumentRequest[] | null>(null);
   readonly documentRequestColumns = ['type', 'client', 'status', 'dueAt', 'actions'];
 
+  readonly simulations = signal<Simulation[] | null>(null);
+  readonly simulationColumns = ['principal', 'interestRate', 'termMonths', 'estimatedPayment', 'createdAt'];
+
+  readonly financingRequests = signal<FinancingRequest[] | null>(null);
+  readonly financingRequestColumns = ['status', 'requestedAmount', 'termMonths', 'createdAt', 'actions'];
+
+  readonly banks = signal<Bank[]>([]);
+
+  readonly matchResults = signal<BankMatchResult[] | null>(null);
+  readonly matchResultColumns = ['bank', 'globalResult', 'evaluatedAt', 'actions'];
+
+  readonly bankRequests = signal<BankRequest[] | null>(null);
+  readonly bankRequestColumns = ['bank', 'status', 'submittedAt', 'actions'];
+
+  readonly offers = signal<BankOffer[] | null>(null);
+  readonly offerColumns = ['bank', 'amount', 'interestRate', 'termMonths', 'payment', 'status', 'actions'];
+  readonly finalFinancing = signal<FinalFinancing | null>(null);
+
   constructor() {
     this.loadCase();
     this.loadAssignments();
@@ -105,6 +152,15 @@ export class CaseDetailComponent {
     });
     this.loadDocuments();
     this.loadDocumentRequests();
+    this.loadSimulations();
+    this.loadFinancingRequests();
+    this.bankService.list().subscribe({
+      next: (banks) => this.banks.set(banks),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+    this.loadMatchResults();
+    this.loadBankRequests();
+    this.loadOffers();
   }
 
   private loadCase(): void {
@@ -346,5 +402,167 @@ export class CaseDetailComponent {
   userName(userId: string): string {
     const user = this.assignableUsers().find((u) => u.id === userId);
     return user ? `${user.firstName} ${user.lastName}` : userId;
+  }
+
+  private loadSimulations(): void {
+    this.financingService.listSimulations(this.caseId).subscribe({
+      next: (simulations) => this.simulations.set(simulations),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  openCreateSimulation(): void {
+    this.dialog
+      .open(CreateSimulationDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
+      .afterClosed()
+      .subscribe((result: Simulation | undefined) => {
+        if (result) {
+          this.loadSimulations();
+        }
+      });
+  }
+
+  private loadFinancingRequests(): void {
+    this.financingService.listFinancingRequests(this.caseId).subscribe({
+      next: (requests) => this.financingRequests.set(requests),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  openCreateFinancingRequest(): void {
+    this.dialog
+      .open(CreateFinancingRequestDialogComponent, {
+        data: { caseId: this.caseId },
+        width: '400px',
+      })
+      .afterClosed()
+      .subscribe((result: FinancingRequest | undefined) => {
+        if (result) {
+          this.loadFinancingRequests();
+        }
+      });
+  }
+
+  openUpdateFinancingRequest(financingRequest: FinancingRequest): void {
+    this.dialog
+      .open(UpdateFinancingRequestDialogComponent, {
+        data: { financingRequest },
+        width: '400px',
+      })
+      .afterClosed()
+      .subscribe((result: FinancingRequest | undefined) => {
+        if (result) {
+          this.loadFinancingRequests();
+        }
+      });
+  }
+
+  bankName(bankId: string): string {
+    return this.banks().find((b) => b.id === bankId)?.name ?? bankId;
+  }
+
+  finalFinancingBankName(): string {
+    const financing = this.finalFinancing();
+    if (!financing) {
+      return '';
+    }
+    const offer = this.offers()?.find((o) => o.id === financing.bankOfferId);
+    return offer ? this.bankName(offer.bankId) : '—';
+  }
+
+  private loadMatchResults(): void {
+    this.bankMatchingService.list(this.caseId).subscribe({
+      next: (results) => this.matchResults.set(results),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  openRunMatching(): void {
+    this.dialog
+      .open(RunMatchingDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
+      .afterClosed()
+      .subscribe((result: BankMatchResult | undefined) => {
+        if (result) {
+          this.loadMatchResults();
+        }
+      });
+  }
+
+  openMatchingResultDetail(result: BankMatchResult): void {
+    this.dialog.open(MatchingResultDetailDialogComponent, {
+      data: { caseId: this.caseId, result },
+      width: '700px',
+    });
+  }
+
+  private loadBankRequests(): void {
+    this.bankRequestService.list(this.caseId).subscribe({
+      next: (requests) => this.bankRequests.set(requests),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  openCreateBankRequest(): void {
+    this.dialog
+      .open(CreateBankRequestDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
+      .afterClosed()
+      .subscribe((result: BankRequest | undefined) => {
+        if (result) {
+          this.loadBankRequests();
+        }
+      });
+  }
+
+  openCreateBankResponse(bankRequestId: string): void {
+    // No list endpoint exists for bank_responses (create-only, see BankRequestService) — the
+    // dialog closing on success is the only and sufficient feedback, same as every other
+    // create-only dialog in this app.
+    this.dialog.open(CreateBankResponseDialogComponent, {
+      data: { bankRequestId },
+      width: '400px',
+    });
+  }
+
+  openCreateBankOffer(bankRequestId: string): void {
+    this.dialog
+      .open(CreateBankOfferDialogComponent, { data: { bankRequestId }, width: '400px' })
+      .afterClosed()
+      .subscribe((result: BankOffer | undefined) => {
+        if (result) {
+          this.loadOffers();
+        }
+      });
+  }
+
+  private loadOffers(): void {
+    this.bankRequestService.listOffers(this.caseId).subscribe({
+      next: (offers) => this.offers.set(offers),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  selectOffer(offer: BankOffer): void {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Seleccionar oferta final',
+          message: `¿Seguro que quieres seleccionar la oferta de ${this.bankName(offer.bankId)} (${offer.amount} €) como financiación final de esta operación? Esta acción sustituye cualquier selección anterior.`,
+          confirmLabel: 'Seleccionar',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+        this.bankRequestService.selectOffer(offer.id).subscribe({
+          next: (finalFinancing) => {
+            this.finalFinancing.set(finalFinancing);
+            this.loadOffers();
+          },
+          error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+        });
+      });
   }
 }

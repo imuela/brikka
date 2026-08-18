@@ -10,4 +10,5 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Panel', icon: 'dashboard', route: '/app', permission: null },
   { label: 'Clientes', icon: 'people', route: '/app/clients', permission: 'CLIENT_READ' },
   { label: 'Casos', icon: 'work', route: '/app/cases', permission: 'CASE_READ' },
+  { label: 'Bancos', icon: 'account_balance', route: '/app/banks', permission: 'BANK_READ' },
 ];

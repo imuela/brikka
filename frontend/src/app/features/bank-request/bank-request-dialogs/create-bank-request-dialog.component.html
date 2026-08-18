@@ -1,0 +1,28 @@
+<h2 mat-dialog-title>Nueva solicitud a banco</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <mat-form-field>
+      <mat-label>Banco</mat-label>
+      <mat-select formControlName="bankId" required>
+        @for (bank of banks(); track bank.id) {
+          <mat-option [value]="bank.id">{{ bank.name }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Enviar solicitud
+      }
+    </button>
+  </mat-dialog-actions>
+</form>
