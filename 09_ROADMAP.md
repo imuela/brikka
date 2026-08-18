@@ -17,7 +17,7 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 | I — Scoring/Workflow | Sprint 8 (workflow ya en Sprint 3), Sprint 9 |
 | J — Audit/Reporting/AI | Sprint 10, Sprint 11 |
 | K — Hardening | Sprint 12 |
-| L — Frontend V1 | Sprint 13, Sprint 14, Sprint 15, Sprint 16, Sprint 17, Sprint 18 (`ADR-PROCESS-004`, `ADR-PROCESS-005`, `ADR-PROCESS-006`) |
+| L — Frontend V1 | Sprint 13, Sprint 14, Sprint 15, Sprint 16, Sprint 17, Sprint 18, Sprint 19 (`ADR-PROCESS-004`, `ADR-PROCESS-005`, `ADR-PROCESS-006`, `ADR-PROCESS-007`) |
 
 ## Fase A — Consolidación documental
 - especificación;
@@ -72,11 +72,11 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 - ofertas.
 
 ## Fase H — Portal Cliente
-- acceso;
+- acceso (backend Sprint 7, frontend Sprint 19 — `ADR-PORTAL-AUTH-001`, `ADR-PROCESS-007`);
 - dashboard;
-- documentación;
+- documentación (incluye vista explícita de solicitudes pendientes, Sprint 19);
 - mensajería (con `conversation_participants` obligatorio y adjuntos — `ADR-COMMS-001`, `ADR-COMMS-002`);
-- notificaciones (`IN_APP`/`EMAIL` en V1 — `ADR-NOTIF-001`);
+- notificaciones (`IN_APP`/`EMAIL` en V1 — `ADR-NOTIF-001`; lectura y marcado de leída en Sprint 19, sin productor conectado);
 - publicación.
 
 ## Fase I — Scoring/Workflow
@@ -106,7 +106,8 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 - Inmueble/Documentación;
 - Financing/Simulations/Bank Matching/Ofertas;
 - Tasks/Comunicaciones internas/Notificaciones (Sprint 17, `ADR-PROCESS-005`);
-- Administración: Users/Companies/Plans/Subscriptions (Sprint 18, `ADR-PROCESS-006`) — Portal Cliente (Sprint 19) queda como el único bloque independiente pendiente tras esta fase (`ADR-PROCESS-004`).
+- Administración: Users/Companies/Plans/Subscriptions (Sprint 18, `ADR-PROCESS-006`);
+- Portal Cliente (Sprint 19, `ADR-PROCESS-007`, `ADR-PORTAL-AUTH-001`) — sin ningún bloque de Fase L pendiente tras este sprint.
 
 ## Regla de progreso
 

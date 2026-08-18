@@ -13,12 +13,14 @@ import com.brika.platform.casemgmt.web.CreateCaseApiRequest;
 import com.brika.platform.communication.web.CreateConversationApiRequest;
 import com.brika.platform.crm.web.CreateClientApiRequest;
 import com.brika.platform.crm.web.CreatePortalAccountApiRequest;
+import com.brika.platform.document.web.CreateDocumentRequestApiRequest;
 import com.brika.platform.identity.CompanyRepository;
 import com.brika.platform.identity.CreateUserCommand;
 import com.brika.platform.identity.User;
 import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
+import com.brika.platform.notification.NotificationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.List;
@@ -98,6 +100,7 @@ class PortalEndpointsIT {
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
   @Autowired private com.brika.platform.document.DocumentTypeRepository documentTypeRepository;
+  @Autowired private NotificationRepository notificationRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -497,5 +500,148 @@ class PortalEndpointsIT {
     mockMvc
         .perform(get("/api/v1/portal/cases").header("Authorization", portal.bearer()))
         .andExpect(status().isOk()); // PORTAL_CASE_READ works
+  }
+
+  // ---- Sprint 19 (ADR-PROCESS-007): notification mark-as-read ----
+
+  @Test
+  void portalCanMarkOwnNotificationAsRead() throws Exception {
+    UUID companyId = companyRepository.insert("Co P9", "Co P9", "TC-P9");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-p9");
+    UUID clientId = createClient(manager, "NotifOwner");
+    PortalPrincipal portal = createPortalAccount(manager, clientId);
+
+    UUID notificationId =
+        notificationRepository.insert(companyId, null, clientId, "case.status_changed", "{}");
+
+    mockMvc
+        .perform(get("/api/v1/portal/notifications").header("Authorization", portal.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].readAt").doesNotExist());
+
+    mockMvc
+        .perform(
+            patch("/api/v1/portal/notifications/" + notificationId + "/read")
+                .header("Authorization", portal.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.readAt").exists());
+
+    mockMvc
+        .perform(get("/api/v1/portal/notifications").header("Authorization", portal.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].readAt").exists());
+  }
+
+  @Test
+  void clientCannotMarkAnotherClientsNotificationAsRead() throws Exception {
+    UUID companyId = companyRepository.insert("Co P10", "Co P10", "TC-P10");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-p10");
+    UUID clientA = createClient(manager, "NotifA");
+    UUID clientB = createClient(manager, "NotifB");
+    PortalPrincipal portalB = createPortalAccount(manager, clientB);
+
+    UUID notificationForA =
+        notificationRepository.insert(companyId, null, clientA, "case.status_changed", "{}");
+
+    mockMvc
+        .perform(
+            patch("/api/v1/portal/notifications/" + notificationForA + "/read")
+                .header("Authorization", portalB.bearer()))
+        .andExpect(status().isNotFound());
+  }
+
+  // ---- Sprint 19 (ADR-PROCESS-007): explicit document-requests view ----
+
+  private UUID createDocumentRequest(
+      TestPrincipal manager, UUID caseId, UUID documentTypeId, UUID clientId) throws Exception {
+    String body =
+        objectMapper.writeValueAsString(
+            new CreateDocumentRequestApiRequest(documentTypeId, clientId, null, null));
+    String response =
+        mockMvc
+            .perform(
+                post("/api/v1/cases/" + caseId + "/document-requests")
+                    .header("Authorization", manager.bearer())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    return UUID.fromString(objectMapper.readTree(response).get("id").asText());
+  }
+
+  @Test
+  void portalListsOwnDocumentRequestsWithResolvedTypeName() throws Exception {
+    UUID companyId = companyRepository.insert("Co P11", "Co P11", "TC-P11");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-p11");
+    UUID clientId = createClient(manager, "ReqOwner");
+    UUID caseId = createCase(manager);
+    addClientToCase(manager, caseId, clientId);
+    PortalPrincipal portal = createPortalAccount(manager, clientId);
+    UUID documentTypeId = wellKnownDniTypeId();
+
+    createDocumentRequest(manager, caseId, documentTypeId, clientId);
+
+    mockMvc
+        .perform(
+            get("/api/v1/portal/cases/" + caseId + "/document-requests")
+                .header("Authorization", portal.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].documentTypeCode").value("DNI"))
+        .andExpect(jsonPath("$[0].status").value("PENDING"));
+  }
+
+  @Test
+  void documentRequestIsScopedToTheRequestingClientOnly() throws Exception {
+    UUID companyId = companyRepository.insert("Co P12", "Co P12", "TC-P12");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-p12");
+    UUID clientA = createClient(manager, "ReqA");
+    UUID clientB = createClient(manager, "ReqB");
+    UUID caseId = createCase(manager);
+    addClientToCase(manager, caseId, clientA);
+    addClientToCase(manager, caseId, clientB);
+    PortalPrincipal portalB = createPortalAccount(manager, clientB);
+    UUID documentTypeId = wellKnownDniTypeId();
+
+    createDocumentRequest(manager, caseId, documentTypeId, clientA); // requested from A, not B
+
+    mockMvc
+        .perform(
+            get("/api/v1/portal/cases/" + caseId + "/document-requests")
+                .header("Authorization", portalB.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(0)));
+  }
+
+  @Test
+  void uploadingTheRequestedDocumentReflectsAsFulfilledInTheExplicitView() throws Exception {
+    UUID companyId = companyRepository.insert("Co P13", "Co P13", "TC-P13");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-p13");
+    UUID clientId = createClient(manager, "Fulfiller");
+    UUID caseId = createCase(manager);
+    addClientToCase(manager, caseId, clientId);
+    PortalPrincipal portal = createPortalAccount(manager, clientId);
+    UUID documentTypeId = wellKnownDniTypeId();
+
+    createDocumentRequest(manager, caseId, documentTypeId, clientId);
+
+    MockMultipartFile file =
+        new MockMultipartFile("file", "dni.pdf", "application/pdf", "hello".getBytes());
+    mockMvc
+        .perform(
+            multipart("/api/v1/portal/cases/" + caseId + "/documents")
+                .file(file)
+                .param("documentTypeId", documentTypeId.toString())
+                .header("Authorization", portal.bearer()))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            get("/api/v1/portal/cases/" + caseId + "/document-requests")
+                .header("Authorization", portal.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].status").value("FULFILLED"));
   }
 }

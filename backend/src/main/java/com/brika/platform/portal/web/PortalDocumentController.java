@@ -4,9 +4,13 @@ import com.brika.platform.document.Document;
 import com.brika.platform.document.DocumentPublication;
 import com.brika.platform.document.DocumentPublicationRepository;
 import com.brika.platform.document.DocumentRepository;
+import com.brika.platform.document.DocumentRequest;
 import com.brika.platform.document.DocumentRequestRepository;
+import com.brika.platform.document.DocumentRequestService;
 import com.brika.platform.document.DocumentRequestStatus;
 import com.brika.platform.document.DocumentService;
+import com.brika.platform.document.DocumentType;
+import com.brika.platform.document.DocumentTypeRepository;
 import com.brika.platform.document.DocumentVersion;
 import com.brika.platform.document.DocumentVersionRepository;
 import com.brika.platform.portal.PortalAuthorizationService;
@@ -49,6 +53,8 @@ public class PortalDocumentController {
   private final DocumentVersionRepository documentVersionRepository;
   private final DocumentPublicationRepository documentPublicationRepository;
   private final DocumentRequestRepository documentRequestRepository;
+  private final DocumentRequestService documentRequestService;
+  private final DocumentTypeRepository documentTypeRepository;
   private final DocumentService documentService;
 
   public PortalDocumentController(
@@ -58,6 +64,8 @@ public class PortalDocumentController {
       DocumentVersionRepository documentVersionRepository,
       DocumentPublicationRepository documentPublicationRepository,
       DocumentRequestRepository documentRequestRepository,
+      DocumentRequestService documentRequestService,
+      DocumentTypeRepository documentTypeRepository,
       DocumentService documentService) {
     this.portalAuthorizationService = portalAuthorizationService;
     this.portalCaseAccessService = portalCaseAccessService;
@@ -65,6 +73,8 @@ public class PortalDocumentController {
     this.documentVersionRepository = documentVersionRepository;
     this.documentPublicationRepository = documentPublicationRepository;
     this.documentRequestRepository = documentRequestRepository;
+    this.documentRequestService = documentRequestService;
+    this.documentTypeRepository = documentTypeRepository;
     this.documentService = documentService;
   }
 
@@ -115,6 +125,30 @@ public class PortalDocumentController {
                     request.id(), DocumentRequestStatus.FULFILLED));
 
     return PortalDocumentResponse.from(document, version, null);
+  }
+
+  /**
+   * Sprint 19 (ADR-PROCESS-007): explicit "Solicitudes de documentación" view — deliberately
+   * separate from the opportunistic auto-fulfill heuristic in {@code upload}, which stays
+   * unchanged. Scoped to this client's own requests only (see
+   * DocumentRequestRepository.findAllByCaseIdAndClientId).
+   */
+  @GetMapping("/api/v1/portal/cases/{id}/document-requests")
+  public List<PortalDocumentRequestResponse> listDocumentRequests(
+      Authentication authentication, @PathVariable UUID id) {
+    PortalCaseAccessResult access =
+        portalCaseAccessService.requireCaseAccess(
+            authentication, "PORTAL_DOCUMENT_REQUEST_RESPOND", id);
+
+    List<DocumentRequest> requests =
+        documentRequestService.listByCaseAndClient(
+            access.theCase().id(), access.account().clientId());
+    return requests.stream().map(this::toResponse).toList();
+  }
+
+  private PortalDocumentRequestResponse toResponse(DocumentRequest request) {
+    DocumentType type = documentTypeRepository.findById(request.documentTypeId()).orElseThrow();
+    return PortalDocumentRequestResponse.from(request, type);
   }
 
   private Optional<PortalDocumentResponse> publishedViewOf(Document document) {

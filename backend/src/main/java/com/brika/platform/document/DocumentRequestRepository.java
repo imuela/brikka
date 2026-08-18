@@ -68,6 +68,18 @@ public class DocumentRequestRepository {
   }
 
   /**
+   * Sprint 19 (ADR-PROCESS-007): Portal Cliente "Solicitudes de documentación" — a case can have
+   * several clients (holder/co-holder), each only ever sees requests addressed to them.
+   */
+  public List<DocumentRequest> findAllByCaseIdAndClientId(UUID caseId, UUID clientId) {
+    return jdbcTemplate.query(
+        SELECT + " WHERE case_id = ? AND requested_from_client_id = ? ORDER BY due_at",
+        ROW_MAPPER,
+        caseId,
+        clientId);
+  }
+
+  /**
    * Portal Cliente upload (Sprint 7): opportunistic match to auto-fulfill a pending request when
    * the client uploads a document of the requested type — heuristic on (case, type, client) since
    * document_requests has no FK back to the document that satisfies it.

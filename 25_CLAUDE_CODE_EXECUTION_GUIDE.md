@@ -196,6 +196,17 @@ El plan original terminaba en el Sprint 12 (backend, "Release"). El objetivo del
 - ningún endpoint, entidad, migración ni permiso nuevo — únicamente frontend sobre capacidades de backend ya operativas desde los Sprints 2 y 12.1;
 - fuera de alcance: Portal Cliente (Sprint 19), `SUPPORT_SESSION`, aprovisionamiento Keycloak, productores de notificaciones/RabbitMQ, cualquier corrección de la deuda técnica `USER_ASSIGN_ROLE`.
 
+### Sprint 19 — Portal Cliente (frontend + 2 gaps de backend acotados) (`ADR-PROCESS-007`, `ADR-PORTAL-AUTH-001`)
+
+- Realm Keycloak `brika-portal` provisionado (`keycloak/brika-portal-realm.json`, client `brika-portal-frontend`, usuario de demostración `demo.client`), montado en `docker-compose.yml` junto al realm interno `brika`, sin afectarlo;
+- `PortalAuthService`/`PortalSessionStore`/`PortalSessionService` independientes (Authorization Code + PKCE contra `brika-portal`, tokens solo en memoria) — nunca comparten estado con `AuthService`/`SessionStore` internos; `portalAuthInterceptor`/`authInterceptor` particionan el tráfico HTTP por URL (`/api/v1/portal/**` vs el resto) sin solapamiento;
+- Dashboard (`/portal`): casos propios (`GET /api/v1/portal/cases`) y notificaciones propias, con marcado de leída;
+- Detalle de operación (`/portal/cases/:id`): datos del caso, documentos publicados, solicitudes de documentación (vista explícita nueva, ver más abajo), subida de documento ligada a una solicitud concreta, mensajería CLIENT con adjuntos (carga perezosa por mensaje);
+- Perfil (`/portal/profile`): lectura/edición de email y teléfono (`GET`/`PATCH /api/v1/portal/profile`);
+- **2 gaps de backend cerrados, excepción explícita y acotada autorizada en Fase 2 (`ADR-PROCESS-007`):** `PATCH /api/v1/portal/notifications/{id}/read` (marcar notificación propia como leída) y `GET /api/v1/portal/cases/{id}/document-requests` (vista explícita de solicitudes de documentación del cliente, con nombre de tipo de documento resuelto) — ambos reutilizan permisos ya sembrados (`PORTAL_NOTIFICATION_READ`, `PORTAL_DOCUMENT_REQUEST_RESPOND`), sin inventar ninguno nuevo, y sin sustituir la heurística de auto-cumplimiento existente al subir un documento;
+- ningún endpoint fuera de esos 2 gaps, ninguna migración, ningún permiso nuevo — el resto del backend Portal (11 endpoints) ya existía y estaba operativo desde el Sprint 7;
+- fuera de alcance: `SUPPORT_SESSION`, cualquier productor de notificaciones/RabbitMQ, Entitlements — el proyecto no tiene ningún bloque de Fase L pendiente tras este sprint.
+
 ## 4. Cada sprint
 
 Debe producir:

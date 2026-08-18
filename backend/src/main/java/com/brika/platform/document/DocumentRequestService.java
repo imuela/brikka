@@ -50,6 +50,11 @@ public class DocumentRequestService {
     return documentRequestRepository.findAllByCaseId(caseId);
   }
 
+  /** Sprint 19 (ADR-PROCESS-007): Portal Cliente scoping — see DocumentRequestRepository. */
+  public List<DocumentRequest> listByCaseAndClient(UUID caseId, UUID clientId) {
+    return documentRequestRepository.findAllByCaseIdAndClientId(caseId, clientId);
+  }
+
   @Transactional
   public DocumentRequest updateStatus(DocumentRequest request, DocumentRequestStatus status) {
     documentRequestRepository.updateStatus(request.id(), status);

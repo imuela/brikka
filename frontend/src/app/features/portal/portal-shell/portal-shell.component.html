@@ -1,0 +1,19 @@
+<mat-toolbar color="primary">
+  <a routerLink="/portal" class="app-title">Brika — Portal Cliente</a>
+  <span class="spacer"></span>
+  @if (portalSessionStore.client(); as client) {
+    <span class="client-name">{{ client.firstName }} {{ client.lastName }}</span>
+  }
+  <a mat-button routerLink="/portal/profile">
+    <mat-icon>account_circle</mat-icon>
+    Mi perfil
+  </a>
+  <button mat-button (click)="logout()">
+    <mat-icon>logout</mat-icon>
+    Cerrar sesión
+  </button>
+</mat-toolbar>
+
+<main class="portal-content">
+  <router-outlet />
+</main>

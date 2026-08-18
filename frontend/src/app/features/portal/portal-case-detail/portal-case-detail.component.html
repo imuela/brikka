@@ -1,0 +1,161 @@
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+}
+
+@if (theCase() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <h1>{{ theCase()!.reference }}</h1>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Tipo de operación:</strong> {{ theCase()!.operationType }}</p>
+      <p><strong>Estado:</strong> {{ theCase()!.status | statusLabel: caseStatusLabels }}</p>
+      <p><strong>Iniciada:</strong> {{ theCase()!.createdAt | date: 'dd/MM/yyyy' }}</p>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="section">
+    <h2>Documentos</h2>
+    @if (documents() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (documents()!.length === 0) {
+      <p>No hay documentos publicados todavía.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="documents()!">
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Fichero</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.originalFilename }}</td>
+        </ng-container>
+        <ng-container matColumnDef="version">
+          <th mat-header-cell *matHeaderCellDef>Versión</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.versionNumber }}</td>
+        </ng-container>
+        <ng-container matColumnDef="publishedAt">
+          <th mat-header-cell *matHeaderCellDef>Publicado</th>
+          <td mat-cell *matCellDef="let doc">{{ doc.publishedAt | date: 'dd/MM/yyyy' }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="documentColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: documentColumns"></tr>
+      </table>
+      </div>
+    }
+  </div>
+
+  <div class="section">
+    <h2>Solicitudes de documentación</h2>
+    @if (documentRequests() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (documentRequests()!.length === 0) {
+      <p>Sin solicitudes de documentación pendientes.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="documentRequests()!">
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Documento solicitado</th>
+          <td mat-cell *matCellDef="let request">{{ request.documentTypeName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let request">
+            {{ request.status | statusLabel: documentRequestStatusLabels }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="dueAt">
+          <th mat-header-cell *matHeaderCellDef>Fecha límite</th>
+          <td mat-cell *matCellDef="let request">
+            {{ request.dueAt ? (request.dueAt | date: 'dd/MM/yyyy') : '—' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let request">
+            @if (request.status === 'PENDING') {
+              @if (uploadingRequestId() === request.id) {
+                <mat-spinner diameter="20" />
+              } @else {
+                <button mat-button color="primary" type="button" (click)="requestFileInput.click()">
+                  Subir documento
+                </button>
+                <input
+                  #requestFileInput
+                  type="file"
+                  hidden
+                  (change)="uploadForRequest(request, $event)" />
+              }
+            }
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="requestColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: requestColumns"></tr>
+      </table>
+      </div>
+    }
+  </div>
+
+  <div class="section">
+    <h2>Mensajería</h2>
+    @if (messages() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (messages()!.length === 0) {
+      <p>Sin mensajes todavía.</p>
+    } @else {
+      <ul class="message-list">
+        @for (message of messages()!; track message.id) {
+          <li>
+            <p><strong>{{ message.senderUserId ? 'Tu gestor' : 'Tú' }}</strong> — {{ message.createdAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+            <p>{{ message.body }}</p>
+            <button mat-button (click)="toggleAttachments(message)">
+              @if (expandedMessageId() === message.id) {
+                Ocultar adjuntos
+              } @else {
+                Ver adjuntos
+              }
+            </button>
+            <button mat-button type="button" (click)="messageFileInput.click()">
+              Adjuntar archivo
+            </button>
+            <input
+              #messageFileInput
+              type="file"
+              hidden
+              (change)="uploadMessageAttachment(message, $event)" />
+
+            @if (expandedMessageId() === message.id) {
+              @if (!attachmentsByMessage()[message.id]) {
+                <mat-spinner diameter="16" />
+              } @else if (attachmentsByMessage()[message.id].length === 0) {
+                <p>Sin adjuntos.</p>
+              } @else {
+                <ul>
+                  @for (attachment of attachmentsByMessage()[message.id]; track attachment.id) {
+                    <li>
+                      <a [href]="attachment.url" target="_blank" rel="noopener">
+                        {{ attachment.originalFilename }}
+                      </a>
+                    </li>
+                  }
+                </ul>
+              }
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <form [formGroup]="messageForm" (ngSubmit)="sendMessage()" class="field-row">
+      <mat-form-field>
+        <mat-label>Nuevo mensaje</mat-label>
+        <textarea matInput formControlName="body" rows="2" required></textarea>
+      </mat-form-field>
+      <button mat-flat-button color="primary" type="submit" [disabled]="sending()">
+        @if (sending()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          Enviar
+        }
+      </button>
+    </form>
+  </div>
+}

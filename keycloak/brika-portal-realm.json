@@ -1,0 +1,43 @@
+{
+  "realm": "brika-portal",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "brika-portal-frontend",
+      "name": "Brika Portal Cliente Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4200/portal/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/portal/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "id": "22222222-2222-2222-2222-222222222222",
+      "username": "demo.client",
+      "email": "demo.client@brika.test",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "lastName": "Client",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "brika_dev_password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

@@ -92,6 +92,12 @@ services:
     # every boot — the "brika" realm + brika-frontend client (public, PKCE S256, Authorization
     # Code) + one seeded demo user now exist reproducibly instead of requiring manual Admin
     # Console setup. See 19_IDENTITY_OAUTH_SPECIFICATION.md and 12_DECISION_LOG.md ADR-FRONTEND-001.
+    # Sprint 19 (ADR-PROCESS-007): same mechanism, second file — keycloak/brika-portal-realm.json
+    # provisions the "brika-portal" realm (Keycloak's --import-realm loads every realm file present
+    # under /opt/keycloak/data/import, not just one). This realm was referenced by backend config
+    # (brika.security.portal-issuer-uri) and by ADR-PORTAL-AUTH-001 since Sprint 7 but never
+    # actually provisioned anywhere versioned — confirmed missing during the Sprint 19 Fase 1
+    # definition, closed here.
     command: start-dev --health-enabled=true --import-realm
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
@@ -103,6 +109,7 @@ services:
     volumes:
       - brika_identity_data:/opt/keycloak/data
       - ./keycloak/brika-realm.json:/opt/keycloak/data/import/brika-realm.json:ro
+      - ./keycloak/brika-portal-realm.json:/opt/keycloak/data/import/brika-portal-realm.json:ro
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'UP' <&3"]
       interval: 10s

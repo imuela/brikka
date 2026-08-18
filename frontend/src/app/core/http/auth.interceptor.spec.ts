@@ -69,4 +69,14 @@ describe('authInterceptor', () => {
     expect(req.request.headers.has('Authorization')).toBe(false);
     req.flush({});
   });
+
+  it('never attaches the internal token to a Portal request (Sprint 19, ADR-PROCESS-007)', () => {
+    vi.spyOn(authService, 'accessToken').mockReturnValue('token-123');
+
+    http.get(`${environment.apiBaseUrl}/api/v1/portal/me`).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/portal/me`);
+    expect(req.request.headers.has('Authorization')).toBe(false);
+    req.flush({});
+  });
 });

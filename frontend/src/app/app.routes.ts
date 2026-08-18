@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { authGuard } from './auth/auth.guard';
 import { permissionGuard } from './auth/permission.guard';
+import { portalAuthGuard } from './portal-auth/portal-auth.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'app' },
@@ -224,6 +225,55 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/plans/plan-list/plan-list.component').then(
             (m) => m.PlanListComponent,
+          ),
+      },
+    ],
+  },
+  // Sprint 19 (ADR-PROCESS-007): Portal Cliente — a fully separate route subtree, own guard
+  // (portalAuthGuard, never authGuard), own OIDC realm (brika-portal). "cases/:id" needs no
+  // "new"/":id/edit" siblings: Portal never creates or edits a case, only reads it and its
+  // embedded documents/document-requests/messages (all read/write via the sections inside
+  // PortalCaseDetailComponent, not separate routes).
+  {
+    path: 'portal/login',
+    loadComponent: () =>
+      import('./portal-auth/login/portal-login.component').then((m) => m.PortalLoginComponent),
+  },
+  {
+    path: 'portal/auth/callback',
+    loadComponent: () =>
+      import('./portal-auth/callback/portal-auth-callback.component').then(
+        (m) => m.PortalAuthCallbackComponent,
+      ),
+  },
+  {
+    path: 'portal',
+    canActivate: [portalAuthGuard],
+    loadComponent: () =>
+      import('./features/portal/portal-shell/portal-shell.component').then(
+        (m) => m.PortalShellComponent,
+      ),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () =>
+          import('./features/portal/portal-dashboard/portal-dashboard.component').then(
+            (m) => m.PortalDashboardComponent,
+          ),
+      },
+      {
+        path: 'cases/:id',
+        loadComponent: () =>
+          import('./features/portal/portal-case-detail/portal-case-detail.component').then(
+            (m) => m.PortalCaseDetailComponent,
+          ),
+      },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./features/portal/portal-profile/portal-profile.component').then(
+            (m) => m.PortalProfileComponent,
           ),
       },
     ],

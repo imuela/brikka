@@ -11,4 +11,13 @@ export const environment = {
     postLogoutRedirectUri: 'http://localhost:4200/login',
     scope: 'openid profile email',
   },
+  /** Sprint 19 (ADR-PROCESS-007): separate realm/client, mirrors the internal `oidc` block exactly
+   * — never shares tokens or storage keys with it (ADR-PORTAL-AUTH-001, hard separation). */
+  portalOidc: {
+    issuer: 'http://localhost:18081/realms/brika-portal',
+    clientId: 'brika-portal-frontend',
+    redirectUri: 'http://localhost:4200/portal/auth/callback',
+    postLogoutRedirectUri: 'http://localhost:4200/portal/login',
+    scope: 'openid profile email',
+  },
 };
