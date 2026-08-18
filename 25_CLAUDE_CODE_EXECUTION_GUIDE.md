@@ -185,6 +185,17 @@ El plan original terminaba en el Sprint 12 (backend, "Release"). El objetivo del
 - confirmado en este sprint (no nuevo): la arquitectura de entrega asíncrona por RabbitMQ descrita en `ADR-NOTIF-001` no está implementada — la escritura de `Notification`/`NotificationDelivery` es 100% síncrona e in-process allí donde existe, y no hay ningún productor de dominio conectado (ver `12_DECISION_LOG.md`, `ADR-PROCESS-005`);
 - fuera de alcance: Portal Cliente (Sprint 19), administración (Users/Companies/Plans, Sprint 18 candidato), Entitlements, cualquier productor de notificaciones nuevo.
 
+### Sprint 18 — Administración: Users + Companies + Plans + Subscriptions (frontend) (`ADR-PROCESS-006`)
+
+- Usuarios: vista tenant-wide en el shell (`/app/users`, `GET /api/v1/users`), alta (`USER_CREATE`, incluye `externalIdentityId` manual — sin aprovisionamiento Keycloak), edición (`USER_UPDATE`, solo `firstName`/`lastName`, fiel a `UpdateUserApiRequest`), deshabilitar (`USER_DISABLE`, sin reactivación — no existe endpoint); rol limitado a MANAGER/BROKER en el alta (SUPERADMIN es rechazado incondicionalmente por `UserProvisioningService`, CLIENT se aprovisiona exclusivamente vía Portal Cliente); `USER_ASSIGN_ROLE` confirmado sembrado sin ningún endpoint que lo use — deuda técnica documentada, no implementada;
+- Empresas: vista `/app/companies` (`GET /api/v1/companies` — GLOBAL para SUPERADMIN, TENANT/propia empresa para MANAGER, ya filtrado por el backend), alta (`COMPANY_CREATE`, SUPERADMIN-only), detalle+edición (`COMPANY_READ`/`UPDATE`), suspender/eliminar (`COMPANY_SUSPEND`/`DELETE`, SUPERADMIN-only, DELETE es transición lógica a `DELETED`, nunca borrado físico);
+- Suscripción: sección embebida en el detalle de empresa (no pantalla ni nav propios — el contrato real solo la expone anidada bajo `/companies/{id}/subscription`), lectura/asignación/cambio de plan (`PUT`, upsert real) y cancelación (`POST .../cancel`), gated por `SUBSCRIPTION_READ`/`MANAGE` (SUPERADMIN-only) — primer caso del proyecto donde una sección embebida es genuinamente inalcanzable para el visor (MANAGER en su propia empresa), resuelto sin workaround: la petición ni se dispara sin el permiso, evitando un 403 espurio en el error de página;
+- Planes: catálogo global SUPERADMIN-only `/app/plans` (`GET`/`POST`/`PATCH /api/v1/plans`), patrón de diálogo igual que Bancos (Sprint 16); `status` es texto libre (sin CHECK ni catálogo documentado en el backend, igual que `tasks.type`);
+- Entitlements: confirmado sin ningún endpoint (`EntitlementResolutionService` sin controller, sin permiso `ENTITLEMENT_*` siquiera sembrado) — completamente fuera de alcance, no se construye ninguna pantalla;
+- confirmado en este sprint (no nuevo): Usuarios reproduce la misma limitación estructural de SUPERADMIN que Tareas/Comunicaciones (Sprint 17) — `requireTenant()` deniega sin `SUPPORT_SESSION`, verificado por test de integración dedicado (`superadminWithoutSupportSessionCannotAccessUsersEndpoint`); Empresas/Planes/Suscripciones son GLOBAL (sin `requireTenant()`), por lo que SUPERADMIN sí opera sin esa limitación ahí;
+- ningún endpoint, entidad, migración ni permiso nuevo — únicamente frontend sobre capacidades de backend ya operativas desde los Sprints 2 y 12.1;
+- fuera de alcance: Portal Cliente (Sprint 19), `SUPPORT_SESSION`, aprovisionamiento Keycloak, productores de notificaciones/RabbitMQ, cualquier corrección de la deuda técnica `USER_ASSIGN_ROLE`.
+
 ## 4. Cada sprint
 
 Debe producir:

@@ -135,3 +135,27 @@ export const CONVERSATION_TYPE_LABELS: Record<string, string> = {
 export const CONVERSATION_STATUS_LABELS: Record<string, string> = {
   ACTIVE: 'Activa',
 };
+
+/** Mirrors backend users.status — the only two values ever written (UserRepository.insert/
+ * disable). No reactivation endpoint exists, so DISABLED is a terminal state in this UI. */
+export const USER_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activo',
+  DISABLED: 'Deshabilitado',
+};
+
+/** Mirrors backend companies.status — no CHECK constraint in the schema, but CompanyController
+ * only ever writes these three values (insert/suspend/delete). Raw-value fallback still applies. */
+export const COMPANY_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activa',
+  SUSPENDED: 'Suspendida',
+  DELETED: 'Eliminada',
+};
+
+/** Mirrors backend chk_company_subscriptions_status (V4 migration) — the closed set accepted by
+ * PUT /api/v1/companies/{id}/subscription, plus CANCELLED which /cancel always writes. */
+export const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activa',
+  TRIAL: 'Prueba',
+  SUSPENDED: 'Suspendida',
+  CANCELLED: 'Cancelada',
+};

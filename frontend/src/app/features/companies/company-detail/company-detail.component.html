@@ -1,0 +1,73 @@
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+}
+
+@if (company() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <div class="page-header">
+    <h1>{{ company()!.legalName }}</h1>
+    <a
+      *appHasPermission="'COMPANY_UPDATE'"
+      mat-flat-button
+      color="primary"
+      [routerLink]="['/app/companies', company()!.id, 'edit']">
+      Editar
+    </a>
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Nombre comercial:</strong> {{ company()!.tradeName }}</p>
+      <p><strong>NIF/CIF:</strong> {{ company()!.taxId }}</p>
+      <p><strong>Estado:</strong> {{ company()!.status | statusLabel: companyStatusLabels }}</p>
+    </mat-card-content>
+    <mat-card-actions>
+      @if (company()!.status === 'ACTIVE') {
+        <button *appHasPermission="'COMPANY_SUSPEND'" mat-button color="warn" (click)="suspend()">
+          Suspender
+        </button>
+      }
+      @if (company()!.status !== 'DELETED') {
+        <button *appHasPermission="'COMPANY_DELETE'" mat-button color="warn" (click)="remove()">
+          Eliminar
+        </button>
+      }
+    </mat-card-actions>
+  </mat-card>
+
+  <div class="section" *appHasPermission="'SUBSCRIPTION_READ'">
+    <div class="section-header">
+      <h2>Suscripción</h2>
+      @if (!subscriptionLoading()) {
+        <button
+          *appHasPermission="'SUBSCRIPTION_MANAGE'"
+          mat-flat-button
+          color="primary"
+          (click)="openChangeSubscription()">
+          {{ subscription() ? 'Cambiar plan' : 'Asignar plan' }}
+        </button>
+      }
+    </div>
+    @if (subscriptionLoading()) {
+      <mat-spinner diameter="24" />
+    } @else if (subscription() === null) {
+      <p>Sin suscripción asignada.</p>
+    } @else {
+      <p><strong>Plan:</strong> {{ planName(subscription()!.planId) }}</p>
+      <p>
+        <strong>Estado:</strong>
+        {{ subscription()!.status | statusLabel: subscriptionStatusLabels }}
+      </p>
+      @if (subscription()!.status !== 'CANCELLED') {
+        <button
+          *appHasPermission="'SUBSCRIPTION_MANAGE'"
+          mat-button
+          color="warn"
+          (click)="cancelSubscription()">
+          Cancelar suscripción
+        </button>
+      }
+    }
+  </div>
+}

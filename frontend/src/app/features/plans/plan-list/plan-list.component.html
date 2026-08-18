@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h1>Planes</h1>
+  <button *appHasPermission="'PLAN_MANAGE'" mat-flat-button color="primary" (click)="openCreate()">
+    <mat-icon>add</mat-icon>
+    Nuevo plan
+  </button>
+</div>
+
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+} @else if (plans() === null) {
+  <mat-spinner diameter="32" />
+} @else if (plans()!.length === 0) {
+  <p>No hay planes todavía.</p>
+} @else {
+  <div class="table-scroll">
+  <table mat-table [dataSource]="plans()!">
+    <ng-container matColumnDef="code">
+      <th mat-header-cell *matHeaderCellDef>Código</th>
+      <td mat-cell *matCellDef="let plan">{{ plan.code }}</td>
+    </ng-container>
+    <ng-container matColumnDef="name">
+      <th mat-header-cell *matHeaderCellDef>Nombre</th>
+      <td mat-cell *matCellDef="let plan">{{ plan.name }}</td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Estado</th>
+      <td mat-cell *matCellDef="let plan">{{ plan.status }}</td>
+    </ng-container>
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let plan">
+        <button *appHasPermission="'PLAN_MANAGE'" mat-button (click)="openEdit(plan)">
+          Editar
+        </button>
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+  </div>
+}

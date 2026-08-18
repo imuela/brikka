@@ -150,6 +150,82 @@ export const routes: Routes = [
             (m) => m.NotificationListComponent,
           ),
       },
+      // Sprint 18: Usuarios (tenant-wide, GET /api/v1/users — SUPERADMIN always 403s here without
+      // a SUPPORT_SESSION, not worked around), Empresas (GLOBAL for SUPERADMIN, own company only
+      // for MANAGER) and Planes (SUPERADMIN-only global catalog). "new" precedes ":id"/":id/edit"
+      // for the same routing reason as clients/cases/banks above.
+      {
+        path: 'users',
+        canActivate: [permissionGuard],
+        data: { permission: 'USER_READ' },
+        loadComponent: () =>
+          import('./features/users/user-list/user-list.component').then(
+            (m) => m.UserListComponent,
+          ),
+      },
+      {
+        path: 'users/new',
+        canActivate: [permissionGuard],
+        data: { permission: 'USER_CREATE' },
+        loadComponent: () =>
+          import('./features/users/user-form/user-form.component').then(
+            (m) => m.UserFormComponent,
+          ),
+      },
+      {
+        path: 'users/:id/edit',
+        canActivate: [permissionGuard],
+        data: { permission: 'USER_UPDATE' },
+        loadComponent: () =>
+          import('./features/users/user-form/user-form.component').then(
+            (m) => m.UserFormComponent,
+          ),
+      },
+      {
+        path: 'companies',
+        canActivate: [permissionGuard],
+        data: { permission: 'COMPANY_READ' },
+        loadComponent: () =>
+          import('./features/companies/company-list/company-list.component').then(
+            (m) => m.CompanyListComponent,
+          ),
+      },
+      {
+        path: 'companies/new',
+        canActivate: [permissionGuard],
+        data: { permission: 'COMPANY_CREATE' },
+        loadComponent: () =>
+          import('./features/companies/company-form/company-form.component').then(
+            (m) => m.CompanyFormComponent,
+          ),
+      },
+      {
+        path: 'companies/:id/edit',
+        canActivate: [permissionGuard],
+        data: { permission: 'COMPANY_UPDATE' },
+        loadComponent: () =>
+          import('./features/companies/company-form/company-form.component').then(
+            (m) => m.CompanyFormComponent,
+          ),
+      },
+      {
+        path: 'companies/:id',
+        canActivate: [permissionGuard],
+        data: { permission: 'COMPANY_READ' },
+        loadComponent: () =>
+          import('./features/companies/company-detail/company-detail.component').then(
+            (m) => m.CompanyDetailComponent,
+          ),
+      },
+      {
+        path: 'plans',
+        canActivate: [permissionGuard],
+        data: { permission: 'PLAN_READ' },
+        loadComponent: () =>
+          import('./features/plans/plan-list/plan-list.component').then(
+            (m) => m.PlanListComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'app' },

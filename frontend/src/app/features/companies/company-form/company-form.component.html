@@ -1,0 +1,30 @@
+<h1>{{ isEditMode ? 'Editar empresa' : 'Nueva empresa' }}</h1>
+
+<form [formGroup]="form" (ngSubmit)="submit()" class="field-row">
+  <mat-form-field>
+    <mat-label>Razón social</mat-label>
+    <input matInput formControlName="legalName" required />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Nombre comercial</mat-label>
+    <input matInput formControlName="tradeName" required />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>NIF/CIF</mat-label>
+    <input matInput formControlName="taxId" required />
+  </mat-form-field>
+
+  @if (error()) {
+    <p class="error-text">{{ error() }}</p>
+  }
+
+  <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+    @if (loading()) {
+      <mat-spinner diameter="20" />
+    } @else {
+      Guardar
+    }
+  </button>
+</form>

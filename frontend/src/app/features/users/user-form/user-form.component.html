@@ -1,0 +1,49 @@
+<h1>{{ isEditMode ? 'Editar usuario' : 'Nuevo usuario' }}</h1>
+
+<form [formGroup]="form" (ngSubmit)="submit()" class="field-row">
+  <mat-form-field>
+    <mat-label>Email</mat-label>
+    <input matInput type="email" formControlName="email" required />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Nombre</mat-label>
+    <input matInput formControlName="firstName" required />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Apellidos</mat-label>
+    <input matInput formControlName="lastName" required />
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Rol</mat-label>
+    <mat-select formControlName="role" required>
+      <mat-option value="MANAGER">Manager</mat-option>
+      <mat-option value="BROKER">Broker</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  @if (!isEditMode) {
+    <mat-form-field>
+      <mat-label>Identificador en el proveedor de identidad</mat-label>
+      <input matInput formControlName="externalIdentityId" required />
+      <mat-hint>
+        Debe corresponder a una cuenta ya existente en el proveedor de identidad (Keycloak). La
+        aplicación no crea cuentas nuevas automáticamente.
+      </mat-hint>
+    </mat-form-field>
+  }
+
+  @if (error()) {
+    <p class="error-text">{{ error() }}</p>
+  }
+
+  <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+    @if (loading()) {
+      <mat-spinner diameter="20" />
+    } @else {
+      Guardar
+    }
+  </button>
+</form>

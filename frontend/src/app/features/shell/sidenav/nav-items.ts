@@ -18,4 +18,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     route: '/app/notifications',
     permission: 'NOTIFICATION_READ',
   },
+  { label: 'Usuarios', icon: 'group', route: '/app/users', permission: 'USER_READ' },
+  { label: 'Empresas', icon: 'apartment', route: '/app/companies', permission: 'COMPANY_READ' },
+  { label: 'Planes', icon: 'inventory_2', route: '/app/plans', permission: 'PLAN_READ' },
 ];

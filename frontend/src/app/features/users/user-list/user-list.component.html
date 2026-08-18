@@ -1,0 +1,55 @@
+<div class="page-header">
+  <h1>Usuarios</h1>
+  <a *appHasPermission="'USER_CREATE'" mat-flat-button color="primary" routerLink="/app/users/new">
+    <mat-icon>add</mat-icon>
+    Nuevo usuario
+  </a>
+</div>
+
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+} @else if (users() === null) {
+  <mat-spinner diameter="32" />
+} @else if (users()!.length === 0) {
+  <p>No hay usuarios todavía.</p>
+} @else {
+  <div class="table-scroll">
+  <table mat-table [dataSource]="users()!">
+    <ng-container matColumnDef="name">
+      <th mat-header-cell *matHeaderCellDef>Nombre</th>
+      <td mat-cell *matCellDef="let user">{{ user.firstName }} {{ user.lastName }}</td>
+    </ng-container>
+    <ng-container matColumnDef="email">
+      <th mat-header-cell *matHeaderCellDef>Email</th>
+      <td mat-cell *matCellDef="let user">{{ user.email }}</td>
+    </ng-container>
+    <ng-container matColumnDef="role">
+      <th mat-header-cell *matHeaderCellDef>Rol</th>
+      <td mat-cell *matCellDef="let user">{{ user.role | statusLabel: roleLabels }}</td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Estado</th>
+      <td mat-cell *matCellDef="let user">{{ user.status | statusLabel: userStatusLabels }}</td>
+    </ng-container>
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let user">
+        <a *appHasPermission="'USER_UPDATE'" mat-button [routerLink]="['/app/users', user.id, 'edit']">
+          Editar
+        </a>
+        @if (user.status !== 'DISABLED') {
+          <button
+            *appHasPermission="'USER_DISABLE'"
+            mat-button
+            color="warn"
+            (click)="disable(user)">
+            Deshabilitar
+          </button>
+        }
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+  </div>
+}

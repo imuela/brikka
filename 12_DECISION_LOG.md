@@ -796,3 +796,27 @@ No se añade ningún `CHECK` constraint que ate `company_id IS NULL` al rol: el 
 **Documentos afectados:** este documento, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`, `09_ROADMAP.md`.
 
 **Estado:** APPROVED.
+
+## ADR-PROCESS-006 — Definición de Sprint 18: Administración (Users/Companies/Plans/Subscriptions)
+
+**Contexto:** al cierre de Sprint 17, el proceso de 3 fases de `ADR-PROCESS-005` se aplicó por segunda vez para definir el siguiente bloque de trabajo. El candidato inicial propuesto era administración (Users/Companies/Plans), ya identificado como bloque independiente pendiente desde `ADR-PROCESS-004` (Sprint 16) y reconfirmado en `ADR-PROCESS-005` (Sprint 17). La Fase 1/Definición exigió, antes de aceptar ese candidato, una auditoría del backend real (controllers, DTOs, permisos sembrados, tests de integración) en lugar de asumir el alcance desde la documentación de especificación.
+
+**Decisión:**
+
+1. **Sprint 18 queda definido oficialmente como: Users + Companies + Plans + Subscriptions (frontend interno), incluyendo explícitamente la gestión de suscripción como sección embebida en el detalle de empresa (no como bloque propio) y excluyendo explícitamente Entitlements por ausencia total de API.** Objetivo: llevar al frontend interno las capacidades de `identity` (`UserController`, `CompanyController`) y `plan` (`PlanController`, `CompanySubscriptionController`) que ya existen y están operativas en el backend desde los Sprints 2 y 12.1 — ningún endpoint, entidad, migración ni permiso nuevo.
+2. **Hallazgos de la auditoría de Fase 1 que determinaron el diseño exacto del frontend, verificados leyendo el código fuente y no la documentación:**
+   - `UserController` exige `requireTenant()` para **todas** sus operaciones — SUPERADMIN nunca lo resuelve sin `SUPPORT_SESSION` (no implementada), confirmado por el test `superadminWithoutSupportSessionCannotAccessUsersEndpoint`. Es la misma limitación estructural que Tareas/Comunicaciones (Sprint 17), reproducida aquí sin intentar solucionarla.
+   - `USER_ASSIGN_ROLE` está sembrado para SUPERADMIN/MANAGER en `V9__seed_role_permissions.sql` pero **no existe ningún endpoint que lo compruebe** en todo el código backend — deuda técnica preexistente, documentada, explícitamente no implementada en este sprint.
+   - `UserProvisioningService.validateCompanyAssignment` rechaza incondicionalmente crear un usuario con rol `SUPERADMIN` a través de `POST /api/v1/users` (el `company_id` del creador nunca es `null`) — el selector de rol del formulario de alta se limita a MANAGER/BROKER, no por elección de producto sino porque SUPERADMIN es estructuralmente inalcanzable por esa vía; CLIENT queda fuera por pertenecer al flujo separado de Portal Cliente (`CLAUDE.md` §7).
+   - `CompanyController`/`PlanController`/`CompanySubscriptionController` son GLOBAL (sin `requireTenant()`) — SUPERADMIN los usa sin la limitación de `SUPPORT_SESSION` que sí le afecta en Users/Tasks/Communications; `PLAN_READ`/`PLAN_MANAGE`/`SUBSCRIPTION_READ`/`SUBSCRIPTION_MANAGE` no están asignados a MANAGER/BROKER en el seed (SUPERADMIN-only).
+   - `EntitlementResolutionService` no tiene ningún controller (confirmado: "not wired to any endpoint" en su propio javadoc) y no existe ningún permiso `ENTITLEMENT_*` en el catálogo sembrado — confirmación mecánica de que no hay nada que exponer en frontend.
+3. **Primer caso del proyecto donde una sección embebida en un detalle es genuinamente inalcanzable para parte de los visores con acceso al recurso padre:** MANAGER tiene `COMPANY_READ` sobre su propia empresa pero nunca `SUBSCRIPTION_READ`. A diferencia de todas las secciones embebidas anteriores (`case-detail` desde Sprint 3), donde todo rol con acceso al recurso padre tenía también acceso de lectura a cada sección, aquí la petición de suscripción/planes se dispara solo si la sesión ya tiene `SUBSCRIPTION_READ` — evitando que MANAGER reciba un 403 espurio en el banner de error de una sección que para él está correctamente oculta.
+4. **Explícitamente fuera de Sprint 18:** Entitlements (sin API), Portal Cliente (Sprint 19), `SUPPORT_SESSION`, aprovisionamiento Keycloak, corrección de `USER_ASSIGN_ROLE`, cualquier productor de notificaciones/RabbitMQ.
+
+**Alternativas consideradas:** incluir una pantalla de "asignación de rol" ya que el permiso `USER_ASSIGN_ROLE` existe — descartada explícitamente, construirla sin endpoint real habría sido inventar funcionalidad (prohibido por `CLAUDE.md` §3 y por la propia autorización de Fase 2 de este sprint). Ofrecer SUPERADMIN como opción en el alta de usuario — descartada, el backend la rechaza siempre. Incluir Entitlements con datos de solo lectura desde `EntitlementResolutionService` mediante un endpoint nuevo — descartada, viola la prohibición explícita de no crear endpoints nuevos.
+
+**Consecuencias:** `25_CLAUDE_CODE_EXECUTION_GUIDE.md` §3 pasa a incluir Sprint 18; `09_ROADMAP.md` Fase L se actualiza para reflejar que Users/Companies/Plans ya no es un bloque pendiente sin fecha — Portal Cliente (Sprint 19) queda como el único bloque de Fase L aún no iniciado.
+
+**Documentos afectados:** este documento, `25_CLAUDE_CODE_EXECUTION_GUIDE.md`, `09_ROADMAP.md`.
+
+**Estado:** APPROVED.
