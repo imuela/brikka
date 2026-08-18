@@ -1,0 +1,118 @@
+<h2 mat-dialog-title>
+  Conversación {{ data.conversation.type | statusLabel: conversationTypeLabels }}
+  ({{ data.conversation.status | statusLabel: conversationStatusLabels }})
+</h2>
+
+<mat-dialog-content class="field-row">
+  @if (error()) {
+    <p class="error-text">{{ error() }}</p>
+  }
+
+  @if (isClientType) {
+    <div class="section-header">
+      <h3>Participantes</h3>
+      <button
+        *appHasPermission="'CONVERSATION_PARTICIPANT_MANAGE'"
+        mat-button
+        (click)="openAddParticipant()">
+        Añadir participante
+      </button>
+    </div>
+    @if (participants() === null) {
+      <mat-spinner diameter="20" />
+    } @else if (participants()!.length === 0) {
+      <p>Sin participantes todavía.</p>
+    } @else {
+      <ul>
+        @for (participant of participants()!; track participant.id) {
+          <li>
+            {{ participantName(participant) }}
+            <button
+              *appHasPermission="'CONVERSATION_PARTICIPANT_MANAGE'"
+              mat-button
+              color="warn"
+              (click)="removeParticipant(participant)">
+              Quitar
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  }
+
+  <h3>Mensajes</h3>
+  @if (messages() === null) {
+    <mat-spinner diameter="20" />
+  } @else if (messages()!.length === 0) {
+    <p>Sin mensajes todavía.</p>
+  } @else {
+    <ul class="message-list">
+      @for (message of messages()!; track message.id) {
+        <li>
+          <p><strong>{{ senderName(message) }}</strong> — {{ message.createdAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+          <p>{{ message.body }}</p>
+          <button mat-button (click)="toggleAttachments(message)">
+            @if (expandedMessageId() === message.id) {
+              Ocultar adjuntos
+            } @else {
+              Ver adjuntos
+            }
+          </button>
+          <button
+            *appHasPermission="'MESSAGE_ATTACHMENT_UPLOAD'"
+            mat-button
+            type="button"
+            (click)="attachmentInput.click()">
+            Adjuntar archivo
+          </button>
+          <input
+            #attachmentInput
+            type="file"
+            hidden
+            (change)="uploadAttachment(message, $event)" />
+
+          @if (expandedMessageId() === message.id) {
+            @if (!attachmentsByMessage()[message.id]) {
+              <mat-spinner diameter="16" />
+            } @else if (attachmentsByMessage()[message.id].length === 0) {
+              <p>Sin adjuntos.</p>
+            } @else {
+              <ul>
+                @for (attachment of attachmentsByMessage()[message.id]; track attachment.id) {
+                  <li>
+                    <a [href]="attachment.url" target="_blank" rel="noopener">
+                      {{ attachment.originalFilename }}
+                    </a>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <form [formGroup]="messageForm" (ngSubmit)="sendMessage()" class="field-row">
+    <mat-form-field>
+      <mat-label>Nuevo mensaje</mat-label>
+      <textarea matInput formControlName="body" rows="2" required></textarea>
+    </mat-form-field>
+    <button
+      *appHasPermission="'MESSAGE_SEND'"
+      mat-flat-button
+      color="primary"
+      type="submit"
+      [disabled]="sending()">
+      @if (sending()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Enviar
+      }
+    </button>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="close()">Cerrar</button>
+</mat-dialog-actions>

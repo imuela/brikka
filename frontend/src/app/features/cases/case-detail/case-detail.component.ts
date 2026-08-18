@@ -16,11 +16,14 @@ import {
   BANK_OFFER_STATUS_LABELS,
   BANK_REQUEST_STATUS_LABELS,
   CASE_STATUS_LABELS,
+  CONVERSATION_STATUS_LABELS,
+  CONVERSATION_TYPE_LABELS,
   DOCUMENT_REQUEST_STATUS_LABELS,
   FINANCING_REQUEST_STATUS_LABELS,
   MATCH_RESULT_LABELS,
   PARTICIPATION_TYPE_LABELS,
   REVIEW_STATUS_LABELS,
+  TASK_STATUS_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { Bank } from '../../banks/bank.model';
@@ -34,6 +37,10 @@ import { CreateBankRequestDialogComponent } from '../../bank-request/bank-reques
 import { CreateBankResponseDialogComponent } from '../../bank-request/bank-request-dialogs/create-bank-response-dialog.component';
 import { BankOffer, BankRequest, FinalFinancing } from '../../bank-request/bank-request.model';
 import { BankRequestService } from '../../bank-request/bank-request.service';
+import { ConversationDetailDialogComponent } from '../../communications/communication-dialogs/conversation-detail-dialog.component';
+import { CreateConversationDialogComponent } from '../../communications/communication-dialogs/create-conversation-dialog.component';
+import { Conversation } from '../../communications/communication.model';
+import { CommunicationService } from '../../communications/communication.service';
 import {
   CaseDocument,
   CaseDocumentRequest,
@@ -54,6 +61,10 @@ import { FinancingService } from '../../financing/financing.service';
 import { Property } from '../../property/property.model';
 import { PropertyDialogComponent } from '../../property/property-dialog.component';
 import { PropertyService } from '../../property/property.service';
+import { CreateTaskDialogComponent } from '../../tasks/task-dialogs/create-task-dialog.component';
+import { EditTaskDialogComponent } from '../../tasks/task-dialogs/edit-task-dialog.component';
+import { Task } from '../../tasks/task.model';
+import { TaskService } from '../../tasks/task.service';
 import { AddClientDialogComponent } from '../case-dialogs/add-client-dialog.component';
 import { AssignDialogComponent } from '../case-dialogs/assign-dialog.component';
 import { CancelDialogComponent } from '../case-dialogs/cancel-dialog.component';
@@ -90,6 +101,9 @@ export class CaseDetailComponent {
   readonly matchResultLabels = MATCH_RESULT_LABELS;
   readonly bankRequestStatusLabels = BANK_REQUEST_STATUS_LABELS;
   readonly bankOfferStatusLabels = BANK_OFFER_STATUS_LABELS;
+  readonly taskStatusLabels = TASK_STATUS_LABELS;
+  readonly conversationTypeLabels = CONVERSATION_TYPE_LABELS;
+  readonly conversationStatusLabels = CONVERSATION_STATUS_LABELS;
   private readonly casesService = inject(CasesService);
   private readonly propertyService = inject(PropertyService);
   private readonly documentsService = inject(DocumentsService);
@@ -97,6 +111,8 @@ export class CaseDetailComponent {
   private readonly bankService = inject(BankService);
   private readonly bankMatchingService = inject(BankMatchingService);
   private readonly bankRequestService = inject(BankRequestService);
+  private readonly taskService = inject(TaskService);
+  private readonly communicationService = inject(CommunicationService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
@@ -137,6 +153,12 @@ export class CaseDetailComponent {
   readonly offerColumns = ['bank', 'amount', 'interestRate', 'termMonths', 'payment', 'status', 'actions'];
   readonly finalFinancing = signal<FinalFinancing | null>(null);
 
+  readonly tasks = signal<Task[] | null>(null);
+  readonly taskColumns = ['title', 'type', 'status', 'assignedTo', 'dueAt', 'actions'];
+
+  readonly conversations = signal<Conversation[] | null>(null);
+  readonly conversationColumns = ['type', 'status', 'createdAt', 'actions'];
+
   constructor() {
     this.loadCase();
     this.loadAssignments();
@@ -161,6 +183,8 @@ export class CaseDetailComponent {
     this.loadMatchResults();
     this.loadBankRequests();
     this.loadOffers();
+    this.loadTasks();
+    this.loadConversations();
   }
 
   private loadCase(): void {
@@ -564,5 +588,97 @@ export class CaseDetailComponent {
           error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
         });
       });
+  }
+
+  /** GET /api/v1/tasks is always tenant-wide (no case-scoped endpoint exists) — filtered
+   * client-side to this case, same non-invented-endpoint approach as every other section here. */
+  private loadTasks(): void {
+    this.taskService.list().subscribe({
+      next: (tasks) => this.tasks.set(tasks.filter((t) => t.caseId === this.caseId)),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  openCreateTask(): void {
+    this.dialog
+      .open(CreateTaskDialogComponent, { data: { caseId: this.caseId }, width: '420px' })
+      .afterClosed()
+      .subscribe((result: Task | undefined) => {
+        if (result) {
+          this.loadTasks();
+        }
+      });
+  }
+
+  openEditTask(task: Task): void {
+    this.dialog
+      .open(EditTaskDialogComponent, { data: { task }, width: '420px' })
+      .afterClosed()
+      .subscribe((result: Task | undefined) => {
+        if (result) {
+          this.loadTasks();
+        }
+      });
+  }
+
+  completeTask(task: Task): void {
+    this.taskService.complete(task.id).subscribe({
+      next: () => this.loadTasks(),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  deleteTask(task: Task): void {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Eliminar tarea',
+          message: `¿Seguro que quieres eliminar la tarea "${task.title}"? Esta acción no se puede deshacer.`,
+          confirmLabel: 'Eliminar',
+        },
+        width: '400px',
+      })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+        this.taskService.delete(task.id).subscribe({
+          next: () => this.loadTasks(),
+          error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+        });
+      });
+  }
+
+  private loadConversations(): void {
+    this.communicationService.listConversations(this.caseId).subscribe({
+      next: (conversations) => this.conversations.set(conversations),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  openCreateConversation(): void {
+    this.dialog
+      .open(CreateConversationDialogComponent, {
+        data: { caseId: this.caseId, clients: this.clients() ?? [] },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((result: Conversation | undefined) => {
+        if (result) {
+          this.loadConversations();
+        }
+      });
+  }
+
+  openConversationDetail(conversation: Conversation): void {
+    this.dialog.open(ConversationDetailDialogComponent, {
+      data: {
+        conversation,
+        clients: this.clients() ?? [],
+        assignableUsers: this.assignableUsers(),
+      },
+      width: '600px',
+    });
   }
 }

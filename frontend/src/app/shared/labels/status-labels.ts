@@ -111,3 +111,27 @@ export const FINAL_FINANCING_STATUS_LABELS: Record<string, string> = {
 export const BANK_STATUS_LABELS: Record<string, string> = {
   ACTIVE: 'Activo',
 };
+
+/** Mirrors backend tasks.status (chk_tasks_status). DONE is only reachable via
+ * POST /tasks/{id}/complete — never written by the update PATCH (TaskController javadoc). */
+export const TASK_STATUS_LABELS: Record<string, string> = {
+  TODO: 'Por hacer',
+  IN_PROGRESS: 'En curso',
+  BLOCKED: 'Bloqueada',
+  DONE: 'Completada',
+  CANCELLED: 'Cancelada',
+};
+
+/** Mirrors backend conversations.type (chk_conversations_type). SYSTEM is never produced by any
+ * endpoint (ConversationController javadoc) so it is deliberately omitted here, not omitted by
+ * oversight — the pipe's raw-value fallback would show it as-is if it were ever encountered. */
+export const CONVERSATION_TYPE_LABELS: Record<string, string> = {
+  CLIENT: 'Cliente',
+  INTERNAL: 'Interna',
+};
+
+/** Mirrors backend conversations.status — always 'ACTIVE' (server-controlled, no endpoint changes
+ * it — see ConversationRepository.insert). */
+export const CONVERSATION_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activa',
+};

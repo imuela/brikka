@@ -1,0 +1,49 @@
+<h2 mat-dialog-title>Nueva tarea</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <mat-form-field>
+      <mat-label>Tipo</mat-label>
+      <input matInput formControlName="type" required />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Título</mat-label>
+      <input matInput formControlName="title" required />
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Descripción (opcional)</mat-label>
+      <textarea matInput formControlName="description" rows="3"></textarea>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Asignada a (opcional)</mat-label>
+      <mat-select formControlName="assignedTo">
+        <mat-option value="">Sin asignar</mat-option>
+        @for (user of users(); track user.id) {
+          <mat-option [value]="user.id">{{ user.firstName }} {{ user.lastName }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Fecha límite (opcional)</mat-label>
+      <input matInput type="date" formControlName="dueAt" />
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Crear
+      }
+    </button>
+  </mat-dialog-actions>
+</form>

@@ -129,6 +129,27 @@ export const routes: Routes = [
             (m) => m.BankDetailComponent,
           ),
       },
+      // Sprint 17: Tareas (tenant-wide task inbox, GET /api/v1/tasks) y Notificaciones (siempre
+      // las propias del usuario autenticado, GET /api/v1/notifications) — sin sub-rutas de
+      // detalle, todo el detalle/edición vive en diálogos, igual que Bancos.
+      {
+        path: 'tasks',
+        canActivate: [permissionGuard],
+        data: { permission: 'TASK_READ' },
+        loadComponent: () =>
+          import('./features/tasks/task-list/task-list.component').then(
+            (m) => m.TaskListComponent,
+          ),
+      },
+      {
+        path: 'notifications',
+        canActivate: [permissionGuard],
+        data: { permission: 'NOTIFICATION_READ' },
+        loadComponent: () =>
+          import('./features/notifications/notification-list/notification-list.component').then(
+            (m) => m.NotificationListComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: 'app' },

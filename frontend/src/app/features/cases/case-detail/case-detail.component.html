@@ -569,4 +569,128 @@
       </div>
     }
   </div>
+
+  <div class="section" *appHasPermission="'TASK_READ'">
+    <div class="section-header">
+      <h2>Tareas</h2>
+      <button
+        *appHasPermission="'TASK_CREATE'"
+        mat-flat-button
+        color="primary"
+        (click)="openCreateTask()">
+        Nueva tarea
+      </button>
+    </div>
+    @if (tasks() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (tasks()!.length === 0) {
+      <p>Sin tareas todavía.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="tasks()!">
+        <ng-container matColumnDef="title">
+          <th mat-header-cell *matHeaderCellDef>Título</th>
+          <td mat-cell *matCellDef="let task">{{ task.title }}</td>
+        </ng-container>
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Tipo</th>
+          <td mat-cell *matCellDef="let task">{{ task.type }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let task">
+            {{ task.status | statusLabel: taskStatusLabels }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="assignedTo">
+          <th mat-header-cell *matHeaderCellDef>Asignada a</th>
+          <td mat-cell *matCellDef="let task">
+            {{ task.assignedTo ? userName(task.assignedTo) : '—' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="dueAt">
+          <th mat-header-cell *matHeaderCellDef>Fecha límite</th>
+          <td mat-cell *matCellDef="let task">
+            {{ task.dueAt ? (task.dueAt | date: 'dd/MM/yyyy') : '—' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let task">
+            <button *appHasPermission="'TASK_UPDATE'" mat-button (click)="openEditTask(task)">
+              Editar
+            </button>
+            @if (task.status !== 'DONE' && task.status !== 'CANCELLED') {
+              <button
+                *appHasPermission="'TASK_COMPLETE'"
+                mat-button
+                color="primary"
+                (click)="completeTask(task)">
+                Completar
+              </button>
+            }
+            <button
+              *appHasPermission="'TASK_DELETE'"
+              mat-button
+              color="warn"
+              (click)="deleteTask(task)">
+              Eliminar
+            </button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="taskColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: taskColumns"></tr>
+      </table>
+      </div>
+    }
+  </div>
+
+  <div class="section" *appHasPermission="'CONVERSATION_READ'">
+    <div class="section-header">
+      <h2>Conversaciones</h2>
+      <button
+        *appHasPermission="'CONVERSATION_CREATE'"
+        mat-flat-button
+        color="primary"
+        (click)="openCreateConversation()">
+        Nueva conversación
+      </button>
+    </div>
+    @if (conversations() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (conversations()!.length === 0) {
+      <p>Sin conversaciones todavía.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="conversations()!">
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Tipo</th>
+          <td mat-cell *matCellDef="let conversation">
+            {{ conversation.type | statusLabel: conversationTypeLabels }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let conversation">
+            {{ conversation.status | statusLabel: conversationStatusLabels }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef>Creada</th>
+          <td mat-cell *matCellDef="let conversation">
+            {{ conversation.createdAt | date: 'dd/MM/yyyy HH:mm' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let conversation">
+            <button mat-button (click)="openConversationDetail(conversation)">Ver detalle</button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="conversationColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: conversationColumns"></tr>
+      </table>
+      </div>
+    }
+  </div>
 }

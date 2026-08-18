@@ -176,6 +176,15 @@ El plan original terminaba en el Sprint 12 (backend, "Release"). El objetivo del
 - ningún endpoint, entidad, migración ni permiso nuevo — únicamente frontend sobre capacidades de backend ya operativas desde los Sprints 5, 6A y 6B;
 - fuera de alcance: Portal Cliente, Tasks/Communications/Notifications, administración (Users/Companies/Plans) — bloques independientes posteriores.
 
+### Sprint 17 — Tasks + Comunicaciones internas + Notificaciones (frontend) (`ADR-PROCESS-005`)
+
+- Tareas: sección embebida en `case-detail` (con y sin `caseId`, filtrado client-side de `GET /api/v1/tasks` — no existe endpoint case-scoped dedicado) y vista tenant-wide en el shell (`/app/tasks`); alta/listado/edición/asignación/completado (`/complete`)/eliminación (`TASK_DELETE`, MANAGER/SUPERADMIN únicamente, ausente en BROKER);
+- Comunicaciones: sección embebida en `case-detail`; conversaciones INTERNAL y CLIENT (`ConversationController`), gestión de participantes CLIENT (`CONVERSATION_PARTICIPANT_MANAGE`), listado/lectura/envío de mensajes (`MessageController`), adjuntos por mensaje (subida/descarga vía `MessageAttachmentController`, carga perezosa por mensaje); conversaciones SYSTEM explícitamente no implementadas (backend nunca las produce);
+- Notificaciones: entrada de navegación "Notificaciones" en el shell (`/app/notifications`), listado de notificaciones propias del usuario autenticado, marcar como leída; sin productor conectado en el backend (ningún módulo de dominio escribe en `notifications` todavía) — la UI muestra honestamente el estado vacío real, sin datos ni productores inventados;
+- ningún endpoint, entidad, migración ni permiso nuevo — únicamente frontend sobre capacidades de backend ya operativas desde el Sprint 8;
+- confirmado en este sprint (no nuevo): la arquitectura de entrega asíncrona por RabbitMQ descrita en `ADR-NOTIF-001` no está implementada — la escritura de `Notification`/`NotificationDelivery` es 100% síncrona e in-process allí donde existe, y no hay ningún productor de dominio conectado (ver `12_DECISION_LOG.md`, `ADR-PROCESS-005`);
+- fuera de alcance: Portal Cliente (Sprint 19), administración (Users/Companies/Plans, Sprint 18 candidato), Entitlements, cualquier productor de notificaciones nuevo.
+
 ## 4. Cada sprint
 
 Debe producir:

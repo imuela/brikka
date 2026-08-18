@@ -62,6 +62,8 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -88,6 +90,8 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -117,6 +121,8 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
@@ -139,6 +145,8 @@ describe('CaseDetailComponent', () => {
       'Nueva solicitud de financiación',
       'Ejecutar matching',
       'Nueva solicitud a banco',
+      'Nueva tarea',
+      'Nueva conversación',
     ];
     for (const label of gatedLabels) {
       expect(fixture.nativeElement.textContent).not.toContain(label);
@@ -161,6 +169,10 @@ describe('CaseDetailComponent', () => {
       'BANK_MATCHING_RUN',
       'BANK_REQUEST_READ',
       'BANK_REQUEST_CREATE',
+      'TASK_READ',
+      'TASK_CREATE',
+      'CONVERSATION_READ',
+      'CONVERSATION_CREATE',
     ]);
     fixture.detectChanges();
 
@@ -219,6 +231,22 @@ describe('CaseDetailComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Ofertas');
   });
 
+  it('the Tareas and Conversaciones sections are gated by TASK_READ / CONVERSATION_READ', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Tareas');
+    expect(fixture.nativeElement.textContent).not.toContain('Conversaciones');
+
+    sessionStore.setPermissions(['TASK_READ', 'CONVERSATION_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Tareas');
+    expect(fixture.nativeElement.textContent).toContain('Conversaciones');
+  });
+
   it('bankName() resolves a known bank and falls back to the raw id otherwise', () => {
     const fixture = TestBed.createComponent(CaseDetailComponent);
     fixture.detectChanges();
@@ -241,6 +269,8 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
 
     expect(fixture.componentInstance.bankName('b1')).toBe('Banco Demo Desarrollo');
     expect(fixture.componentInstance.bankName('unknown')).toBe('unknown');
@@ -703,5 +733,152 @@ describe('CaseDetailComponent', () => {
     });
 
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+  });
+
+  const task = {
+    id: 't1',
+    caseId: 'k1',
+    assignedTo: null,
+    type: 'CALL',
+    title: 'Llamar al cliente',
+    description: null,
+    status: 'TODO',
+    dueAt: null,
+    createdBy: 'u1',
+    completedAt: null,
+    createdAt: '2026-08-18T10:00:00Z',
+    updatedAt: '2026-08-18T10:00:00Z',
+  };
+
+  it('openCreateTask opens the dialog with this case id and reloads tasks on close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(task) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openCreateTask();
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { caseId: 'k1' } }),
+    );
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([task]);
+  });
+
+  it('openEditTask opens the dialog with the task and reloads on close with a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(task) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openEditTask(task);
+
+    expect(openSpy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data: { task } }));
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([task]);
+  });
+
+  it('completeTask posts to the complete endpoint and reloads tasks', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    fixture.componentInstance.completeTask(task);
+
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks/t1/complete`).flush(task);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([task]);
+  });
+
+  it('deleteTask asks for confirmation before deleting', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of(true),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.deleteTask(task);
+
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks/t1`).flush(null);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+  });
+
+  it('deleteTask does not delete when the confirmation is declined', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of(false),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.deleteTask(task);
+
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/tasks/t1`);
+  });
+
+  const conversation = {
+    id: 'conv1',
+    caseId: 'k1',
+    type: 'INTERNAL',
+    status: 'ACTIVE',
+    createdAt: '2026-08-18T10:00:00Z',
+    updatedAt: '2026-08-18T10:00:00Z',
+  };
+
+  it('openCreateConversation opens the dialog with this case id and its clients and reloads on a result', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(conversation) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openCreateConversation();
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { caseId: 'k1', clients: [] } }),
+    );
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([conversation]);
+  });
+
+  it('openConversationDetail opens the dialog with the conversation, clients and assignable users', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of(undefined),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openConversationDetail(conversation);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        data: { conversation, clients: [], assignableUsers: [] },
+      }),
+    );
   });
 });
