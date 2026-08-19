@@ -1,0 +1,32 @@
+# BRIKA — perfil TEST (Sprint 24, "environments").
+# Usado por los ITs de configuración que activan el perfil explícitamente con
+# @ActiveProfiles("test"). La suite completa de ITs corre SIN perfil (carga solo el
+# baseline de application.yml + Testcontainers vía DynamicPropertySource), por lo que
+# este fichero no altera los ITs existentes: solo alimenta las pruebas de configuración.
+spring:
+  mail:
+    host: ${MAILPIT_SMTP_HOST:localhost}
+    port: ${MAILPIT_SMTP_PORT:11025}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+brika:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
+
+  notifications:
+    # "test" activa RecordingEmailSender (src/test), que captura los envíos en memoria
+    # para poder asertar el contenido real de un email (p. ej. el enlace de reset).
+    email-transport: ${EMAIL_TRANSPORT:test}
+    email-from: ${EMAIL_FROM:no-reply@brika.local}
+
+  security:
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+  # Deshabilitado por defecto en TEST para no interferir con ITs que asumen una DB vacía
+  # (solo migrada). Un IT dedicado lo activa explícitamente para verificar la idempotencia.
+  seed:
+    enabled: ${SEED_ENABLED:false}

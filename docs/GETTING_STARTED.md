@@ -170,6 +170,48 @@ RBAC/auditoría/UX sigue siendo una decisión pendiente).
 `http://localhost:4200/password-reset?token=...`. El enlace se usa una sola vez; tras confirmar,
 los refresh tokens del usuario quedan invalidados y la contraseña anterior deja de servir.
 
+### Entornos (Sprint 24): LOCAL / TEST / PROD
+
+El backend tiene tres perfiles Spring (`application-{local,test,prod}.yml` sobre el baseline común
+`application.yml`), activos con `SPRING_PROFILES_ACTIVE`:
+
+| Perfil | Uso | Email | Seed | Claves JWT |
+|---|---|---|---|---|
+| `local` | desarrollo (`./mvnw spring-boot:run`) | `smtp` → Mailpit | habilitado | opcionales (efímeras si vacías) |
+| `test` | ITs de configuración (`@ActiveProfiles`) | `test` → sender en memoria | deshabilitado | opcionales |
+| `prod` | despliegue real | `smtp` (siempre, nunca `noop`) | **prohibido** | **obligatorias** |
+
+**PROD es fail-closed** (`ProdEnvironmentValidator`): aborta el arranque si faltan las claves JWT,
+si el email no es `smtp`, si el seed queda habilitado, o si CORS contiene comodines/localhost. Esto
+garantiza que en producción nunca se arranque con tokens efímeros, correo `noop`, datos de demo o
+CORS abierto.
+
+#### Seed reproducible (local)
+
+En `local` el backend siembra al arranque (idempotente, `brika.seed.enabled=true`): la empresa demo
+`Brika Demo S.L.` (tax_id `A00000000`), los usuarios `superadmin@brika.local`,
+`manager@brika.local` y `broker@brika.local` (con la contraseña de desarrollo `brika_dev_password`),
+y un catálogo mínimo de bancos. No pisa contraseñas ya fijadas. Para apagarlo en local:
+`SEED_ENABLED=false` en `.env`.
+
+#### Claves JWT persistentes
+
+Las claves RSA (PKCS8 DER en base64) se generan con:
+
+```bash
+./scripts/generate-jwt-keys.sh        # escribe .secrets/jwt/{internal,portal}.private.key
+```
+
+y se cargan como secretos (nunca en el repo):
+
+```bash
+SELF_AUTH_INTERNAL_SIGNING_KEY_PEM="$(cat .secrets/jwt/internal.private.key)"
+SELF_AUTH_PORTAL_SIGNING_KEY_PEM="$(cat .secrets/jwt/portal.private.key)"
+```
+
+Con ellas, los tokens sobreviven reinicios del backend (en local, si se dejan vacías, se genera un
+par efímero por proceso). En PROD son obligatorias (fail-closed).
+
 ## 6. Parar el entorno
 
 ```bash

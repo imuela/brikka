@@ -1,6 +1,8 @@
 # Environment
 .env
 *.local
+# Secretos locales generados por scripts (Sprint 24) — nunca en Git
+.secrets/
 
 # Backend (Maven)
 backend/target/

@@ -1,0 +1,39 @@
+# BRIKA — perfil LOCAL (Sprint 24, "environments").
+# Activo vía SPRING_PROFILES_ACTIVE=local (véase .env.example). Hereda el baseline de
+# application.yml y solo ajusta lo propio de desarrollo local:
+#   - email real contra el SMTP catcher local Mailpit (Sprint 22 cierre, punto 5);
+#   - seed reproducible habilitado por defecto (empresa, usuarios, bancos);
+#   - CORS limitado al dev server de Angular;
+#   - claves JWT opcionales (vacías => par efímero por proceso, correcto en local).
+spring:
+  mail:
+    host: ${MAILPIT_SMTP_HOST:localhost}
+    # 11025, no el 1025 interno de Mailpit — el backend corre fuera de docker-compose
+    # (mvn spring-boot:run) y alcanza Mailpit por el puerto mapeado al host
+    # (docker-compose.yml "127.0.0.1:${MAILPIT_SMTP_PORT:-11025}:1025").
+    port: ${MAILPIT_SMTP_PORT:11025}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+brika:
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
+
+  notifications:
+    # LOCAL opta a "smtp" por defecto para recibir de verdad los correos de
+    # password-reset en Mailpit. En producción el transporte siempre es "smtp"
+    # (application-prod.yml); nunca "noop" fuera de local/test.
+    email-transport: ${EMAIL_TRANSPORT:smtp}
+    email-from: ${EMAIL_FROM:no-reply@brika.local}
+
+  security:
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+  # Seed reproducible e idempotente (Sprint 24): solo en entornos de desarrollo.
+  # El runner está además anotado @Profile({"local","test"}) y validado fail-closed
+  # frente a PROD (ProdEnvironmentValidator), de modo que jamás se ejecuta en producción.
+  seed:
+    enabled: ${SEED_ENABLED:true}

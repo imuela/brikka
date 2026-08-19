@@ -4,12 +4,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * D8-2: no EMAIL provider is approved. Every send is structurally recorded as not-sent, with an
- * explicit reason, rather than silently pretending to succeed. Remains the default active
- * implementation in every environment (matchIfMissing = true) — ADR-NOTIF-001's "no provider"
- * decision is not reversed by Sprint 22 cierre §5, which only activates {@link SmtpEmailSender}
- * against a local Mailpit instance when explicitly opted into via {@code
- * brika.notifications.email-transport=smtp}.
+ * D8-2: no EMAIL provider is approved (ADR-NOTIF-001). Every send is structurally recorded as
+ * not-sent, with an explicit reason, rather than silently pretending to succeed. It remains the
+ * active implementation wherever {@code brika.notifications.email-transport} is unset/noop. Sprint
+ * 24 (ADR-ENV-001): LOCAL and PROD now opt into {@code smtp} (Mailpit / real SMTP), so {@code noop}
+ * is never used in production — enforced fail-closed by {@code ProdEnvironmentValidator}.
  */
 @Component
 @ConditionalOnProperty(

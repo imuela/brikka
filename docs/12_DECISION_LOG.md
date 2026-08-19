@@ -991,3 +991,53 @@ decisión). `GETTING_STARTED.md` queda reescrito sin referencias a Keycloak. Sig
 del alcance de Sprint 22) la selección de un proveedor de email real, la migración de usuarios de
 producción y un endpoint de administración de contraseñas con RBAC/auditoría/UX (los puntos
 pendientes del cierre se enumeran en el informe de cierre).
+
+## ADR-ENV-001 — Entornos, claves JWT, email y seed reproducible (Sprint 24)
+
+**Contexto:** la base de configuración de BRIKKA trataba todos los arranques por igual
+(`application.yml` con defaults local-friendly, email `noop` por defecto en todo, claves JWT
+efímeras por proceso si no se fijan, sin seed reproducible de empresa/usuarios/bancos y sin
+configuración de entorno para el frontend). Sprint 24 exige separar LOCAL/TEST/PROD, hacer
+persistentes las claves JWT, soportar email SMTP real y un seed reproducible e idempotente,
+manteniendo intacta la autenticación existente (Argon2id, JWT RS256, separación Internal/Portal,
+refresh tokens opacos, rotación, single-use, anti-enumeración, lockout, bootstrap interno). No se
+rehace nada del mecanismo de autenticación (regla del sprint §5/§44).
+
+**Decisión:**
+1. **Perfiles Spring** `application-{local,test,prod}.yml` sobre un `application.yml` común
+   (baseline local-friendly) para no romper los ITs que corren sin perfil. `local`: email `smtp` →
+   Mailpit, seed habilitado, CORS del dev server. `test`: email `test` (sender en memoria), seed
+   deshabilitado. `prod`: email `smtp` siempre, seed prohibido, CORS estricto desde env.
+2. **PROD fail-closed**: `ProdEnvironmentValidator` (un `EnvironmentPostProcessor`) aborta el
+   arranque en PROD si falta cualquier secreto (claves JWT, `SMTP_HOST`), si el email no es `smtp`,
+   si el seed queda habilitado, o si CORS contiene comodines/localhost.
+3. **Claves JWT persistentes**: se reutiliza la lectura existente de
+   `brika.security.self-auth.{internal,portal}-signing-key-pem` (base64 PKCS8 DER); se añade
+   `scripts/generate-jwt-keys.sh` y el `.gitignore` de `.secrets/`. En local siguen siendo opcionales
+   (efímeras si vacías); en PROD obligatorias. Test que verifica que un token sobrevive un "reinicio"
+   con la misma clave persistida.
+4. **Argon2id elevado**: de `defaultsForSpringSecurity_v5_8()` (16 MiB / 2 iter) a
+   `new Argon2PasswordEncoder(16, 32, 1, 32768, 3)` (32 MiB / 3 iter / 1 paralelo), cumpliendo OWASP
+   con margen. No invalida hashes existentes (el hash embebe sus propios parámetros). Se mantiene el
+   algoritmo Argon2id.
+5. **Email**: el transporte en PROD es siempre `smtp` (nunca `noop`, ADR-NOTIF-001 D8-2); se añaden
+   las variables `SMTP_HOST/PORT/USERNAME/PASSWORD/FROM/FROM_NAME/TLS/AUTH`. Local mantiene Mailpit.
+   Se mantiene la abstracción `EmailSender`/`SmtpEmailSender`/`NoOpEmailSender` y los notifiers de
+   reset. Test real de password-reset: el correo se entrega por SMTP a Mailpit y el enlace que viaja
+   dentro del mensaje real es el que se consume.
+6. **Seed reproducible**: `DevSeedRunner` (`CommandLineRunner`, `@Profile({"local","test"})` +
+   `@ConditionalOnProperty(brika.seed.enabled)` + fail-closed en PROD) siembra de forma idempotente
+   la empresa demo, `superadmin@brika.local`/`manager@brika.local`/`broker@brika.local` y un catálogo
+   de bancos, fijando contraseñas Argon2id solo si el usuario aún no tiene credencial (no pisa
+   contraseñas cambiadas). En local está habilitado; en test deshabilitado por defecto; en PROD
+   prohibido.
+7. **Frontend**: se añade `environment.production.ts` y `fileReplacements` en
+   `angular.json` (build `production`), de modo que la URL de la API procede del entorno.
+
+**Consecuencias:** la regla "email `noop` por defecto en todo entorno" de ADR-NOTIF-001 queda
+**superada** para PROD (siempre `smtp`) y LOCAL (Mailpit); `noop` solo persiste para entornos sin
+perfil y queda prohibido en PROD por validación. El par efímero de JWT queda limitado a local/test.
+El seed de demo nunca puede ejecutarse en producción. `GETTING_STARTED.md`, `10_DEVOPS.md` y
+`23_CLOUD_DEPLOYMENT_SPECIFICATION.md` quedan actualizados (este último deja de citar OIDC).
+
+**Estado:** APPROVED (implementado en Sprint 24).

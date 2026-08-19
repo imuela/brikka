@@ -8,7 +8,7 @@ Componentes:
 - PostgreSQL;
 - RabbitMQ;
 - Object Storage;
-- proveedor OIDC;
+- autenticación propia de Brika: JWT RS256 autoemitido (Internal/Portal con claves independientes);
 - servicios de IA (AI Gateway/Orchestrator + Python Worker);
 - observabilidad.
 
@@ -28,6 +28,31 @@ El Python Worker (OCR/extracción/procesamiento documental) se despliega en un s
 - production
 
 Datos y secretos separados por entorno.
+
+### 3.1 Perfiles Spring (Sprint 24)
+
+`SPRING_PROFILES_ACTIVE` selecciona `application-{local,test,prod}.yml` sobre el baseline común
+`application.yml`. **PROD es fail-closed** (`ProdEnvironmentValidator`, un
+`EnvironmentPostProcessor`): aborta el arranque si faltan las claves JWT
+(`brika.security.self-auth.{internal,portal}-signing-key-pem`), si el email no es `smtp`, si el
+seed queda habilitado, o si CORS contiene comodines/localhost.
+
+### 3.2 Autenticación (Sprint 24)
+
+El emisor de identidad es el **propio backend** (JWT RS256 autoemitido), no un proveedor OIDC
+externo (Keycloak retirado en Sprint 22). Internal y Portal usan claves RSA independientes. Las
+claves deben proveerse como secretos persistentes (nunca efímeras en producción):
+
+- `SELF_AUTH_INTERNAL_SIGNING_KEY_PEM`
+- `SELF_AUTH_PORTAL_SIGNING_KEY_PEM`
+
+Generación y rotación: `./scripts/generate-jwt-keys.sh` (véase `10_DEVOPS.md` §Sprint 24).
+
+### 3.3 Email SMTP (Sprint 24)
+
+El transporte en PROD es siempre `smtp` (nunca `noop`, ADR-NOTIF-001). Variables:
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_FROM_NAME`,
+`SMTP_TLS`, `SMTP_AUTH`.
 
 ## 4. CI/CD
 
@@ -50,7 +75,7 @@ Pipeline mínimo:
 Nunca almacenar:
 - passwords;
 - API keys;
-- OIDC secrets;
+- JWT signing keys (`SELF_AUTH_*_SIGNING_KEY_PEM`) y credenciales SMTP;
 - DB credentials
 
 en Git.
