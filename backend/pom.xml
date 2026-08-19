@@ -32,9 +32,9 @@
         </dependency>
 
         <!-- Sprint 2: OAuth2/OIDC resource server (19_IDENTITY_OAUTH_SPECIFICATION.md
-             §1 "Spring Security validará tokens"). Backend only validates
-             bearer tokens issued by the external OIDC provider (Keycloak,
-             Sprint 0 infra) — no login UI, no token issuance here. -->
+             §1 "Spring Security validará tokens"). Backend validates bearer tokens against
+             its own self-issued JWTs (Sprint 22, ADR-AUTH-001 — Keycloak retired) via the
+             resource-server JwtDecoder infrastructure this starter provides. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
@@ -42,6 +42,25 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!-- Sprint 22 (autenticación propia, autorización §2/§11): Argon2PasswordEncoder
+             (spring-security-crypto) requires a BouncyCastle Argon2 implementation on the
+             classpath — the JDK has none built in. This is the dependency Spring Security's
+             own documentation names for Argon2id support, not an arbitrary addition. -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+
+        <!-- Sprint 22 cierre, punto 5: EmailService abstraction backing password reset locally
+             (Mailpit as SMTP catcher). The standard Spring starter for SMTP, not an arbitrary
+             framework — swapping Mailpit for a real relay later is a config change, not a
+             dependency change. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
         <!-- Sprint 4: Object Storage (18_STORAGE_SPECIFICATION.md §2, "S3 API compatible").

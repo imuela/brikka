@@ -6,6 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { ApiError } from '../../../core/http/api-error';
@@ -13,6 +14,7 @@ import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
 import { TASK_STATUS_LABELS, TASK_TYPE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { AssignableUser } from '../../cases/case.model';
 import { CasesService } from '../../cases/cases.service';
 import { CreateTaskDialogComponent } from '../task-dialogs/create-task-dialog.component';
@@ -34,8 +36,10 @@ import { TaskService } from '../task.service';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     HasPermissionDirective,
     StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './task-list.component.html',
 })

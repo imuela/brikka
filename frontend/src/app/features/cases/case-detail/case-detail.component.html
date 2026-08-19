@@ -22,7 +22,10 @@
         <strong>Tipo de operación:</strong>
         {{ theCase()!.operationType | statusLabel: operationTypeLabels }}
       </p>
-      <p><strong>Estado:</strong> {{ theCase()!.status | statusLabel: caseStatusLabels }}</p>
+      <p>
+        <strong>Estado:</strong>
+        <app-status-badge [value]="theCase()!.status" [labels]="caseStatusLabels" />
+      </p>
       <p><strong>Creado:</strong> {{ theCase()!.createdAt | date: 'dd/MM/yyyy HH:mm' }}</p>
       @if (theCase()!.cancelledAt) {
         <p><strong>Cancelado:</strong> {{ theCase()!.cancelledAt | date: 'dd/MM/yyyy HH:mm' }}</p>
@@ -180,7 +183,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let document">
-            {{ document.status | statusLabel: reviewStatusLabels }}
+            <app-status-badge [value]="document.status" [labels]="reviewStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="actions">
@@ -259,7 +262,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let request">
-            {{ request.status | statusLabel: documentRequestStatusLabels }}
+            <app-status-badge [value]="request.status" [labels]="documentRequestStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="dueAt">
@@ -365,7 +368,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let request">
-            {{ request.status | statusLabel: financingRequestStatusLabels }}
+            <app-status-badge [value]="request.status" [labels]="financingRequestStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="requestedAmount">
@@ -427,7 +430,7 @@
         <ng-container matColumnDef="globalResult">
           <th mat-header-cell *matHeaderCellDef>Resultado</th>
           <td mat-cell *matCellDef="let result">
-            {{ result.effectiveGlobalResult | statusLabel: matchResultLabels }}
+            <app-status-badge [value]="result.effectiveGlobalResult" [labels]="matchResultLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="evaluatedAt">
@@ -474,7 +477,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let request">
-            {{ request.status | statusLabel: bankRequestStatusLabels }}
+            <app-status-badge [value]="request.status" [labels]="bankRequestStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="submittedAt">
@@ -553,7 +556,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let offer">
-            {{ offer.status | statusLabel: bankOfferStatusLabels }}
+            <app-status-badge [value]="offer.status" [labels]="bankOfferStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="actions">
@@ -604,7 +607,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let task">
-            {{ task.status | statusLabel: taskStatusLabels }}
+            <app-status-badge [value]="task.status" [labels]="taskStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="assignedTo">
@@ -677,7 +680,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef>Estado</th>
           <td mat-cell *matCellDef="let conversation">
-            {{ conversation.status | statusLabel: conversationStatusLabels }}
+            <app-status-badge [value]="conversation.status" [labels]="conversationStatusLabels" />
           </td>
         </ng-container>
         <ng-container matColumnDef="createdAt">

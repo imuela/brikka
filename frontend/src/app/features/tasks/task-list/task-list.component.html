@@ -25,7 +25,9 @@
     </ng-container>
     <ng-container matColumnDef="status">
       <th mat-header-cell *matHeaderCellDef>Estado</th>
-      <td mat-cell *matCellDef="let task">{{ task.status | statusLabel: taskStatusLabels }}</td>
+      <td mat-cell *matCellDef="let task">
+        <app-status-badge [value]="task.status" [labels]="taskStatusLabels" />
+      </td>
     </ng-container>
     <ng-container matColumnDef="assignedTo">
       <th mat-header-cell *matHeaderCellDef>Asignada a</th>
@@ -35,9 +37,15 @@
       <th mat-header-cell *matHeaderCellDef>Caso</th>
       <td mat-cell *matCellDef="let task">
         @if (task.caseId) {
-          <a [routerLink]="['/app/cases', task.caseId]">Ver caso</a>
+          <a
+            mat-icon-button
+            [routerLink]="['/app/cases', task.caseId]"
+            matTooltip="Ver caso"
+            aria-label="Ver caso">
+            <mat-icon>open_in_new</mat-icon>
+          </a>
         } @else {
-          <span>Sin caso</span>
+          <span class="muted-text">Sin caso</span>
         }
       </td>
     </ng-container>
@@ -50,25 +58,36 @@
     <ng-container matColumnDef="actions">
       <th mat-header-cell *matHeaderCellDef></th>
       <td mat-cell *matCellDef="let task">
-        <button *appHasPermission="'TASK_UPDATE'" mat-button (click)="openEdit(task)">
-          Editar
-        </button>
-        @if (task.status !== 'DONE' && task.status !== 'CANCELLED') {
+        <div class="table-actions">
           <button
-            *appHasPermission="'TASK_COMPLETE'"
-            mat-button
-            color="primary"
-            (click)="complete(task)">
-            Completar
+            *appHasPermission="'TASK_UPDATE'"
+            mat-icon-button
+            (click)="openEdit(task)"
+            matTooltip="Editar"
+            aria-label="Editar tarea">
+            <mat-icon>edit</mat-icon>
           </button>
-        }
-        <button
-          *appHasPermission="'TASK_DELETE'"
-          mat-button
-          color="warn"
-          (click)="remove(task)">
-          Eliminar
-        </button>
+          @if (task.status !== 'DONE' && task.status !== 'CANCELLED') {
+            <button
+              *appHasPermission="'TASK_COMPLETE'"
+              mat-icon-button
+              color="primary"
+              (click)="complete(task)"
+              matTooltip="Completar"
+              aria-label="Completar tarea">
+              <mat-icon>check_circle</mat-icon>
+            </button>
+          }
+          <button
+            *appHasPermission="'TASK_DELETE'"
+            mat-icon-button
+            color="warn"
+            (click)="remove(task)"
+            matTooltip="Eliminar"
+            aria-label="Eliminar tarea">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
       </td>
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

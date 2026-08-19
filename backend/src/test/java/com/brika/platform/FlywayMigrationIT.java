@@ -30,7 +30,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * table; V13 adds two; V14 adds one; V15 adds none. The exact role_permissions content is verified
  * in RbacSeedIT. V16 (Sprint 20, ADR-PROCESS-008) is a data-only correction (no schema change): the
  * only cases.operation_type value in real use, "MORTGAGE", is updated to "PURCHASE" to be valid
- * under the new frontend-only OPERATION_TYPES catalog approved in that sprint.
+ * under the new frontend-only OPERATION_TYPES catalog approved in that sprint. V17 (Sprint 22
+ * authorization, self-auth foundations) adds 7 tables for local credentials/refresh tokens/
+ * password reset tokens/login attempts — no change to any existing table.
  */
 @Testcontainers
 @SpringBootTest
@@ -59,7 +61,7 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(16);
+    assertThat(appliedMigrations).isEqualTo(17);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -68,8 +70,10 @@ class FlywayMigrationIT {
             Integer.class);
     // 38 tables from V1 + 4 (V4) + 1 (V5) + 3 (V6) + 2 (V7) = 48. V8-V12 add no table.
     // V13 adds bank_match_results + bank_match_rule_results = 50. V14 adds
-    // bank_match_rule_overrides = 51.
-    assertThat(tableCount).isEqualTo(51);
+    // bank_match_rule_overrides = 51. V15/V16 add no table. V17 adds 7 (user_credentials,
+    // portal_account_credentials, user_refresh_tokens, portal_refresh_tokens,
+    // user_password_reset_tokens, portal_password_reset_tokens, login_attempts) = 58.
+    assertThat(tableCount).isEqualTo(58);
 
     Boolean companyIdNullable =
         jdbc.queryForObject(
@@ -149,5 +153,23 @@ class FlywayMigrationIT {
                 + " 'bank_match_rule_overrides'",
             Boolean.class);
     assertThat(bankMatchRuleOverridesExists).isTrue();
+
+    for (String table :
+        new String[] {
+          "user_credentials",
+          "portal_account_credentials",
+          "user_refresh_tokens",
+          "portal_refresh_tokens",
+          "user_password_reset_tokens",
+          "portal_password_reset_tokens",
+          "login_attempts"
+        }) {
+      Boolean exists =
+          jdbc.queryForObject(
+              "SELECT COUNT(*) > 0 FROM information_schema.tables WHERE table_name = ?",
+              Boolean.class,
+              table);
+      assertThat(exists).as("table %s must exist (V17)", table).isTrue();
+    }
   }
 }

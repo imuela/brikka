@@ -11,9 +11,11 @@ export const routes: Routes = [
     loadComponent: () => import('./auth/login/login.component').then((m) => m.LoginComponent),
   },
   {
-    path: 'auth/callback',
+    path: 'password-reset',
     loadComponent: () =>
-      import('./auth/callback/auth-callback.component').then((m) => m.AuthCallbackComponent),
+      import('./auth/password-reset/password-reset.component').then(
+        (m) => m.PasswordResetComponent,
+      ),
   },
   {
     path: 'app',
@@ -230,7 +232,9 @@ export const routes: Routes = [
     ],
   },
   // Sprint 19 (ADR-PROCESS-007): Portal Cliente — a fully separate route subtree, own guard
-  // (portalAuthGuard, never authGuard), own OIDC realm (brika-portal). "cases/:id" needs no
+  // (portalAuthGuard, never authGuard), own token issuer (Brika's own Portal-issued JWTs, Sprint
+  // 22 cierre — physically separate from the internal issuer, same separation Keycloak's two
+  // realms used to provide). "cases/:id" needs no
   // "new"/":id/edit" siblings: Portal never creates or edits a case, only reads it and its
   // embedded documents/document-requests/messages (all read/write via the sections inside
   // PortalCaseDetailComponent, not separate routes).
@@ -240,10 +244,10 @@ export const routes: Routes = [
       import('./portal-auth/login/portal-login.component').then((m) => m.PortalLoginComponent),
   },
   {
-    path: 'portal/auth/callback',
+    path: 'portal/password-reset',
     loadComponent: () =>
-      import('./portal-auth/callback/portal-auth-callback.component').then(
-        (m) => m.PortalAuthCallbackComponent,
+      import('./portal-auth/password-reset/portal-password-reset.component').then(
+        (m) => m.PortalPasswordResetComponent,
       ),
   },
   {

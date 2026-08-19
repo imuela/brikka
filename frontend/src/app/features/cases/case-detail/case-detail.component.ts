@@ -30,6 +30,7 @@ import {
   TASK_TYPE_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { Bank } from '../../banks/bank.model';
 import { BankService } from '../../banks/bank.service';
 import { RunMatchingDialogComponent } from '../../bank-matching/bank-matching-dialogs/run-matching-dialog.component';
@@ -92,6 +93,7 @@ import { CasesService } from '../cases.service';
     MatProgressSpinnerModule,
     HasPermissionDirective,
     StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './case-detail.component.html',
   styleUrl: './case-detail.component.scss',

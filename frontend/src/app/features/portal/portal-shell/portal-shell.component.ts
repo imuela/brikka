@@ -6,15 +6,23 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { PortalAuthService } from '../../../portal-auth/portal-auth.service';
 import { PortalSessionStore } from '../../../portal-auth/portal-session.store';
+import { LogoComponent } from '../../../shared/logo/logo.component';
 
 /** Portal Cliente shell — deliberately a plain toolbar, not the internal ShellComponent's
  * sidenav: the Portal surface only ever has 2-3 destinations (Sprint 19, ADR-PROCESS-007), so a
  * collapsible sidenav would be over-engineering. Never imports anything from features/shell/ —
- * the two surfaces share zero UI components, only design tokens (global styles). */
+ * the two surfaces share zero UI components, only shared/ (design tokens, Logo, labels). */
 @Component({
   selector: 'app-portal-shell',
   standalone: true,
-  imports: [RouterLink, RouterOutlet, MatToolbarModule, MatButtonModule, MatIconModule],
+  imports: [
+    RouterLink,
+    RouterOutlet,
+    MatToolbarModule,
+    MatButtonModule,
+    MatIconModule,
+    LogoComponent,
+  ],
   templateUrl: './portal-shell.component.html',
   styleUrl: './portal-shell.component.scss',
 })

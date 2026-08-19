@@ -74,15 +74,17 @@ describe('UserListComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Nuevo usuario');
-    expect(fixture.nativeElement.textContent).not.toContain('Editar');
-    expect(fixture.nativeElement.textContent).not.toContain('Deshabilitar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Editar usuario"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[aria-label="Deshabilitar usuario"]')).toBeNull();
 
     sessionStore.setPermissions(['USER_READ', 'USER_CREATE', 'USER_UPDATE', 'USER_DISABLE']);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Nuevo usuario');
-    expect(fixture.nativeElement.textContent).toContain('Editar');
-    expect(fixture.nativeElement.textContent).toContain('Deshabilitar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Editar usuario"]')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[aria-label="Deshabilitar usuario"]'),
+    ).not.toBeNull();
   });
 
   it('hides "Deshabilitar" for an already-disabled user', () => {
@@ -92,7 +94,7 @@ describe('UserListComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([{ ...user, status: 'DISABLED' }]);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).not.toContain('Deshabilitar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Deshabilitar usuario"]')).toBeNull();
   });
 
   it('disable() opens a confirmation dialog and reloads the list when confirmed', () => {

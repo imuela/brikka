@@ -8,21 +8,19 @@ import { AuthService } from './auth.service';
 describe('AuthService', () => {
   let service: AuthService;
   let httpMock: HttpTestingController;
-  let assignSpy: ReturnType<typeof vi.fn>;
+
+  const LOGIN_URL = `${environment.apiBaseUrl}/api/v1/auth/login`;
+  const REFRESH_URL = `${environment.apiBaseUrl}/api/v1/auth/refresh`;
+  const LOGOUT_URL = `${environment.apiBaseUrl}/api/v1/auth/logout`;
+  const RESET_REQUEST_URL = `${environment.apiBaseUrl}/api/v1/auth/password-reset/request`;
+  const RESET_CONFIRM_URL = `${environment.apiBaseUrl}/api/v1/auth/password-reset/confirm`;
 
   beforeEach(() => {
-    sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
-
-    assignSpy = vi.fn();
-    Object.defineProperty(window, 'location', {
-      value: { ...window.location, assign: assignSpy },
-      writable: true,
-    });
   });
 
   afterEach(() => {
@@ -34,105 +32,102 @@ describe('AuthService', () => {
     expect(service.accessToken()).toBeNull();
   });
 
-  it('login redirects to the Keycloak authorize endpoint with PKCE params and stores state', async () => {
-    await service.login('/app/dashboard');
+  it('login posts credentials and stores the returned tokens', async () => {
+    const resultPromise = service.login('manager@brika.test', 'correct-horse');
 
-    expect(assignSpy).toHaveBeenCalledTimes(1);
-    const url = new URL(assignSpy.mock.calls[0][0] as string);
-    expect(url.origin + url.pathname).toBe(
-      `${environment.oidc.issuer}/protocol/openid-connect/auth`,
-    );
-    expect(url.searchParams.get('response_type')).toBe('code');
-    expect(url.searchParams.get('client_id')).toBe(environment.oidc.clientId);
-    expect(url.searchParams.get('redirect_uri')).toBe(environment.oidc.redirectUri);
-    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(url.searchParams.get('code_challenge')).toBeTruthy();
-    expect(url.searchParams.get('state')).toBe(sessionStorage.getItem('brika.pkce.state'));
-    expect(sessionStorage.getItem('brika.pkce.return_url')).toBe('/app/dashboard');
-  });
-
-  it('handleCallback exchanges the code for tokens and resolves the stored return URL', async () => {
-    await service.login('/app/dashboard');
-    const state = sessionStorage.getItem('brika.pkce.state');
-
-    const resultPromise = service.handleCallback(
-      `${environment.oidc.redirectUri}?code=auth-code-123&state=${state}`,
-    );
-
-    const req = httpMock.expectOne(`${environment.oidc.issuer}/protocol/openid-connect/token`);
+    const req = httpMock.expectOne(LOGIN_URL);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toContain('grant_type=authorization_code');
-    expect(req.request.body).toContain('code=auth-code-123');
-    req.flush({
-      access_token: 'access-123',
-      refresh_token: 'refresh-123',
-      id_token: 'id-123',
-      expires_in: 300,
-      token_type: 'Bearer',
-    });
+    expect(req.request.body).toEqual({ email: 'manager@brika.test', password: 'correct-horse' });
+    req.flush({ accessToken: 'access-123', refreshToken: 'refresh-123', expiresInSeconds: 900 });
 
-    const returnUrl = await resultPromise;
-    expect(returnUrl).toBe('/app/dashboard');
+    await resultPromise;
     expect(service.isAuthenticated()).toBe(true);
     expect(service.accessToken()).toBe('access-123');
-    // The one-time PKCE nonce must never survive past the exchange it was bound to.
-    expect(sessionStorage.getItem('brika.pkce.code_verifier')).toBeNull();
-    expect(sessionStorage.getItem('brika.pkce.state')).toBeNull();
   });
 
-  it('handleCallback rejects a mismatched state without calling the token endpoint', async () => {
-    await service.login('/app');
+  it('login rejects with a parsed ApiError on invalid credentials', async () => {
+    const resultPromise = service.login('manager@brika.test', 'wrong');
 
-    await expect(
-      service.handleCallback(`${environment.oidc.redirectUri}?code=abc&state=not-the-real-state`),
-    ).rejects.toThrow(/state/i);
-    httpMock.expectNone(`${environment.oidc.issuer}/protocol/openid-connect/token`);
-  });
-
-  it('handleCallback surfaces an error param returned by Keycloak', async () => {
-    await expect(
-      service.handleCallback(`${environment.oidc.redirectUri}?error=access_denied`),
-    ).rejects.toThrow(/access_denied/);
-  });
-
-  it('logout clears the session and redirects to the Keycloak logout endpoint', async () => {
-    await service.login('/app');
-    const state = sessionStorage.getItem('brika.pkce.state');
-    const resultPromise = service.handleCallback(
-      `${environment.oidc.redirectUri}?code=abc&state=${state}`,
-    );
     httpMock
-      .expectOne(`${environment.oidc.issuer}/protocol/openid-connect/token`)
-      .flush({ access_token: 'a', refresh_token: 'r', id_token: 'i', expires_in: 300, token_type: 'Bearer' });
-    await resultPromise;
+      .expectOne(LOGIN_URL)
+      .flush(
+        { code: 'UNAUTHENTICATED', message: 'Invalid credentials', requestId: 'r-1' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
 
-    assignSpy.mockClear();
+    await expect(resultPromise).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' });
+    expect(service.isAuthenticated()).toBe(false);
+  });
+
+  it('logout clears the session immediately and best-effort revokes the refresh token', async () => {
+    const loginPromise = service.login('manager@brika.test', 'correct-horse');
+    httpMock
+      .expectOne(LOGIN_URL)
+      .flush({ accessToken: 'a', refreshToken: 'r', expiresInSeconds: 900 });
+    await loginPromise;
+
     service.logout();
 
     expect(service.isAuthenticated()).toBe(false);
-    expect(assignSpy).toHaveBeenCalledTimes(1);
-    const url = new URL(assignSpy.mock.calls[0][0] as string);
-    expect(url.origin + url.pathname).toBe(
-      `${environment.oidc.issuer}/protocol/openid-connect/logout`,
-    );
-    expect(url.searchParams.get('id_token_hint')).toBe('i');
+    const req = httpMock.expectOne(LOGOUT_URL);
+    expect(req.request.body).toEqual({ refreshToken: 'r' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
   });
 
-  it('clearSession clears in-memory state without redirecting', async () => {
-    await service.login('/app');
-    const state = sessionStorage.getItem('brika.pkce.state');
-    const resultPromise = service.handleCallback(
-      `${environment.oidc.redirectUri}?code=abc&state=${state}`,
-    );
+  it('clearSession clears in-memory state without any network call', async () => {
+    const loginPromise = service.login('manager@brika.test', 'correct-horse');
     httpMock
-      .expectOne(`${environment.oidc.issuer}/protocol/openid-connect/token`)
-      .flush({ access_token: 'a', refresh_token: 'r', id_token: 'i', expires_in: 300, token_type: 'Bearer' });
-    await resultPromise;
+      .expectOne(LOGIN_URL)
+      .flush({ accessToken: 'a', refreshToken: 'r', expiresInSeconds: 900 });
+    await loginPromise;
 
-    assignSpy.mockClear();
     service.clearSession();
 
     expect(service.isAuthenticated()).toBe(false);
-    expect(assignSpy).not.toHaveBeenCalled();
+    httpMock.expectNone(LOGOUT_URL);
+  });
+
+  it('requestPasswordReset posts the email and resolves regardless of match (backend contract)', async () => {
+    const resultPromise = service.requestPasswordReset('someone@brika.test');
+
+    const req = httpMock.expectOne(RESET_REQUEST_URL);
+    expect(req.request.body).toEqual({ email: 'someone@brika.test' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    await expect(resultPromise).resolves.toBeUndefined();
+  });
+
+  it('confirmPasswordReset posts the token and new password', async () => {
+    const resultPromise = service.confirmPasswordReset('reset-token', 'New-Password-1');
+
+    const req = httpMock.expectOne(RESET_CONFIRM_URL);
+    expect(req.request.body).toEqual({ token: 'reset-token', newPassword: 'New-Password-1' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    await expect(resultPromise).resolves.toBeUndefined();
+  });
+
+  it('refresh replaces the token pair when the scheduled refresh fires', async () => {
+    vi.useFakeTimers();
+    try {
+      const loginPromise = service.login('manager@brika.test', 'correct-horse');
+      httpMock
+        .expectOne(LOGIN_URL)
+        .flush({ accessToken: 'a1', refreshToken: 'r1', expiresInSeconds: 35 });
+      await loginPromise;
+
+      // scheduleRefresh() fires 30s before expiry, clamped to a 5s minimum — here (35 - 30) * 1000
+      // clamps to 5000ms.
+      await vi.advanceTimersByTimeAsync(5000);
+
+      const req = httpMock.expectOne(REFRESH_URL);
+      expect(req.request.body).toEqual({ refreshToken: 'r1' });
+      req.flush({ accessToken: 'a2', refreshToken: 'r2', expiresInSeconds: 900 });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(service.accessToken()).toBe('a2');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

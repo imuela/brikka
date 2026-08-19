@@ -1,0 +1,36 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--brikka-navy);
+}
+
+.sidenav-brand {
+  display: flex;
+  align-items: center;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.mat-mdc-nav-list {
+  padding-top: 0;
+}
+
+::ng-deep .mdc-list-item {
+  --mat-list-list-item-label-text-color: var(--brikka-sidenav-text-muted);
+  --mat-list-list-item-leading-icon-color: var(--brikka-sidenav-text-muted);
+  --mat-list-list-item-hover-state-layer-color: var(--brikka-white);
+  --mat-list-list-item-hover-label-text-color: var(--brikka-white);
+  --mat-list-list-item-hover-leading-icon-color: var(--brikka-white);
+  --mat-list-list-item-focus-label-text-color: var(--brikka-white);
+  --mat-list-list-item-label-text-weight: 500;
+  border-radius: var(--radius-sm);
+  margin: 2px var(--space-2);
+  width: calc(100% - var(--space-4));
+}
+
+.active-nav-item {
+  --mat-list-list-item-label-text-color: var(--brikka-white) !important;
+  --mat-list-list-item-leading-icon-color: var(--brikka-white) !important;
+  background: var(--brikka-blue);
+  border-radius: var(--radius-sm);
+}

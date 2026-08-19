@@ -10,6 +10,7 @@ import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CASE_STATUS_LABELS, OPERATION_TYPE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { PortalCase } from '../portal-case.model';
 import { PortalCaseService } from '../portal-case.service';
 import { PortalNotification } from '../portal-notification.model';
@@ -29,6 +30,7 @@ import { PortalNotificationService } from '../portal-notification.service';
     MatIconModule,
     MatProgressSpinnerModule,
     StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './portal-dashboard.component.html',
 })

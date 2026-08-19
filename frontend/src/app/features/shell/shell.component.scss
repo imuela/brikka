@@ -1,11 +1,14 @@
 .shell-container {
   height: calc(100vh - 64px);
+  background: var(--brikka-neutral-50);
 }
 
 .shell-sidenav {
-  width: 220px;
+  width: 240px;
+  background: var(--brikka-navy);
+  border-right: none;
 }
 
 .shell-content {
-  padding: 24px;
+  padding: var(--space-6);
 }

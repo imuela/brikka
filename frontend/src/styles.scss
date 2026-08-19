@@ -1,5 +1,61 @@
 @use '@angular/material' as mat;
 
+/*
+ * BRIKKA design tokens (implantación del sistema de marca — ver docs/branding/).
+ * Fuente de verdad única para color, tipografía, radio y espaciado. Los componentes de Angular
+ * Material heredan estos valores a través de los tokens `--mat-sys-*` que Material genera con
+ * `mat.theme()`; el resto de la aplicación (layout propio, badges de estado) consume directamente
+ * las variables `--brikka-*` / `--space-*` de más abajo. No dupliques estos valores en componentes
+ * individuales: si necesitas un color o una medida, referencia la variable.
+ */
+:root {
+  /* Brand */
+  --brikka-navy: #050c1f;
+  --brikka-blue: #2759e0;
+  --brikka-blue-bright: #2f6bff;
+
+  /* Neutrals */
+  --brikka-white: #ffffff;
+  --brikka-neutral-50: #f7f8fa;
+  --brikka-neutral-100: #eef0f4;
+  --brikka-neutral-200: #d9dee8;
+  --brikka-neutral-500: #6b7280;
+  --brikka-neutral-900: #111827;
+
+  /* Sidebar (sobre fondo navy — no confundir con --brikka-neutral-500, pensado para fondos claros) */
+  --brikka-sidenav-text-muted: #9ca7ba;
+
+  /* States (semantic) */
+  --brikka-success: #16a34a;
+  --brikka-success-bg: #eafaf1;
+  --brikka-warning: #d97706;
+  --brikka-warning-bg: #fef6e7;
+  --brikka-error: #dc2626;
+  --brikka-error-bg: #fdecec;
+  --brikka-info: #2759e0;
+  --brikka-info-bg: #e9f0fe;
+  --brikka-neutral-tone: #6b7280;
+  --brikka-neutral-tone-bg: #eef0f4;
+
+  /* Radius scale */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Spacing scale (base 4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+}
+
 html {
   @include mat.theme(
     (
@@ -8,18 +64,142 @@ html {
         primary: mat.$azure-palette,
         tertiary: mat.$blue-palette,
       ),
-      typography: Roboto,
+      typography: Inter,
       density: 0,
     )
   );
   color-scheme: light;
+
+  /* --- BRIKKA system color overrides ---
+   * mat.theme() above scaffolds the full M3 tonal system (needed for internal component states);
+   * these overrides replace the visible tokens with the real BRIKKA palette so every Material
+   * component (buttons, inputs, cards, tables, tabs, menus...) picks up the brand automatically,
+   * with no per-component color overrides required. */
+  --mat-sys-primary: var(--brikka-blue);
+  --mat-sys-on-primary: var(--brikka-white);
+  --mat-sys-primary-container: #e4ecfd;
+  --mat-sys-on-primary-container: #0b2a6b;
+
+  --mat-sys-secondary: var(--brikka-blue);
+  --mat-sys-on-secondary: var(--brikka-white);
+  --mat-sys-secondary-container: #e4ecfd;
+  --mat-sys-on-secondary-container: #0b2a6b;
+
+  --mat-sys-tertiary: var(--brikka-blue-bright);
+  --mat-sys-on-tertiary: var(--brikka-white);
+  --mat-sys-tertiary-container: #e8f0ff;
+  --mat-sys-on-tertiary-container: #123e8c;
+
+  --mat-sys-error: var(--brikka-error);
+  --mat-sys-on-error: var(--brikka-white);
+  --mat-sys-error-container: var(--brikka-error-bg);
+  --mat-sys-on-error-container: #7f1d1d;
+
+  --mat-sys-background: var(--brikka-neutral-50);
+  --mat-sys-on-background: var(--brikka-neutral-900);
+
+  --mat-sys-surface: var(--brikka-white);
+  --mat-sys-on-surface: var(--brikka-neutral-900);
+  --mat-sys-surface-variant: var(--brikka-neutral-100);
+  --mat-sys-on-surface-variant: var(--brikka-neutral-500);
+  --mat-sys-surface-container-lowest: var(--brikka-white);
+  --mat-sys-surface-container-low: var(--brikka-white);
+  --mat-sys-surface-container: var(--brikka-neutral-50);
+  --mat-sys-surface-container-high: var(--brikka-neutral-100);
+  --mat-sys-surface-container-highest: var(--brikka-neutral-100);
+  --mat-sys-surface-bright: var(--brikka-white);
+  --mat-sys-surface-dim: var(--brikka-neutral-50);
+
+  --mat-sys-outline: var(--brikka-neutral-200);
+  --mat-sys-outline-variant: var(--brikka-neutral-100);
+  --mat-sys-inverse-surface: var(--brikka-navy);
+  --mat-sys-inverse-on-surface: var(--brikka-white);
+  --mat-sys-inverse-primary: var(--brikka-blue-bright);
+
+  /* Radio: 8px controles, 12px cards, 16px contenedores grandes, 999px pills. */
+  --mat-sys-corner-extra-small: var(--radius-xs);
+  --mat-sys-corner-small: var(--radius-sm);
+  --mat-sys-corner-medium: var(--radius-sm);
+  --mat-sys-corner-large: var(--radius-md);
+  --mat-sys-corner-extra-large: var(--radius-lg);
+  --mat-sys-corner-full: var(--radius-pill);
+
+  /* Sombras sutiles (software enterprise, no tarjetas flotantes con sombra fuerte). */
+  --mat-sys-level0: none;
+  --mat-sys-level1: 0 1px 2px rgba(5, 12, 31, 0.06), 0 1px 1px rgba(5, 12, 31, 0.04);
+  --mat-sys-level2: 0 2px 6px rgba(5, 12, 31, 0.08), 0 1px 2px rgba(5, 12, 31, 0.05);
+  --mat-sys-level3: 0 4px 12px rgba(5, 12, 31, 0.1);
 }
 
 html,
 body {
   height: 100%;
   margin: 0;
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  font-family:
+    Inter,
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+  background: var(--brikka-neutral-50);
+}
+
+/* Los form fields "outline" son el lenguaje visual de todos los inputs (Sprint: design system).
+ * El token --mdc-outlined-text-field-container-shape no se propaga al borde real renderizado
+ * (segmentos leading/notch/trailing del notched-outline) en esta versión de Material — se fuerza
+ * directamente sobre esos 3 elementos, que son la estructura DOM estable del appearance
+ * "outline" y no dependen de nombres de token internos. */
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-container-shape: var(--radius-sm);
+  --mat-form-field-container-height: 48px;
+}
+
+.mdc-notched-outline__leading {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
+}
+
+.mdc-notched-outline__trailing {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
+}
+
+/* Botones: radio 8px consistente en las 3 variantes (filled/outlined/text). */
+.mat-mdc-unelevated-button,
+.mat-mdc-raised-button,
+.mat-mdc-outlined-button,
+.mat-mdc-button {
+  border-radius: var(--radius-sm) !important;
+  font-weight: 600;
+}
+
+/* Tablas: cabecera con jerarquía tipográfica clara y hover discreto sobre filas. */
+.mat-mdc-table {
+  background: var(--brikka-white);
+}
+
+.mat-mdc-header-row {
+  background: var(--brikka-neutral-50);
+}
+
+.mat-mdc-header-cell {
+  color: var(--brikka-neutral-500);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.mat-mdc-row:hover {
+  background: var(--brikka-neutral-50);
+}
+
+/* Contenedor para 2+ botones/icon-buttons de acción en una celda de tabla — evita que se
+ * apilen en varias líneas cuando la celda se estrecha (la tabla ya se desplaza
+ * horizontalmente vía .table-scroll si hace falta más ancho). */
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
 }
 
 /* Sprint 14: shared across features/clients and features/cases list/detail pages — kept here
@@ -28,27 +208,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 
   h1 {
     margin: 0;
     font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--brikka-navy);
   }
 }
 
 .error-text {
-  color: var(--mat-sys-error, #b3261e);
+  color: var(--brikka-error);
+}
+
+.muted-text {
+  color: var(--brikka-neutral-500);
 }
 
 .field-row {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   max-width: 480px;
 }
 
 .section {
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 
 .section-header {
@@ -62,4 +248,65 @@ body {
  * horizontalmente en vez de romper el layout de la página. */
 .table-scroll {
   overflow-x: auto;
+}
+
+/* Login (interno y Portal Cliente): mismo layout, centralizado aquí para no duplicarlo en cada
+ * componente de login (ninguno tenía styleUrl propio salvo el interno, que quedaba sin aplicar
+ * al de Portal). */
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--brikka-neutral-50);
+}
+
+.login-card {
+  width: 360px;
+  padding: var(--space-2) 0;
+}
+
+.login-logo {
+  display: block;
+  margin-bottom: var(--space-4);
+}
+
+/* Sistema de badges de estado (StatusBadgeComponent) — pill compacto, un tono semántico por
+ * estado. Los 4 tonos cubren success/warning/error/info; "neutral" es el estado por defecto para
+ * valores que no encajan en ninguno de los anteriores. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.status-badge--success {
+  background: var(--brikka-success-bg);
+  color: var(--brikka-success);
+}
+
+.status-badge--warning {
+  background: var(--brikka-warning-bg);
+  color: var(--brikka-warning);
+}
+
+.status-badge--error {
+  background: var(--brikka-error-bg);
+  color: var(--brikka-error);
+}
+
+.status-badge--info {
+  background: var(--brikka-info-bg);
+  color: var(--brikka-info);
+}
+
+.status-badge--neutral {
+  background: var(--brikka-neutral-tone-bg);
+  color: var(--brikka-neutral-tone);
 }

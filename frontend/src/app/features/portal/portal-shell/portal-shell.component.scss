@@ -1,8 +1,23 @@
+.app-toolbar {
+  background: var(--brikka-white);
+  color: var(--brikka-navy);
+  border-bottom: 1px solid var(--brikka-neutral-100);
+  gap: var(--space-2);
+}
+
 .app-title {
-  margin-left: 8px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: inherit;
   text-decoration: none;
+}
+
+.portal-label {
+  font-weight: 500;
+  color: var(--brikka-neutral-500);
+  border-left: 1px solid var(--brikka-neutral-200);
+  padding-left: var(--space-2);
 }
 
 .spacer {
@@ -10,9 +25,11 @@
 }
 
 .client-name {
-  margin-right: 8px;
+  margin-right: var(--space-2);
 }
 
 .portal-content {
-  padding: 24px;
+  padding: var(--space-6);
+  background: var(--brikka-neutral-50);
+  min-height: calc(100vh - 64px);
 }

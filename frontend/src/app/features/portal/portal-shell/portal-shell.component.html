@@ -1,5 +1,8 @@
-<mat-toolbar color="primary">
-  <a routerLink="/portal" class="app-title">Brikka — Portal Cliente</a>
+<mat-toolbar class="app-toolbar">
+  <a routerLink="/portal" class="app-title">
+    <app-logo variant="full" theme="light" [heightPx]="26" />
+    <span class="portal-label">Portal Cliente</span>
+  </a>
   <span class="spacer"></span>
   @if (portalSessionStore.client(); as client) {
     <span class="client-name">{{ client.firstName }} {{ client.lastName }}</span>

@@ -1,24 +1,23 @@
-import { HttpClient, HttpContext } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { ApiError, toApiError } from '../core/http/api-error';
 import { SKIP_AUTH } from '../core/http/http-context';
-import { generateCodeChallenge, generateRandomString } from './pkce';
-import { TokenResponse, TokenSet } from './oidc.model';
+import { AccessTokenApiResponse, TokenSet } from './token-set.model';
 
-const CODE_VERIFIER_KEY = 'brika.pkce.code_verifier';
-const STATE_KEY = 'brika.pkce.state';
-const RETURN_URL_KEY = 'brika.pkce.return_url';
+const AUTH_BASE = `${environment.apiBaseUrl}/api/v1/auth`;
 
 /**
- * Authorization Code + PKCE against Keycloak (19_IDENTITY_OAUTH_SPECIFICATION.md §4,
- * ADR-FRONTEND-001 D2). Tokens live only in memory — never in localStorage/sessionStorage
- * (§5, "no guardar secretos en localStorage") — so a hard page reload loses the session and
- * requires an interactive re-login; only the one-time, short-lived PKCE `code_verifier`/`state`
- * pair is held in sessionStorage across the redirect to Keycloak, since it is a single-use nonce,
- * not a bearer credential. Silent (iframe-based) session recovery on reload is deliberately out of
- * scope for Sprint 13 (ADR-FRONTEND-001) — a disclosed UX trade-off, not an oversight.
+ * Sprint 22 authorization (27_KEYCLOAK_REMOVAL_ANALYSIS.md, Opción A): email+password login
+ * against Brika's own token issuer, replacing the Keycloak Authorization Code + PKCE redirect
+ * flow. Tokens still live only in memory (never localStorage/sessionStorage — ADR-FRONTEND-001
+ * carries forward unchanged), and the refresh scheduling shape is unchanged from before.
+ * login/refresh/logout are marked SKIP_AUTH: there is no bearer token yet to attach, and a 401
+ * from these endpoints must never trigger errorInterceptor's "session expired, redirect to
+ * /login" handling — it means "wrong credentials" or "expired reset token", not "your live session
+ * died", so callers get a normal ApiError to show inline instead.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -33,110 +32,65 @@ export class AuthService {
     return this.tokenSet()?.accessToken ?? null;
   }
 
-  /** Redirects the browser to Keycloak's authorization endpoint. Never resolves. */
-  async login(returnUrl = '/'): Promise<void> {
-    const codeVerifier = generateRandomString();
-    const state = generateRandomString(16);
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
-
-    sessionStorage.setItem(CODE_VERIFIER_KEY, codeVerifier);
-    sessionStorage.setItem(STATE_KEY, state);
-    sessionStorage.setItem(RETURN_URL_KEY, returnUrl);
-
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: environment.oidc.clientId,
-      redirect_uri: environment.oidc.redirectUri,
-      scope: environment.oidc.scope,
-      state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
+  async login(email: string, password: string): Promise<void> {
+    const response = await this.post<AccessTokenApiResponse>(`${AUTH_BASE}/login`, {
+      email,
+      password,
     });
-
-    window.location.assign(`${environment.oidc.issuer}/protocol/openid-connect/auth?${params}`);
-  }
-
-  /**
-   * Completes the flow after Keycloak redirects back to /auth/callback. Returns the return URL
-   * the caller should navigate to. Throws on any mismatch (missing code, state mismatch, token
-   * exchange failure) — the callback component is responsible for surfacing that as a login error.
-   */
-  async handleCallback(callbackUrl: string): Promise<string> {
-    const url = new URL(callbackUrl);
-    const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state');
-    const error = url.searchParams.get('error');
-
-    const expectedState = sessionStorage.getItem(STATE_KEY);
-    const codeVerifier = sessionStorage.getItem(CODE_VERIFIER_KEY);
-    const returnUrl = sessionStorage.getItem(RETURN_URL_KEY) ?? '/';
-    sessionStorage.removeItem(STATE_KEY);
-    sessionStorage.removeItem(CODE_VERIFIER_KEY);
-    sessionStorage.removeItem(RETURN_URL_KEY);
-
-    if (error) {
-      throw new Error(`Keycloak returned an error: ${error}`);
-    }
-    if (!code || !state || !codeVerifier || state !== expectedState) {
-      throw new Error('Invalid OIDC callback: missing or mismatched state/code.');
-    }
-
-    const body = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: environment.oidc.redirectUri,
-      client_id: environment.oidc.clientId,
-      code_verifier: codeVerifier,
-    });
-
-    const response = await this.requestToken(body);
     this.applyTokenResponse(response);
-    return returnUrl;
   }
 
   logout(): void {
-    const idToken = this.tokenSet()?.idToken;
+    const refreshToken = this.tokenSet()?.refreshToken;
     this.clearTokens();
-
-    const params = new URLSearchParams({
-      post_logout_redirect_uri: environment.oidc.postLogoutRedirectUri,
-    });
-    if (idToken) {
-      params.set('id_token_hint', idToken);
+    if (refreshToken) {
+      // Best-effort: revoke server-side, but a logout must always succeed from the user's point
+      // of view even if this request fails (network, already-expired token, etc.).
+      void firstValueFrom(
+        this.http.post(
+          `${AUTH_BASE}/logout`,
+          { refreshToken },
+          { context: new HttpContext().set(SKIP_AUTH, true) },
+        ),
+      ).catch(() => undefined);
     }
-    window.location.assign(
-      `${environment.oidc.issuer}/protocol/openid-connect/logout?${params}`,
-    );
   }
 
-  /** Clears in-memory state only, without redirecting — used when a 401 proves the session is
-   * already invalid server-side, so no logout round-trip to Keycloak is needed. */
+  /** Clears in-memory state only, without a network round-trip — used when a 401 proves the
+   * session is already invalid server-side. */
   clearSession(): void {
     this.clearTokens();
   }
 
-  private async requestToken(body: URLSearchParams): Promise<TokenResponse> {
-    return firstValueFrom(
-      this.http.post<TokenResponse>(
-        `${environment.oidc.issuer}/protocol/openid-connect/token`,
-        body.toString(),
-        {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          context: new HttpContext().set(SKIP_AUTH, true),
-        },
-      ),
-    );
+  async requestPasswordReset(email: string): Promise<void> {
+    await this.post<void>(`${AUTH_BASE}/password-reset/request`, { email });
   }
 
-  private applyTokenResponse(response: TokenResponse): void {
-    const expiresAt = Date.now() + response.expires_in * 1000;
+  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+    await this.post<void>(`${AUTH_BASE}/password-reset/confirm`, { token, newPassword });
+  }
+
+  private async post<T>(url: string, body: unknown): Promise<T> {
+    try {
+      return await firstValueFrom(
+        this.http.post<T>(url, body, { context: new HttpContext().set(SKIP_AUTH, true) }),
+      );
+    } catch (error) {
+      if (error instanceof HttpErrorResponse) {
+        throw toApiError(error) satisfies ApiError;
+      }
+      throw error;
+    }
+  }
+
+  private applyTokenResponse(response: AccessTokenApiResponse): void {
+    const expiresAt = Date.now() + response.expiresInSeconds * 1000;
     this.tokenSet.set({
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token ?? null,
-      idToken: response.id_token ?? null,
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
       expiresAt,
     });
-    this.scheduleRefresh(response.expires_in);
+    this.scheduleRefresh(response.expiresInSeconds);
   }
 
   private scheduleRefresh(expiresInSeconds: number): void {
@@ -155,12 +109,9 @@ export class AuthService {
       return;
     }
     try {
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: environment.oidc.clientId,
-      });
-      const response = await this.requestToken(body);
+      const response = await firstValueFrom(
+        this.http.post<AccessTokenApiResponse>(`${AUTH_BASE}/refresh`, { refreshToken }),
+      );
       this.applyTokenResponse(response);
     } catch {
       this.clearTokens();

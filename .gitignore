@@ -17,3 +17,7 @@ frontend/.angular/
 .vscode/*
 !.vscode/extensions.json
 .claude/
+
+# Python (ai-worker)
+__pycache__/
+*.pyc

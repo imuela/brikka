@@ -17,6 +17,7 @@ import {
   OPERATION_TYPE_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { MessageAttachment } from '../../communications/communication.model';
 import { PortalCase } from '../portal-case.model';
 import { PortalCaseService } from '../portal-case.service';
@@ -46,6 +47,7 @@ import { Message } from '../../communications/communication.model';
     MatTableModule,
     MatProgressSpinnerModule,
     StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './portal-case-detail.component.html',
 })

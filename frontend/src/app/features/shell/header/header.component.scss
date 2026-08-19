@@ -1,6 +1,19 @@
+.app-toolbar {
+  background: var(--brikka-white);
+  color: var(--brikka-navy);
+  border-bottom: 1px solid var(--brikka-neutral-100);
+  gap: var(--space-2);
+}
+
+.header-symbol {
+  display: flex;
+  align-items: center;
+  margin-left: var(--space-1);
+}
+
 .app-title {
-  margin-left: 8px;
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .spacer {

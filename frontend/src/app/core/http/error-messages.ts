@@ -43,6 +43,11 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   PLAN_NOT_FOUND: 'No se ha encontrado el plan solicitado.',
   PROPERTY_NOT_FOUND: 'No se ha encontrado ningún inmueble registrado para esta operación.',
   SUBSCRIPTION_NOT_FOUND: 'La empresa no tiene ninguna suscripción asignada.',
+  // Sprint 22 (autenticación propia): UNAUTHENTICATED cubre login/refresh/password-reset con
+  // credenciales o token inválidos — nunca "tu sesión ha caducado", que es el fallback genérico
+  // de status 401 para peticiones ya autenticadas (ver STATUS_FALLBACK_MESSAGES más abajo).
+  UNAUTHENTICATED: 'Email o contraseña incorrectos.',
+  TOO_MANY_ATTEMPTS: 'Demasiados intentos. Inténtalo de nuevo en unos minutos.',
   UNSUPPORTED_MIME_TYPE: 'El tipo de fichero no está permitido.',
   UPLOAD_FAILED: 'No se ha podido subir el fichero.',
   USER_NOT_FOUND: 'No se ha encontrado el usuario solicitado.',

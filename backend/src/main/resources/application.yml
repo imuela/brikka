@@ -15,28 +15,56 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:18081/realms/brika}
+  # Sprint 22 cierre, punto 5: SMTP config for SmtpEmailSender — only used when
+  # brika.notifications.email-transport=smtp. Defaults match Mailpit's local SMTP port (1025),
+  # no auth/TLS required. NoOpEmailSender (the default everywhere) never touches this block.
+  mail:
+    host: ${MAILPIT_SMTP_HOST:localhost}
+    # 11025, not Mailpit's internal 1025 — the backend runs outside docker-compose
+    # (mvn spring-boot:run) and reaches Mailpit through the host-mapped port (docker-compose.yml
+    # "127.0.0.1:${MAILPIT_SMTP_PORT:-11025}:1025"), same non-standard-port pattern already used
+    # for every other local service in this stack.
+    port: ${MAILPIT_SMTP_PORT:11025}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
 
 brika:
+  # Sprint 22 cierre, punto 5: base URL the backend uses to build password-reset links it emails
+  # out — never used to decide trust/CORS (that stays brika.security.cors-allowed-origins).
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:4200}
+
+  notifications:
+    # D8-2/ADR-NOTIF-001: "noop" (no EMAIL provider approved) stays the default in every
+    # environment. Sprint 22 cierre §5 authorizes "smtp" as a LOCAL-only opt-in against Mailpit —
+    # never a production provider decision.
+    email-transport: ${EMAIL_TRANSPORT:noop}
+    email-from: ${EMAIL_FROM:no-reply@brika.local}
+
   security:
-    # Sprint 13 D2: the "brika" realm now exists (keycloak/brika-realm.json, imported
-    # automatically via --import-realm), but its public frontend client has no configured
-    # audience claim (public/PKCE clients don't get one by default), so this stays empty —
-    # setting an invented value here would fail every real token. Revisit once a concrete
-    # audience requirement is approved.
-    expected-audience: ${OIDC_EXPECTED_AUDIENCE:}
-    # ADR-PORTAL-AUTH-001 (Sprint 7): separate Keycloak realm for Portal Cliente, same
-    # Keycloak instance. Still not provisioned (out of Sprint 13 scope, internal frontend
-    # only) — lazy decoder (LazyIssuerJwtDecoder) tolerates this exactly as before.
-    portal-issuer-uri: ${OIDC_PORTAL_ISSUER_URI:http://localhost:18081/realms/brika-portal}
-    portal-expected-audience: ${OIDC_PORTAL_EXPECTED_AUDIENCE:}
     # Sprint 13 D1 (06_SECURITY_SPECIFICATION.md §9, "CORS controlado"): comma-separated list
     # of allowed browser origins, never a wildcard. Defaults to the local Angular dev server.
     cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+    # Sprint 22 cierre (ADR-AUTH-001): Brika's own auth is now the only issuer in every
+    # environment — Keycloak has been retired (27_KEYCLOAK_REMOVAL_ANALYSIS.md). SecurityConfig
+    # no longer has a toggle between issuers; these values feed the credentials/token
+    # infrastructure directly.
+    self-auth:
+      access-token-ttl-seconds: ${SELF_AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
+      refresh-token-ttl-seconds: ${SELF_AUTH_REFRESH_TOKEN_TTL_SECONDS:2592000}
+      password-reset-ttl-seconds: ${SELF_AUTH_PASSWORD_RESET_TTL_SECONDS:3600}
+      portal-refresh-token-ttl-seconds: ${SELF_AUTH_PORTAL_REFRESH_TOKEN_TTL_SECONDS:2592000}
+      login-attempt-window-seconds: ${SELF_AUTH_LOGIN_ATTEMPT_WINDOW_SECONDS:900}
+      login-attempt-max-failures: ${SELF_AUTH_LOGIN_ATTEMPT_MAX_FAILURES:5}
+      # Sprint 22 cierre, punto 4: shared secret for InternalCredentialBootstrapController
+      # (/internal/auth/**), same pattern as brika.ai.worker-callback-secret (ADR-AI-001) — empty
+      # by default so the endpoint rejects everything (fail closed) until a real dev secret is
+      # set locally. Never a product/admin feature; only for local credential bootstrap/migration.
+      internal-bootstrap-secret: ${INTERNAL_AUTH_BOOTSTRAP_SECRET:}
 
   ai:
     # D10-5: local/testable transport is the default so `mvn verify` never depends on a

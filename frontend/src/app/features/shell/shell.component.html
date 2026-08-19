@@ -1,6 +1,10 @@
 <app-header (toggleSidenav)="toggleSidenav()" />
 <mat-sidenav-container class="shell-container">
-  <mat-sidenav #drawer mode="side" opened class="shell-sidenav">
+  <mat-sidenav
+    #drawer
+    class="shell-sidenav"
+    [mode]="isHandset() ? 'over' : 'side'"
+    [opened]="!isHandset()">
     <app-sidenav />
   </mat-sidenav>
   <mat-sidenav-content class="shell-content">

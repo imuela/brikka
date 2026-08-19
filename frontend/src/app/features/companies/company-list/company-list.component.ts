@@ -9,7 +9,7 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { COMPANY_STATUS_LABELS } from '../../../shared/labels/status-labels';
-import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { Company } from '../company.model';
 import { CompanyService } from '../company.service';
 
@@ -26,7 +26,7 @@ import { CompanyService } from '../company.service';
     MatIconModule,
     MatProgressSpinnerModule,
     HasPermissionDirective,
-    StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './company-list.component.html',
 })

@@ -30,8 +30,13 @@
     <ng-container matColumnDef="actions">
       <th mat-header-cell *matHeaderCellDef></th>
       <td mat-cell *matCellDef="let plan">
-        <button *appHasPermission="'PLAN_MANAGE'" mat-button (click)="openEdit(plan)">
-          Editar
+        <button
+          *appHasPermission="'PLAN_MANAGE'"
+          mat-icon-button
+          (click)="openEdit(plan)"
+          matTooltip="Editar"
+          aria-label="Editar plan">
+          <mat-icon>edit</mat-icon>
         </button>
       </td>
     </ng-container>

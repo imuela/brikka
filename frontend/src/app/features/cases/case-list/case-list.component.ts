@@ -11,6 +11,7 @@ import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CASE_STATUS_LABELS, OPERATION_TYPE_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { Case } from '../case.model';
 import { CasesService } from '../cases.service';
 
@@ -29,6 +30,7 @@ import { CasesService } from '../cases.service';
     MatProgressSpinnerModule,
     HasPermissionDirective,
     StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './case-list.component.html',
   styleUrl: './case-list.component.scss',

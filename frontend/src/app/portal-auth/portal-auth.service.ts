@@ -1,25 +1,19 @@
-import { HttpClient, HttpContext } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { TokenSet, AccessTokenApiResponse } from '../auth/token-set.model';
+import { ApiError, toApiError } from '../core/http/api-error';
 import { SKIP_AUTH } from '../core/http/http-context';
-import { generateCodeChallenge, generateRandomString } from '../auth/pkce';
-import { TokenResponse, TokenSet } from '../auth/oidc.model';
 
-const CODE_VERIFIER_KEY = 'brika.portal.pkce.code_verifier';
-const STATE_KEY = 'brika.portal.pkce.state';
-const RETURN_URL_KEY = 'brika.portal.pkce.return_url';
+const PORTAL_AUTH_BASE = `${environment.apiBaseUrl}/api/v1/portal/auth`;
 
 /**
- * Portal Cliente counterpart of AuthService (ADR-PORTAL-AUTH-001, Sprint 19 ADR-PROCESS-007) —
- * Authorization Code + PKCE against the separate `brika-portal` Keycloak realm
- * (environment.portalOidc), never the internal `brika` realm. Deliberately a fully independent
- * service and token store rather than a parametrized AuthService: the two surfaces must never be
- * able to share or confuse a token, mirroring the backend's two independent SecurityFilterChains.
- * Uses distinct sessionStorage keys (brika.portal.*) so a concurrent internal login in another tab
- * can never collide with the Portal PKCE handshake. Same trade-offs as AuthService: tokens live in
- * memory only, no silent (iframe) session recovery on reload.
+ * Portal Cliente counterpart of AuthService — deliberately a full duplicate, never sharing an
+ * implementation (ADR-PORTAL-AUTH-001, Sprint 22 authorization §4): the two surfaces must never
+ * be able to share or confuse a token, mirroring the backend's two independent
+ * SecurityFilterChains and independent signing keys.
  */
 @Injectable({ providedIn: 'root' })
 export class PortalAuthService {
@@ -34,109 +28,62 @@ export class PortalAuthService {
     return this.tokenSet()?.accessToken ?? null;
   }
 
-  /** Redirects the browser to Keycloak's authorization endpoint. Never resolves. */
-  async login(returnUrl = '/portal'): Promise<void> {
-    const codeVerifier = generateRandomString();
-    const state = generateRandomString(16);
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
-
-    sessionStorage.setItem(CODE_VERIFIER_KEY, codeVerifier);
-    sessionStorage.setItem(STATE_KEY, state);
-    sessionStorage.setItem(RETURN_URL_KEY, returnUrl);
-
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: environment.portalOidc.clientId,
-      redirect_uri: environment.portalOidc.redirectUri,
-      scope: environment.portalOidc.scope,
-      state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
+  async login(email: string, password: string): Promise<void> {
+    const response = await this.post<AccessTokenApiResponse>(`${PORTAL_AUTH_BASE}/login`, {
+      email,
+      password,
     });
-
-    window.location.assign(
-      `${environment.portalOidc.issuer}/protocol/openid-connect/auth?${params}`,
-    );
-  }
-
-  /** Completes the flow after Keycloak redirects back to /portal/auth/callback. Returns the
-   * return URL the caller should navigate to. Throws on any mismatch. */
-  async handleCallback(callbackUrl: string): Promise<string> {
-    const url = new URL(callbackUrl);
-    const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state');
-    const error = url.searchParams.get('error');
-
-    const expectedState = sessionStorage.getItem(STATE_KEY);
-    const codeVerifier = sessionStorage.getItem(CODE_VERIFIER_KEY);
-    const returnUrl = sessionStorage.getItem(RETURN_URL_KEY) ?? '/portal';
-    sessionStorage.removeItem(STATE_KEY);
-    sessionStorage.removeItem(CODE_VERIFIER_KEY);
-    sessionStorage.removeItem(RETURN_URL_KEY);
-
-    if (error) {
-      throw new Error(`Keycloak returned an error: ${error}`);
-    }
-    if (!code || !state || !codeVerifier || state !== expectedState) {
-      throw new Error('Invalid OIDC callback: missing or mismatched state/code.');
-    }
-
-    const body = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: environment.portalOidc.redirectUri,
-      client_id: environment.portalOidc.clientId,
-      code_verifier: codeVerifier,
-    });
-
-    const response = await this.requestToken(body);
     this.applyTokenResponse(response);
-    return returnUrl;
   }
 
   logout(): void {
-    const idToken = this.tokenSet()?.idToken;
+    const refreshToken = this.tokenSet()?.refreshToken;
     this.clearTokens();
-
-    const params = new URLSearchParams({
-      post_logout_redirect_uri: environment.portalOidc.postLogoutRedirectUri,
-    });
-    if (idToken) {
-      params.set('id_token_hint', idToken);
+    if (refreshToken) {
+      void firstValueFrom(
+        this.http.post(
+          `${PORTAL_AUTH_BASE}/logout`,
+          { refreshToken },
+          { context: new HttpContext().set(SKIP_AUTH, true) },
+        ),
+      ).catch(() => undefined);
     }
-    window.location.assign(
-      `${environment.portalOidc.issuer}/protocol/openid-connect/logout?${params}`,
-    );
   }
 
-  /** Clears in-memory state only, without redirecting — used when a 401 proves the session is
-   * already invalid server-side. */
+  /** Clears in-memory state only, without a network round-trip. */
   clearSession(): void {
     this.clearTokens();
   }
 
-  private async requestToken(body: URLSearchParams): Promise<TokenResponse> {
-    return firstValueFrom(
-      this.http.post<TokenResponse>(
-        `${environment.portalOidc.issuer}/protocol/openid-connect/token`,
-        body.toString(),
-        {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          context: new HttpContext().set(SKIP_AUTH, true),
-        },
-      ),
-    );
+  async requestPasswordReset(email: string): Promise<void> {
+    await this.post<void>(`${PORTAL_AUTH_BASE}/password-reset/request`, { email });
   }
 
-  private applyTokenResponse(response: TokenResponse): void {
-    const expiresAt = Date.now() + response.expires_in * 1000;
+  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+    await this.post<void>(`${PORTAL_AUTH_BASE}/password-reset/confirm`, { token, newPassword });
+  }
+
+  private async post<T>(url: string, body: unknown): Promise<T> {
+    try {
+      return await firstValueFrom(
+        this.http.post<T>(url, body, { context: new HttpContext().set(SKIP_AUTH, true) }),
+      );
+    } catch (error) {
+      if (error instanceof HttpErrorResponse) {
+        throw toApiError(error) satisfies ApiError;
+      }
+      throw error;
+    }
+  }
+
+  private applyTokenResponse(response: AccessTokenApiResponse): void {
+    const expiresAt = Date.now() + response.expiresInSeconds * 1000;
     this.tokenSet.set({
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token ?? null,
-      idToken: response.id_token ?? null,
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
       expiresAt,
     });
-    this.scheduleRefresh(response.expires_in);
+    this.scheduleRefresh(response.expiresInSeconds);
   }
 
   private scheduleRefresh(expiresInSeconds: number): void {
@@ -154,12 +101,9 @@ export class PortalAuthService {
       return;
     }
     try {
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: environment.portalOidc.clientId,
-      });
-      const response = await this.requestToken(body);
+      const response = await firstValueFrom(
+        this.http.post<AccessTokenApiResponse>(`${PORTAL_AUTH_BASE}/refresh`, { refreshToken }),
+      );
       this.applyTokenResponse(response);
     } catch {
       this.clearTokens();

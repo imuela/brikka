@@ -14,11 +14,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * ADR-PORTAL-AUTH-001: Brika only ever registers an externalIdentityId that already exists in the
- * brika-portal realm — this endpoint never creates or modifies anything in Keycloak, and never
- * creates a client_portal_accounts row in anything but ACTIVE status (no PENDING/invitation flow in
- * Sprint 7, approved explicitly). No CHECK/UNIQUE constraint backs the uniqueness rules below —
- * client_portal_accounts has none on external_identity_id or client_id (verified against
+ * ADR-PORTAL-AUTH-001: this endpoint registers an externalIdentityId as this Portal account's
+ * opaque login identifier (Sprint 22 cierre: Brika's own auth, no external identity provider) — it
+ * never creates a client_portal_accounts row in anything but ACTIVE status (no PENDING/invitation
+ * flow in Sprint 7, approved explicitly). No CHECK/UNIQUE constraint backs the uniqueness rules
+ * below — client_portal_accounts has none on external_identity_id or client_id (verified against
  * V1__initial_schema.sql; same gap already existed for users.external_identity_id, never a UNIQUE
  * index either). Enforced here at the application layer only; there is a theoretical race window
  * between the lookup and the insert. Flagged as technical debt in the Sprint 7 gate review, not

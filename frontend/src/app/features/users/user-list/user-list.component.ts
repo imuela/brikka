@@ -5,6 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { ApiError } from '../../../core/http/api-error';
@@ -12,6 +13,7 @@ import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
 import { ROLE_LABELS, USER_STATUS_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { User } from '../user.model';
 import { UserService } from '../user.service';
 
@@ -28,8 +30,10 @@ import { UserService } from '../user.service';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     HasPermissionDirective,
     StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './user-list.component.html',
 })

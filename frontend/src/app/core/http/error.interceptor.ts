@@ -5,7 +5,7 @@ import { catchError, throwError } from 'rxjs';
 
 import { AuthService } from '../../auth/auth.service';
 import { PortalAuthService } from '../../portal-auth/portal-auth.service';
-import { ApiError } from './api-error';
+import { ApiError, toApiError } from './api-error';
 import { SKIP_AUTH } from './http-context';
 
 /**
@@ -54,14 +54,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         );
       }
 
-      const body = error.error as { code?: string; message?: string; requestId?: string } | null;
-      const apiError: ApiError = {
-        status: error.status,
-        code: body?.code ?? null,
-        message: body?.message ?? error.message,
-        requestId: body?.requestId ?? null,
-      };
-      return throwError(() => apiError);
+      return throwError(() => toApiError(error));
     }),
   );
 };

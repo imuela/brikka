@@ -1,7 +1,14 @@
+<div class="sidenav-brand">
+  <app-logo variant="full" theme="dark" [heightPx]="24" />
+</div>
 <mat-nav-list>
   @for (item of navItems; track item.route) {
     @if (item.permission === null) {
-      <a mat-list-item [routerLink]="item.route" routerLinkActive="active-nav-item">
+      <a
+        mat-list-item
+        [routerLink]="item.route"
+        routerLinkActive="active-nav-item"
+        [routerLinkActiveOptions]="{ exact: item.route === '/app' }">
         <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
         <span matListItemTitle>{{ item.label }}</span>
       </a>
@@ -10,7 +17,8 @@
         *appHasPermission="item.permission"
         mat-list-item
         [routerLink]="item.route"
-        routerLinkActive="active-nav-item">
+        routerLinkActive="active-nav-item"
+        [routerLinkActiveOptions]="{ exact: item.route === '/app' }">
         <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
         <span matListItemTitle>{{ item.label }}</span>
       </a>

@@ -166,11 +166,11 @@ describe('TaskListComponent', () => {
     fixture.detectChanges();
     flushInitialLoad(fixture);
 
-    expect(fixture.nativeElement.textContent).not.toContain('Eliminar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Eliminar tarea"]')).toBeNull();
 
     sessionStore.setPermissions(['TASK_DELETE']);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Eliminar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Eliminar tarea"]')).not.toBeNull();
   });
 });

@@ -32,7 +32,7 @@
     <ng-container matColumnDef="status">
       <th mat-header-cell *matHeaderCellDef>Estado</th>
       <td mat-cell *matCellDef="let client">
-        {{ client.status | statusLabel: clientStatusLabels }}
+        <app-status-badge [value]="client.status" [labels]="clientStatusLabels" />
       </td>
     </ng-container>
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

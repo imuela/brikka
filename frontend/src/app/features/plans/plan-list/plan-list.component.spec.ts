@@ -51,13 +51,13 @@ describe('PlanListComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Nuevo plan');
-    expect(fixture.nativeElement.textContent).not.toContain('Editar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Editar plan"]')).toBeNull();
 
     sessionStore.setPermissions(['PLAN_READ', 'PLAN_MANAGE']);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Nuevo plan');
-    expect(fixture.nativeElement.textContent).toContain('Editar');
+    expect(fixture.nativeElement.querySelector('[aria-label="Editar plan"]')).not.toBeNull();
   });
 
   it('openCreate opens the dialog and reloads the list on close with a result', () => {

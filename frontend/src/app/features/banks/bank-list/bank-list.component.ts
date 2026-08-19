@@ -10,7 +10,7 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { BANK_STATUS_LABELS } from '../../../shared/labels/status-labels';
-import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { Bank } from '../bank.model';
 import { BankService } from '../bank.service';
 import { CreateBankDialogComponent } from '../bank-dialogs/create-bank-dialog.component';
@@ -27,7 +27,7 @@ import { CreateBankDialogComponent } from '../bank-dialogs/create-bank-dialog.co
     MatIconModule,
     MatProgressSpinnerModule,
     HasPermissionDirective,
-    StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './bank-list.component.html',
 })

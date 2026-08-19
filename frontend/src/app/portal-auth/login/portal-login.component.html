@@ -1,13 +1,42 @@
 <div class="login-page">
   <mat-card class="login-card">
     <mat-card-header>
-      <mat-card-title>Brikka — Portal Cliente</mat-card-title>
+      <app-logo variant="full" theme="light" [heightPx]="32" class="login-logo" />
     </mat-card-header>
     <mat-card-content>
       <p>Accede para consultar tus operaciones, documentos y mensajes.</p>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="field-row">
+        <mat-form-field>
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" required autocomplete="username" />
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Contraseña</mat-label>
+          <input
+            matInput
+            type="password"
+            formControlName="password"
+            required
+            autocomplete="current-password"
+          />
+        </mat-form-field>
+
+        @if (error()) {
+          <p class="error-text">{{ error() }}</p>
+        }
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+          @if (loading()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            Iniciar sesión
+          }
+        </button>
+      </form>
     </mat-card-content>
     <mat-card-actions>
-      <button mat-flat-button color="primary" (click)="signIn()">Iniciar sesión</button>
+      <a routerLink="/portal/password-reset">¿Has olvidado tu contraseña?</a>
     </mat-card-actions>
   </mat-card>
 </div>

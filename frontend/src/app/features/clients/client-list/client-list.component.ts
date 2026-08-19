@@ -9,7 +9,7 @@ import { HasPermissionDirective } from '../../../shared/directives/has-permissio
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CLIENT_STATUS_LABELS } from '../../../shared/labels/status-labels';
-import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { Client } from '../client.model';
 import { ClientsService } from '../clients.service';
 
@@ -23,7 +23,7 @@ import { ClientsService } from '../clients.service';
     MatIconModule,
     MatProgressSpinnerModule,
     HasPermissionDirective,
-    StatusLabelPipe,
+    StatusBadgeComponent,
   ],
   templateUrl: './client-list.component.html',
   styleUrl: './client-list.component.scss',

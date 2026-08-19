@@ -49,6 +49,15 @@ public class ClientRepository {
     return clients.stream().findFirst();
   }
 
+  /**
+   * clients.email has no uniqueness constraint at all (not even per-company) — same "more than one
+   * match is a generic auth failure, never silently picked" policy as UserRepository#findAllByEmail
+   * (Sprint 22 authorization decision).
+   */
+  public List<Client> findAllByEmail(String email) {
+    return jdbcTemplate.query(SELECT + " WHERE email = ?", ROW_MAPPER, email);
+  }
+
   public List<Client> findAllByCompanyId(UUID companyId) {
     return jdbcTemplate.query(
         SELECT + " WHERE company_id = ? ORDER BY last_name, first_name", ROW_MAPPER, companyId);

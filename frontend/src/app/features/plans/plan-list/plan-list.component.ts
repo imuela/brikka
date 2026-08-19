@@ -4,6 +4,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
 import { ApiError } from '../../../core/http/api-error';
@@ -23,6 +24,7 @@ import { PlanService } from '../plan.service';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     HasPermissionDirective,
   ],
   templateUrl: './plan-list.component.html',

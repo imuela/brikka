@@ -1,0 +1,105 @@
+name: brika
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: brika-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-brika}
+      POSTGRES_USER: ${POSTGRES_USER:-brika}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brika_dev_password}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - brika_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brika} -d ${POSTGRES_DB:-brika}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: brika-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-brika}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-brika_dev_password}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-brika_dev_cookie}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-25672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-35672}:15672"
+    # No named volume: Sprint 0 has no messages worth persisting, so storage
+    # is ephemeral here; revisit with a named volume if persistence is needed
+    # later.
+    #
+    # restart: on-failure — verified root cause (not UID/volume mapping):
+    # under this host's 2-CPU constraint, cold-starting all 4 services at
+    # once causes a boot-time race in the RabbitMQ entrypoint between the
+    # root-phase chmod of /var/lib/rabbitmq/.erlang.cookie and the Erlang VM
+    # (running as the rabbitmq user) reading it, producing an EACCES on the
+    # first attempt only. A standalone `docker run` (no CPU contention) never
+    # reproduces it. Auto-retry resolves it deterministically since the retry
+    # always happens after the initial CPU burst from the other containers
+    # has passed.
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 20s
+      retries: 15
+      start_period: 30s
+
+  storage:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: brika-storage
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-brika}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-brika_dev_password}
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-19000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-19001}:9001"
+    volumes:
+      - brika_storage_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  storage-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: brika-storage-init
+    depends_on:
+      storage:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-brika}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-brika_dev_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-brika-documents}
+    entrypoint: sh
+    # One-shot: creates the default bucket, then exits. Idempotent (mb --ignore-existing).
+    command:
+      - -c
+      - >
+        mc alias set local http://storage:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing local/$$MINIO_BUCKET
+
+  # Sprint 22 cierre, punto 5: local SMTP catcher for password-reset emails — never a production
+  # provider. SmtpEmailSender (backend) sends here when EMAIL_TRANSPORT=smtp; the web UI lets you
+  # actually open the emails during local testing. No volume: disposable, dev-only mail store.
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: brika-mailpit
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-11025}:1025"
+      - "127.0.0.1:${MAILPIT_HTTP_PORT:-18025}:8025"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8025/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  brika_postgres_data:
+  brika_storage_data:

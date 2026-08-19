@@ -12,9 +12,9 @@ export interface User {
   status: string;
 }
 
-/** Mirrors backend CreateUserApiRequest. externalIdentityId must already exist in the identity
- * provider — Keycloak account provisioning/sync is not implemented, so it cannot be generated or
- * validated from the frontend. */
+/** Mirrors backend CreateUserApiRequest. externalIdentityId is an opaque, unique login identifier
+ * for this user (Sprint 22, ADR-AUTH-001 — Brika's own auth); the backend does not validate its
+ * format or generate one automatically, so it must be supplied here. */
 export interface CreateUserRequest {
   email: string;
   firstName: string;

@@ -1,0 +1,105 @@
+/*
+ * Tema de login BRIKKA — extiende el tema base "keycloak.v2" (PatternFly v5) de Keycloak,
+ * solo con esta hoja de estilos adicional (theme.properties: styles=css/login.css). No se toca
+ * ningún template FreeMarker: la marca (logo) se aplica sobre el elemento existente que ya
+ * renderiza displayNameHtml del realm, sustituyendo el texto por el logotipo real (imagen,
+ * no CSS) mediante la técnica estándar background-image + text-indent (mantiene el texto para
+ * lectores de pantalla). Paleta y radios: mismos tokens que la aplicación Angular
+ * (frontend/src/styles.scss) — sin variables CSS compartidas posibles entre ambos, los valores
+ * se repiten aquí literalmente.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+body#keycloak-bg {
+  background-color: #f7f8fa;
+  background-image: none;
+}
+
+body,
+.pf-v5-c-login {
+  font-family:
+    Inter,
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+}
+
+/* Logo real (docs/branding/assets/brikka-logo-full-light.jpg) sustituyendo el texto del realm. */
+#kc-header-wrapper.pf-v5-c-brand {
+  display: block;
+  width: 200px;
+  height: 38px;
+  margin: 0 auto 8px;
+  background-image: url('../img/brikka-logo.jpg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  text-indent: -9999px;
+  overflow: hidden;
+}
+
+.pf-v5-c-login__header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.pf-v5-c-login__main {
+  background: #ffffff !important;
+  border: 1px solid #eef0f4;
+  border-radius: 12px;
+  box-shadow:
+    0 2px 6px rgba(5, 12, 31, 0.08),
+    0 1px 2px rgba(5, 12, 31, 0.05);
+  color: #111827;
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer,
+.pf-v5-c-title,
+.pf-v5-c-form__label-text,
+.pf-v5-c-login__main-footer-band,
+label {
+  color: #111827 !important;
+}
+
+.pf-v5-c-form-control,
+input[type='text'],
+input[type='password'],
+input[type='email'] {
+  background: #ffffff !important;
+  border: 1px solid #d9dee8 !important;
+  border-radius: 8px !important;
+  color: #111827 !important;
+  height: 44px;
+}
+
+.pf-v5-c-form-control:focus,
+input[type='text']:focus,
+input[type='password']:focus {
+  border-color: #2759e0 !important;
+  box-shadow: 0 0 0 1px #2759e0 !important;
+}
+
+.pf-v5-c-button.pf-m-primary {
+  background-color: #2759e0 !important;
+  border-radius: 8px !important;
+  font-weight: 600;
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary:focus {
+  background-color: #2f6bff !important;
+}
+
+.pf-v5-c-login__main-footer-links a,
+.pf-v5-c-login__main-body a,
+a {
+  color: #2759e0;
+}
+
+#kc-form-options a,
+#kc-registration a {
+  color: #2759e0 !important;
+}

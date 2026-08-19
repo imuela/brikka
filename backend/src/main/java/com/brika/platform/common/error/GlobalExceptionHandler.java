@@ -1,5 +1,8 @@
 package com.brika.platform.common.error;
 
+import com.brika.platform.auth.AuthenticationFailedException;
+import com.brika.platform.auth.InvalidRefreshTokenException;
+import com.brika.platform.auth.TooManyLoginAttemptsException;
 import com.brika.platform.common.observability.CorrelationIdFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +27,31 @@ public class GlobalExceptionHandler {
     String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
     ErrorResponse body = new ErrorResponse("FORBIDDEN", "Access denied.", requestId);
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+  }
+
+  @ExceptionHandler(AuthenticationFailedException.class)
+  public ResponseEntity<ErrorResponse> handleAuthenticationFailed(
+      AuthenticationFailedException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    ErrorResponse body = new ErrorResponse("UNAUTHENTICATED", "Invalid credentials.", requestId);
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+  }
+
+  @ExceptionHandler(InvalidRefreshTokenException.class)
+  public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(
+      InvalidRefreshTokenException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    ErrorResponse body = new ErrorResponse("UNAUTHENTICATED", "Invalid refresh token.", requestId);
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+  }
+
+  @ExceptionHandler(TooManyLoginAttemptsException.class)
+  public ResponseEntity<ErrorResponse> handleTooManyLoginAttempts(
+      TooManyLoginAttemptsException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    ErrorResponse body =
+        new ErrorResponse("TOO_MANY_ATTEMPTS", "Too many login attempts.", requestId);
+    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
   }
 
   @ExceptionHandler(ResourceNotFoundException.class)

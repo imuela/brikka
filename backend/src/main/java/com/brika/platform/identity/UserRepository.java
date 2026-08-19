@@ -64,6 +64,26 @@ public class UserRepository {
         SELECT_WITH_ROLE + " WHERE u.company_id = ? ORDER BY u.email", USER_ROW_MAPPER, companyId);
   }
 
+  /**
+   * users.email is unique only per company (uq_users_company_email, ADR-IDENTITY-001) — a global
+   * lookup by email alone can return more than one row if two companies happen to share an email.
+   * Sprint 22 authorization decision: callers treat "not exactly one match" as a generic
+   * authentication failure, not as a schema bug to silently work around here.
+   */
+  public List<User> findAllByEmail(String email) {
+    return jdbcTemplate.query(SELECT_WITH_ROLE + " WHERE u.email = ?", USER_ROW_MAPPER, email);
+  }
+
+  public Optional<String> findExternalIdentityId(UUID userId) {
+    return jdbcTemplate
+        .query(
+            "SELECT external_identity_id FROM users WHERE id = ?",
+            (rs, rowNum) -> rs.getString("external_identity_id"),
+            userId)
+        .stream()
+        .findFirst();
+  }
+
   public void updateName(UUID id, String firstName, String lastName) {
     jdbcTemplate.update(
         "UPDATE users SET first_name = ?, last_name = ?, updated_at = now() WHERE id = ?",
