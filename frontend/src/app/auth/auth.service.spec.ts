@@ -21,6 +21,7 @@ describe('AuthService', () => {
     });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
+    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -129,5 +130,65 @@ describe('AuthService', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('login persists only the refresh token to sessionStorage', async () => {
+    const loginPromise = service.login('manager@brika.test', 'correct-horse');
+    httpMock
+      .expectOne(LOGIN_URL)
+      .flush({ accessToken: 'access-123', refreshToken: 'refresh-123', expiresInSeconds: 900 });
+    await loginPromise;
+
+    expect(sessionStorage.getItem(AuthService.refreshTokenStorageKey)).toBe('refresh-123');
+  });
+
+  it('restore returns false and makes no network call when no refresh token is stored', async () => {
+    await expect(service.restore()).resolves.toBe(false);
+    httpMock.expectNone(REFRESH_URL);
+  });
+
+  it('restore exchanges the stored refresh token and becomes authenticated', async () => {
+    sessionStorage.setItem(AuthService.refreshTokenStorageKey, 'stored-refresh');
+
+    const restorePromise = service.restore();
+
+    const req = httpMock.expectOne(REFRESH_URL);
+    expect(req.request.body).toEqual({ refreshToken: 'stored-refresh' });
+    req.flush({ accessToken: 'a2', refreshToken: 'r2', expiresInSeconds: 900 });
+    await restorePromise;
+
+    expect(service.isAuthenticated()).toBe(true);
+    expect(service.accessToken()).toBe('a2');
+    expect(sessionStorage.getItem(AuthService.refreshTokenStorageKey)).toBe('r2');
+  });
+
+  it('restore clears the stored token and stays logged out when the refresh fails', async () => {
+    sessionStorage.setItem(AuthService.refreshTokenStorageKey, 'expired-refresh');
+
+    const restorePromise = service.restore();
+
+    httpMock
+      .expectOne(REFRESH_URL)
+      .flush(
+        { code: 'INVALID_REFRESH_TOKEN', message: 'bad', requestId: 'r-1' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    await restorePromise;
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem(AuthService.refreshTokenStorageKey)).toBeNull();
+  });
+
+  it('logout removes the persisted refresh token', async () => {
+    const loginPromise = service.login('manager@brika.test', 'correct-horse');
+    httpMock
+      .expectOne(LOGIN_URL)
+      .flush({ accessToken: 'a', refreshToken: 'r', expiresInSeconds: 900 });
+    await loginPromise;
+
+    service.logout();
+    httpMock.expectOne(LOGOUT_URL).flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(sessionStorage.getItem(AuthService.refreshTokenStorageKey)).toBeNull();
   });
 });

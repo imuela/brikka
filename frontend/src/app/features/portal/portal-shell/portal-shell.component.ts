@@ -32,5 +32,6 @@ export class PortalShellComponent {
 
   logout(): void {
     this.portalAuthService.logout();
+    this.portalSessionStore.clear();
   }
 }

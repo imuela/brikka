@@ -20,6 +20,7 @@ describe('PortalAuthService', () => {
     });
     service = TestBed.inject(PortalAuthService);
     httpMock = TestBed.inject(HttpTestingController);
+    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -104,5 +105,65 @@ describe('PortalAuthService', () => {
     req.flush(null, { status: 204, statusText: 'No Content' });
 
     await expect(resultPromise).resolves.toBeUndefined();
+  });
+
+  it('login persists only the Portal refresh token under its own storage key', async () => {
+    const loginPromise = service.login('client@brika.test', 'correct-horse');
+    httpMock
+      .expectOne(LOGIN_URL)
+      .flush({ accessToken: 'access-p1', refreshToken: 'refresh-p1', expiresInSeconds: 900 });
+    await loginPromise;
+
+    expect(sessionStorage.getItem(PortalAuthService.refreshTokenStorageKey)).toBe('refresh-p1');
+    expect(sessionStorage.getItem('brika.session.refreshToken')).toBeNull();
+  });
+
+  it('restore returns false and makes no network call when no refresh token is stored', async () => {
+    await expect(service.restore()).resolves.toBe(false);
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/portal/auth/refresh`);
+  });
+
+  it('restore exchanges the stored Portal refresh token and becomes authenticated', async () => {
+    sessionStorage.setItem(PortalAuthService.refreshTokenStorageKey, 'stored-portal-refresh');
+
+    const restorePromise = service.restore();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/portal/auth/refresh`);
+    expect(req.request.body).toEqual({ refreshToken: 'stored-portal-refresh' });
+    req.flush({ accessToken: 'pa2', refreshToken: 'pr2', expiresInSeconds: 900 });
+    await restorePromise;
+
+    expect(service.isAuthenticated()).toBe(true);
+    expect(service.accessToken()).toBe('pa2');
+  });
+
+  it('restore clears the stored token and stays logged out when the refresh fails', async () => {
+    sessionStorage.setItem(PortalAuthService.refreshTokenStorageKey, 'expired-portal-refresh');
+
+    const restorePromise = service.restore();
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/portal/auth/refresh`)
+      .flush(
+        { code: 'INVALID_REFRESH_TOKEN', message: 'bad', requestId: 'r-1' },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+    await restorePromise;
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(sessionStorage.getItem(PortalAuthService.refreshTokenStorageKey)).toBeNull();
+  });
+
+  it('logout removes the persisted Portal refresh token', async () => {
+    const loginPromise = service.login('client@brika.test', 'correct-horse');
+    httpMock
+      .expectOne(LOGIN_URL)
+      .flush({ accessToken: 'a', refreshToken: 'r', expiresInSeconds: 900 });
+    await loginPromise;
+
+    service.logout();
+    httpMock.expectOne(LOGOUT_URL).flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(sessionStorage.getItem(PortalAuthService.refreshTokenStorageKey)).toBeNull();
   });
 });

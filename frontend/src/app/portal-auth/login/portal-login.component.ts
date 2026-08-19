@@ -11,6 +11,7 @@ import { ApiError } from '../../core/http/api-error';
 import { friendlyErrorMessage } from '../../core/http/error-messages';
 import { LogoComponent } from '../../shared/logo/logo.component';
 import { PortalAuthService } from '../portal-auth.service';
+import { PortalSessionService } from '../portal-session.service';
 
 @Component({
   selector: 'app-portal-login',
@@ -30,6 +31,7 @@ import { PortalAuthService } from '../portal-auth.service';
 export class PortalLoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly portalAuthService = inject(PortalAuthService);
+  private readonly portalSessionService = inject(PortalSessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -51,6 +53,7 @@ export class PortalLoginComponent {
     const { email, password } = this.form.getRawValue();
     try {
       await this.portalAuthService.login(email, password);
+      await this.portalSessionService.hydrate();
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/portal';
       await this.router.navigateByUrl(returnUrl);
     } catch (err) {

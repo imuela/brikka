@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { ApiError } from '../../core/http/api-error';
 import { friendlyErrorMessage } from '../../core/http/error-messages';
+import { SessionService } from '../../core/session/session.service';
 import { LogoComponent } from '../../shared/logo/logo.component';
 import { AuthService } from '../auth.service';
 
@@ -30,6 +31,7 @@ import { AuthService } from '../auth.service';
 export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
+  private readonly sessionService = inject(SessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -51,6 +53,7 @@ export class LoginComponent {
     const { email, password } = this.form.getRawValue();
     try {
       await this.authService.login(email, password);
+      await this.sessionService.hydrate();
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/app';
       await this.router.navigateByUrl(returnUrl);
     } catch (err) {

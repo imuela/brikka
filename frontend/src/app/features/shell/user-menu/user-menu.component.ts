@@ -21,5 +21,6 @@ export class UserMenuComponent {
 
   logout(): void {
     this.authService.logout();
+    this.sessionStore.clear();
   }
 }

@@ -5,8 +5,10 @@ import { catchError, throwError } from 'rxjs';
 
 import { AuthService } from '../../auth/auth.service';
 import { PortalAuthService } from '../../portal-auth/portal-auth.service';
+import { PortalSessionStore } from '../../portal-auth/portal-session.store';
 import { ApiError, toApiError } from './api-error';
 import { SKIP_AUTH } from './http-context';
+import { SessionStore } from '../session/session.store';
 
 /**
  * Normalizes backend errors into ApiError. A 401 is handled specially (session cleared, redirect
@@ -27,6 +29,8 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const isPortalRequest = req.url.includes('/api/v1/portal/');
   const authService = inject(AuthService);
   const portalAuthService = inject(PortalAuthService);
+  const sessionStore = inject(SessionStore);
+  const portalSessionStore = inject(PortalSessionStore);
   const router = inject(Router);
 
   return next(req).pipe(
@@ -38,9 +42,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       if (error.status === 401) {
         if (isPortalRequest) {
           portalAuthService.clearSession();
+          portalSessionStore.clear();
           void router.navigate(['/portal/login']);
         } else {
           authService.clearSession();
+          sessionStore.clear();
           void router.navigate(['/login']);
         }
         return throwError(

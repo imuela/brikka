@@ -13,10 +13,16 @@ const PORTAL_AUTH_BASE = `${environment.apiBaseUrl}/api/v1/portal/auth`;
  * Portal Cliente counterpart of AuthService — deliberately a full duplicate, never sharing an
  * implementation (ADR-PORTAL-AUTH-001, Sprint 22 authorization §4): the two surfaces must never
  * be able to share or confuse a token, mirroring the backend's two independent
- * SecurityFilterChains and independent signing keys.
+ * SecurityFilterChains and independent signing keys. Sprint 23 adds the same sessionStorage
+ * refresh-token persistence as AuthService, under a physically separate storage key, so the
+ * reload-recovery of one surface can never read the other's token.
  */
 @Injectable({ providedIn: 'root' })
 export class PortalAuthService {
+  /** Key under which only the Portal refresh token is kept in sessionStorage (separate from the
+   * internal surface's key — ADR-PORTAL-AUTH-001). */
+  static readonly refreshTokenStorageKey = 'brika.portal.session.refreshToken';
+
   private readonly tokenSet = signal<TokenSet | null>(null);
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -76,6 +82,17 @@ export class PortalAuthService {
     }
   }
 
+  /** Restores a Portal session from the persisted refresh token on startup (reload in the same
+   * tab). Returns true when a live session was recovered, false otherwise (no stored token or the
+   * refresh failed) — in which case any stored token is cleared. */
+  async restore(): Promise<boolean> {
+    const storedRefreshToken = sessionStorage.getItem(PortalAuthService.refreshTokenStorageKey);
+    if (!storedRefreshToken) {
+      return false;
+    }
+    return this.performRefresh(storedRefreshToken);
+  }
+
   private applyTokenResponse(response: AccessTokenApiResponse): void {
     const expiresAt = Date.now() + response.expiresInSeconds * 1000;
     this.tokenSet.set({
@@ -83,6 +100,7 @@ export class PortalAuthService {
       refreshToken: response.refreshToken,
       expiresAt,
     });
+    sessionStorage.setItem(PortalAuthService.refreshTokenStorageKey, response.refreshToken);
     this.scheduleRefresh(response.expiresInSeconds);
   }
 
@@ -94,20 +112,28 @@ export class PortalAuthService {
     this.refreshTimer = setTimeout(() => void this.refresh(), delayMs);
   }
 
+  /** Performs a single refresh round-trip against the Portal issuer. Returns true on success,
+   * false on any failure (state cleared). Shared by the scheduled refresh and startup restore. */
+  private async performRefresh(refreshToken: string): Promise<boolean> {
+    try {
+      const response = await firstValueFrom(
+        this.http.post<AccessTokenApiResponse>(`${PORTAL_AUTH_BASE}/refresh`, { refreshToken }),
+      );
+      this.applyTokenResponse(response);
+      return true;
+    } catch {
+      this.clearTokens();
+      return false;
+    }
+  }
+
   private async refresh(): Promise<void> {
     const refreshToken = this.tokenSet()?.refreshToken;
     if (!refreshToken) {
       this.clearTokens();
       return;
     }
-    try {
-      const response = await firstValueFrom(
-        this.http.post<AccessTokenApiResponse>(`${PORTAL_AUTH_BASE}/refresh`, { refreshToken }),
-      );
-      this.applyTokenResponse(response);
-    } catch {
-      this.clearTokens();
-    }
+    await this.performRefresh(refreshToken);
   }
 
   private clearTokens(): void {
@@ -115,6 +141,7 @@ export class PortalAuthService {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
+    sessionStorage.removeItem(PortalAuthService.refreshTokenStorageKey);
     this.tokenSet.set(null);
   }
 }
