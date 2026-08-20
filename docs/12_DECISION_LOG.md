@@ -1081,3 +1081,52 @@ actualizan. Portal no se convierte en subproyecto: reutiliza el mismo modelo/API
 endpoint de contador.
 
 **Estado:** APPROVED (implementado en Sprint 25).
+
+## ADR-NOTIF-003 — Transporte asíncrono de notificaciones por RabbitMQ (Sprint 26)
+**Estado:** DECIDIDO (implementado en Sprint 26)
+
+**Problema:** en Sprint 25 las notificaciones IN_APP se escriben en la misma transacción que la
+operación (SynchronousNotificationPublisher). El roadmap (ADR-NOTIF-001, 20_RABBITMQ_SPECIFICATION.md)
+prevé entregarlas de forma asíncrona vía RabbitMQ para desacoplar la escritura de `notifications` de la
+latencia de la operación, sin romper los eventos, destinatarios ni aislamiento de Sprint 25.
+
+**Decisión:**
+1. **Toggle de transporte** (`brika.notifications.transport`): `sync` (default, `matchIfMissing`) →
+   `SynchronousNotificationPublisher`; `rabbitmq` → `RabbitMqNotificationPublisher`. Ambos beans están
+   anotados con `@ConditionalOnProperty`, así que en cualquier momento existe exactamente un
+   `NotificationPublisher`. Los productores (CaseService/DocumentService/ConversationMessageService) y
+   las reglas de destinatarios de Sprint 25 no cambian; el seam `NotificationPublisher` se mantiene.
+2. **Evento en el bus**: por destinatario se publica un `NotificationRequestedEvent`
+   (`eventType=notification.requested`) con el envelope de la spec (eventId, occurredAt, companyId) más
+   el destinatario resuelto (recipientUserId o recipientClientId), el tipo y un payload simple de
+   claves/valores. Nunca se envían entidades JPA ni datos sensibles. Los destinatarios se resuelven en
+   los productores (una sola fuente de reglas); el consumer es un paso delgado que solo llama a
+   NotificationService.create, sin lógica Case/Document/Conversation.
+3. **Transaccionalidad**: la publicación se difiere a after-commit mediante
+   `TransactionSynchronizationManager.afterCommit()`. Si la transacción de negocio se revierte, el
+   mensaje no se publica (no hay notificación falsa). Es la prioridad 2 de la spec (§6: "publicación
+   after-commit si resulta suficiente"); NO se implementa Transactional Outbox completo porque no es
+   necesario para este caso (mismo trade-off documentado en la spec).
+4. **Topología RabbitMQ** (nombres no fijados por la spec; se eligen coherentes con "colas separadas
+   por responsabilidad"): exchange `brika.events` (topic), cola durable `brika.notifications.queue`
+   enlazada por `notification.requested`, y DLX/DLQ (`brika.events.dlx` / `brika.notifications.dlq`).
+   Retry limitado con backoff (spring retry: 3 intentos, backoff 1s→2s→4s… máx 30s) y, al agotar,
+   dead-letter a la DLQ (spec §5).
+5. **Idempotencia**: el envelope lleva `eventId` para poder deduplicar en el futuro; en operación
+   normal cada acción publica exactamente una vez por destinatario (after-commit sobre una transacción
+   que commitea una vez), por lo que no hay duplicados accidentales. No se construye tabla de
+   deduplicación en este sprint.
+6. **Prueba con RabbitMQ real**: IT obligatorio con broker real. En esta máquina (~2 GB de RAM) un
+   RabbitMQ de Testcontainers entra en `system_memory_high_watermark` y nunca abre el puerto AMQP; por
+   ello el IT `NotificationAsyncIntegrationIT` se conecta al broker local `brika-rabbitmq`
+   (docs/docker-compose.yml, localhost:25672) y purga la cola antes de cada test para aislar. En un
+   host con más memoria se prefiere Testcontainers RabbitMQ. El consumer tiene su propio test unitario.
+7. **Idempotencia/Autorización (spec §8)**: el consumer revalida lo esencial (exactamente un
+   destinatario, tipo presente) y reutiliza NotificationService, que impone las mismas reglas; la
+   consulta/lectura de notificaciones sigue pasando por los endpoints scoped al llamante (Sprint 25),
+   por lo que el aislamiento multi-tenant no se debilita.
+
+**Consecuencias:** la escritura de `notifications` queda desacoplada de la operación cuando el
+transporte es `rabbitmq` (asíncrona), mientras el default `sync` preserva el comportamiento de Sprint
+25 para el resto de la suite y despliegues que no quieran broker. Los ITs síncronos no tocan RabbitMQ
+(no hay beans AMQP en modo sync). El ADR no introduce WebSockets/SSE/polling ni cambio de API/frontend.

@@ -70,3 +70,63 @@ Los eventos críticos derivados de cambios transaccionales deberán considerar p
 ## 8. Regla
 
 Un mensaje no debe permitir saltarse autorización. El consumidor vuelve a comprobar contexto cuando la operación sea sensible.
+
+## 9. Transporte de notificaciones (Sprint 26, ADR-NOTIF-003)
+
+Esta sección documenta la primera implementación real de RabbitMQ (Sprint 26) para el evento
+`notification.requested`. La spec define envelope, idempotencia y retries en abstracto; aquí se fijan
+los nombres concretos y el uso, que no contradicen sino que concretan lo anterior.
+
+### 9.1 Envelope de notificación
+
+Por cada destinatario se publica un `NotificationRequestedEvent` (JSON) sobre el exchange `brika.events`
+con routing key `notification.requested`:
+
+```json
+{
+  "eventId": "uuid",
+  "eventType": "notification.requested",
+  "occurredAt": "iso-8601",
+  "companyId": "uuid",
+  "recipientUserId": "uuid | null",
+  "recipientClientId": "uuid | null",
+  "notificationType": "CASE_CANCELLED",
+  "payload": {}
+}
+```
+
+Reglas:
+- Exactamente uno de `recipientUserId`/`recipientClientId` está presente.
+- Los destinatarios ya vienen resueltos por los productores (mismas reglas que Sprint 25); el consumer
+  no resuelve usuarios ni contiene lógica Case/Document/Conversation.
+- Nunca se envían entidades JPA ni datos sensibles; `payload` es un mapa simple de claves/valores.
+
+### 9.2 Topología
+
+- Exchange: `brika.events` (topic).
+- Cola durable: `brika.notifications.queue` ← routing `notification.requested`.
+- Dead-letter: exchange `brika.events.dlx` + cola `brika.notifications.dlq` (routing
+  `notification.requested.dlq`), configurados como argumentos de la cola principal.
+- Retry: limitado con backoff (Spring AMQP: 3 intentos, 1s→2s→… máx 30s); al agotar, la cola
+  dead-lettera el mensaje. ACK: éxito → ack; error → retry + DLQ (el consumer no traga fallos).
+
+### 9.3 Transaccionalidad
+
+La publicación se difiere a **after-commit** (`TransactionSynchronizationManager.afterCommit()`): si la
+transacción de negocio se revierte, el mensaje no se publica. Es la prioridad 2 de la spec §6;
+**no** se usa Transactional Outbox completo (no necesario para este caso).
+
+### 9.4 Activación
+
+Toggle `brika.notifications.transport`: `sync` (default, comportamiento Sprint 25) o `rabbitmq`
+(activa `RabbitMqNotificationPublisher` + consumer). En modo `sync` no se crea ningún bean AMQP, por
+lo que el resto de la suite y los despliegues sin broker no dependen de RabbitMQ. Credenciales y
+puerto vía variables de entorno (`RABBITMQ_HOST/PORT/USER/PASSWORD`), nunca en código.
+
+### 9.5 Idempotencia y autorización
+
+- El envelope lleva `eventId` para deduplicación futura; en operación normal cada acción publica una
+  vez por destinatario (after-commit sobre un commit único), sin duplicados accidentales.
+- El consumer revalida lo esencial (exactamente un destinatario, tipo presente) y reutiliza
+  NotificationService; la consulta/lectura sigue por endpoints scoped al llamante (Sprint 25), por lo
+  que el aislamiento multi-tenant se mantiene.

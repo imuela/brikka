@@ -63,6 +63,14 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+        <!-- Sprint 26: async notification events (20_RABBITMQ_SPECIFICATION.md). The standard
+             Spring AMQP starter is the expected client for the RabbitMQ broker defined in
+             docs/docker-compose.yml, not an arbitrary framework. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <!-- Sprint 4: Object Storage (18_STORAGE_SPECIFICATION.md §2, "S3 API compatible").
              MinIO (Sprint 0 infra) speaks the S3 API, so the standard AWS S3 SDK is the
              expected client, not an arbitrary framework — url-connection-client is the
@@ -121,6 +129,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>minio</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>rabbitmq</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

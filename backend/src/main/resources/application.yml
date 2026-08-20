@@ -18,6 +18,26 @@ spring:
   # Sprint 22 cierre, punto 5: SMTP config for SmtpEmailSender — only used when
   # brika.notifications.email-transport=smtp. Defaults match Mailpit's local SMTP port (1025),
   # no auth/TLS required. NoOpEmailSender (the default everywhere) never touches this block.
+  # Sprint 26 (20_RABBITMQ_SPECIFICATION.md): async notification events. Defaults match the
+  # brika-rabbitmq service in docs/docker-compose.yml (host-mapped port 25672 -> broker 5672).
+  # Only used when brika.notifications.transport=rabbitmq; in the default sync transport no
+  # RabbitMQ connection is created at all, so CI/other ITs never depend on a live broker.
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:25672}
+    username: ${RABBITMQ_USER:brika}
+    password: ${RABBITMQ_PASSWORD:brika_dev_password}
+    listener:
+      simple:
+        # Sprint 26, spec §5: limited retry with backoff before the message is dead-lettered.
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
+          multiplier: 2.0
+          max-interval: 30000
+          stateless: true
+
   mail:
     host: ${MAILPIT_SMTP_HOST:localhost}
     # 11025, not Mailpit's internal 1025 — the backend runs outside docker-compose
@@ -43,6 +63,13 @@ brika:
     # never a production provider decision.
     email-transport: ${EMAIL_TRANSPORT:noop}
     email-from: ${EMAIL_FROM:no-reply@brika.local}
+    # Sprint 26 (20_RABBITMQ_SPECIFICATION.md): transport for in-app notifications.
+    # "sync" (default) keeps Sprint 25 behaviour — notifications are written in the same
+    # transaction as the triggering action. "rabbitmq" swaps the publisher for
+    # RabbitMqNotificationPublisher: events are published after-commit to the broker and a
+    # consumer writes the notifications asynchronously. Only one publisher bean exists at a
+    # time, so business/services code is unaware of the transport.
+    transport: ${NOTIFICATION_TRANSPORT:sync}
 
   security:
     # Sprint 13 D1 (06_SECURITY_SPECIFICATION.md §9, "CORS controlado"): comma-separated list
