@@ -111,6 +111,15 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+  # Sprint 25 (CI 503): email availability must not gate application readiness. The
+  # JavaMailSender health indicator (MailHealthIndicator) connects to spring.mail.host:port
+  # and reports DOWN wherever no SMTP server is reachable (CI has no Mailpit), which made the
+  # aggregate /actuator/health return 503 and broke both CorsConfigurationIT and the
+  # backend-docker healthcheck. SMTP is still required/validated in PROD
+  # (ProdEnvironmentValidator); it is simply not a readiness signal.
+  health:
+    mail:
+      enabled: false
 
 # DB_* defaults match the Sprint 0 docker-compose Postgres service
 # (127.0.0.1:15432/brika) so `./mvnw spring-boot:run` works against it
