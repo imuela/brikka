@@ -32,11 +32,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Sprint 8: Notifications. ADR-NOTIF-001. Creation is an internal capability (NotificationService)
- * — no domain event is wired to call it yet (D8-3), so tests invoke it directly, then exercise the
- * documented read/manage HTTP surface (§17C). D8-1: IN_APP dispatched synchronously. D8-2: EMAIL
- * dispatched via NoOpEmailSender (no provider approved) — recorded as a structural FAILED delivery,
- * never silently pretended to succeed.
+ * Sprint 8: Notifications. ADR-NOTIF-001. Creation is an internal capability (NotificationService).
+ * Sprint 25 wired real domain events to it (ADR-NOTIF-002); these tests still invoke the service
+ * directly to exercise the documented read/manage HTTP surface (§17C) in isolation. D8-1: IN_APP
+ * dispatched synchronously. D8-2: EMAIL dispatched via NoOpEmailSender (no provider approved) —
+ * recorded as a structural FAILED delivery, never silently pretended to succeed.
  */
 @Testcontainers
 @SpringBootTest

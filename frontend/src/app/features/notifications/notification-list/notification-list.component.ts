@@ -10,10 +10,9 @@ import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { AppNotification } from '../notification.model';
 import { NotificationService } from '../notification.service';
 
-/** Always the current user's own notifications (server-scoped, see NotificationService). No
- * producer exists yet in the backend (NotificationService.create() has no real caller), so this
- * list is genuinely empty against real data today — the empty state below reflects that honestly
- * rather than showing invented/fictitious rows. */
+/** Always the current user's own notifications (server-scoped, see NotificationService). Sprint 25
+ * wired real domain events to NotificationService (case status changes/cancel/reopen, document
+ * upload/review/publish, new messages), so this list is populated against real data. */
 @Component({
   selector: 'app-notification-list',
   standalone: true,

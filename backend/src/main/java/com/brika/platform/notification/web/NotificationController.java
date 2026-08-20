@@ -51,6 +51,14 @@ public class NotificationController {
         .toList();
   }
 
+  @GetMapping("/api/v1/notifications/unread-count")
+  public NotificationUnreadCountResponse unreadCount(Authentication authentication) {
+    authorizationService.requirePermission(authentication, "NOTIFICATION_READ");
+    User user = authorizationService.currentUser(authentication);
+    return new NotificationUnreadCountResponse(
+        notificationRepository.countUnreadByRecipientUserId(user.id()));
+  }
+
   @GetMapping("/api/v1/notifications/{id}/deliveries")
   public List<NotificationDeliveryResponse> deliveries(
       Authentication authentication, @PathVariable UUID id) {

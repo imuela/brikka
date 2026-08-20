@@ -9,10 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * ADR-NOTIF-001. Internal capability: creates a Notification and dispatches its deliveries. Sprint
- * 8 (D8-3): no domain event (case.status.changed, document.uploaded, etc.) is wired to call this
- * yet — which business event should produce which notification.type/recipient is undefined in any
- * document, so no such wiring exists here. This service is deliberately caller-driven, ready for
- * whichever future sprint's ADR resolves that matrix.
+ * 25 wired real domain events to this service: CaseService (status changes/cancel/reopen),
+ * DocumentService (upload/review/publish) and ConversationMessageService (new messages) publish
+ * through {@link NotificationPublisher}, which resolves recipients from real relationships and
+ * calls create() in the same transaction as the triggering operation.
  */
 @Service
 public class NotificationService {

@@ -5,9 +5,8 @@ import java.util.UUID;
 
 /**
  * Exactly one of recipientUserId / recipientClientId is set (chk_notifications_single_recipient).
- * No producer exists yet in this codebase (nothing writes notifications — the writer belongs to
- * Sprint 8, ADR-NOTIF-001); Sprint 7 only needs the read surface for GET /portal/notifications,
- * which will simply be empty until then.
+ * Written by NotificationService, driven by the Sprint 25 event producers (CaseService,
+ * DocumentService, ConversationMessageService) through NotificationPublisher — see ADR-NOTIF-002.
  */
 public record Notification(
     UUID id,

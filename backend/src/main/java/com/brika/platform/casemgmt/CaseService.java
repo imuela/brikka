@@ -8,8 +8,12 @@ import com.brika.platform.crm.Client;
 import com.brika.platform.crm.ClientRepository;
 import com.brika.platform.identity.User;
 import com.brika.platform.identity.UserRepository;
+import com.brika.platform.notification.NotificationPublisher;
+import com.brika.platform.notification.NotificationRecipients;
+import com.brika.platform.notification.NotificationType;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +34,8 @@ public class CaseService {
   private final ClientRepository clientRepository;
   private final UserRepository userRepository;
   private final ActivityPublisher activityPublisher;
+  private final NotificationPublisher notificationPublisher;
+  private final NotificationRecipients notificationRecipients;
 
   public CaseService(
       CaseRepository caseRepository,
@@ -38,7 +44,9 @@ public class CaseService {
       CaseStatusHistoryRepository caseStatusHistoryRepository,
       ClientRepository clientRepository,
       UserRepository userRepository,
-      ActivityPublisher activityPublisher) {
+      ActivityPublisher activityPublisher,
+      NotificationPublisher notificationPublisher,
+      NotificationRecipients notificationRecipients) {
     this.caseRepository = caseRepository;
     this.caseClientRepository = caseClientRepository;
     this.caseAssignmentRepository = caseAssignmentRepository;
@@ -46,6 +54,8 @@ public class CaseService {
     this.clientRepository = clientRepository;
     this.userRepository = userRepository;
     this.activityPublisher = activityPublisher;
+    this.notificationPublisher = notificationPublisher;
+    this.notificationRecipients = notificationRecipients;
   }
 
   @Transactional
@@ -102,6 +112,15 @@ public class CaseService {
             theCase.id(),
             actorUserId,
             "Status changed from " + current + " to " + newStatus));
+    notificationPublisher.notifyUsers(
+        theCase.companyId(),
+        NotificationType.CASE_STATUS_CHANGED,
+        notificationRecipients.assignedUsersExcept(theCase.id(), actorUserId),
+        Map.of(
+            "caseId", theCase.id(),
+            "reference", theCase.reference(),
+            "previousStatus", current.name(),
+            "newStatus", newStatus.name()));
     return caseRepository.findById(theCase.id()).orElseThrow();
   }
 
@@ -135,6 +154,14 @@ public class CaseService {
             theCase.id(),
             actorUserId,
             "Case cancelled: " + reason));
+    notificationPublisher.notifyUsers(
+        theCase.companyId(),
+        NotificationType.CASE_CANCELLED,
+        notificationRecipients.assignedUsersExcept(theCase.id(), actorUserId),
+        Map.of(
+            "caseId", theCase.id(),
+            "reference", theCase.reference(),
+            "reason", reason.name()));
     return caseRepository.findById(theCase.id()).orElseThrow();
   }
 
@@ -159,6 +186,14 @@ public class CaseService {
             theCase.id(),
             actorUserId,
             "Case reopened from " + current + " to " + targetStatus));
+    notificationPublisher.notifyUsers(
+        theCase.companyId(),
+        NotificationType.CASE_REOPENED,
+        notificationRecipients.assignedUsersExcept(theCase.id(), actorUserId),
+        Map.of(
+            "caseId", theCase.id(),
+            "reference", theCase.reference(),
+            "targetStatus", targetStatus.name()));
     return caseRepository.findById(theCase.id()).orElseThrow();
   }
 

@@ -6,9 +6,11 @@ import com.brika.platform.casemgmt.CaseClientRepository;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.communication.Conversation;
+import com.brika.platform.communication.ConversationMessageService;
 import com.brika.platform.communication.ConversationParticipant;
 import com.brika.platform.communication.ConversationParticipantRepository;
 import com.brika.platform.communication.ConversationRepository;
+import com.brika.platform.communication.Message;
 import com.brika.platform.communication.MessageRepository;
 import java.util.List;
 import java.util.UUID;
@@ -36,18 +38,21 @@ public class ConversationController {
   private final ConversationParticipantRepository conversationParticipantRepository;
   private final MessageRepository messageRepository;
   private final CaseClientRepository caseClientRepository;
+  private final ConversationMessageService conversationMessageService;
 
   public ConversationController(
       CaseAccessService caseAccessService,
       ConversationRepository conversationRepository,
       ConversationParticipantRepository conversationParticipantRepository,
       MessageRepository messageRepository,
-      CaseClientRepository caseClientRepository) {
+      CaseClientRepository caseClientRepository,
+      ConversationMessageService conversationMessageService) {
     this.caseAccessService = caseAccessService;
     this.conversationRepository = conversationRepository;
     this.conversationParticipantRepository = conversationParticipantRepository;
     this.messageRepository = messageRepository;
     this.caseClientRepository = caseClientRepository;
+    this.conversationMessageService = conversationMessageService;
   }
 
   @GetMapping("/api/v1/cases/{caseId}/conversations")
@@ -176,9 +181,9 @@ public class ConversationController {
       throw new ValidationException("BODY_REQUIRED", "Message body is required.");
     }
 
-    UUID messageId =
-        messageRepository.insertFromUser(conversation.id(), access.user().id(), request.body());
-    return MessageResponse.from(messageRepository.findById(messageId).orElseThrow());
+    Message message =
+        conversationMessageService.sendFromUser(conversation, access.user().id(), request.body());
+    return MessageResponse.from(message);
   }
 
   private void requireClientType(Conversation conversation) {

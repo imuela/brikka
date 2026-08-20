@@ -11,6 +11,9 @@
         [routerLinkActiveOptions]="{ exact: item.route === '/app' }">
         <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
         <span matListItemTitle>{{ item.label }}</span>
+        @if (item.route === '/app/notifications' && unreadCount() > 0) {
+          <span matListItemMeta class="notif-badge">{{ unreadCount() }}</span>
+        }
       </a>
     } @else {
       <a
@@ -21,6 +24,9 @@
         [routerLinkActiveOptions]="{ exact: item.route === '/app' }">
         <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
         <span matListItemTitle>{{ item.label }}</span>
+        @if (item.route === '/app/notifications' && unreadCount() > 0) {
+          <span matListItemMeta class="notif-badge">{{ unreadCount() }}</span>
+        }
       </a>
     }
   }

@@ -329,7 +329,8 @@ class PortalEndpointsIT {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(1)));
 
-    // Notifications: empty (no producer exists yet).
+    // Notifications: the portal client has none — nothing in this flow notifies the client
+    // itself (its uploads/messages notify the case's internal assignees, not the sender).
     mockMvc
         .perform(get("/api/v1/portal/notifications").header("Authorization", portal.bearer()))
         .andExpect(status().isOk())

@@ -3,6 +3,7 @@ package com.brika.platform.portal.web;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.communication.Conversation;
+import com.brika.platform.communication.ConversationMessageService;
 import com.brika.platform.communication.ConversationParticipantRepository;
 import com.brika.platform.communication.ConversationRepository;
 import com.brika.platform.communication.Message;
@@ -48,6 +49,7 @@ public class PortalMessageController {
   private final MessageRepository messageRepository;
   private final MessageAttachmentRepository messageAttachmentRepository;
   private final MessageAttachmentService messageAttachmentService;
+  private final ConversationMessageService conversationMessageService;
 
   public PortalMessageController(
       PortalAuthorizationService portalAuthorizationService,
@@ -56,7 +58,8 @@ public class PortalMessageController {
       ConversationParticipantRepository conversationParticipantRepository,
       MessageRepository messageRepository,
       MessageAttachmentRepository messageAttachmentRepository,
-      MessageAttachmentService messageAttachmentService) {
+      MessageAttachmentService messageAttachmentService,
+      ConversationMessageService conversationMessageService) {
     this.portalAuthorizationService = portalAuthorizationService;
     this.portalCaseAccessService = portalCaseAccessService;
     this.conversationRepository = conversationRepository;
@@ -64,6 +67,7 @@ public class PortalMessageController {
     this.messageRepository = messageRepository;
     this.messageAttachmentRepository = messageAttachmentRepository;
     this.messageAttachmentService = messageAttachmentService;
+    this.conversationMessageService = conversationMessageService;
   }
 
   @GetMapping("/api/v1/portal/cases/{id}/messages")
@@ -97,10 +101,10 @@ public class PortalMessageController {
       throw new ValidationException("BODY_REQUIRED", "Message body is required.");
     }
 
-    UUID messageId =
-        messageRepository.insertFromClient(
-            conversation.id(), access.account().clientId(), request.body());
-    return MessageResponse.from(messageRepository.findById(messageId).orElseThrow());
+    Message message =
+        conversationMessageService.sendFromClient(
+            conversation, access.account().clientId(), request.body());
+    return MessageResponse.from(message);
   }
 
   @PostMapping("/api/v1/portal/messages/{messageId}/attachments")

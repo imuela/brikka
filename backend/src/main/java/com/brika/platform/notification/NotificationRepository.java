@@ -37,7 +37,10 @@ public class NotificationRepository {
         SELECT + " WHERE recipient_client_id = ? ORDER BY created_at DESC", ROW_MAPPER, clientId);
   }
 
-  /** ADR-NOTIF-001, Sprint 8: writer side — no producer existed before this sprint. */
+  /**
+   * ADR-NOTIF-001. Writer side — called by NotificationService, driven by the Sprint 25 event
+   * producers (CaseService, DocumentService, ConversationMessageService).
+   */
   public UUID insert(
       UUID companyId,
       UUID recipientUserId,
@@ -67,5 +70,25 @@ public class NotificationRepository {
   public void markRead(UUID id) {
     jdbcTemplate.update(
         "UPDATE notifications SET read_at = now() WHERE id = ? AND read_at IS NULL", id);
+  }
+
+  /** Sprint 25: unread count for the internal badge (scoped to a single recipient_user_id). */
+  public int countUnreadByRecipientUserId(UUID userId) {
+    Integer count =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_user_id = ? AND read_at IS NULL",
+            Integer.class,
+            userId);
+    return count == null ? 0 : count;
+  }
+
+  /** Sprint 25: unread count for the Portal badge (scoped to a single recipient_client_id). */
+  public int countUnreadByRecipientClientId(UUID clientId) {
+    Integer count =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM notifications WHERE recipient_client_id = ? AND read_at IS NULL",
+            Integer.class,
+            clientId);
+    return count == null ? 0 : count;
   }
 }

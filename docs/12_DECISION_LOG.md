@@ -1041,3 +1041,43 @@ El seed de demo nunca puede ejecutarse en producción. `GETTING_STARTED.md`, `10
 `23_CLOUD_DEPLOYMENT_SPECIFICATION.md` quedan actualizados (este último deja de citar OIDC).
 
 **Estado:** APPROVED (implementado en Sprint 24).
+
+## ADR-NOTIF-002 — Eventos de dominio conectados a notificaciones IN_APP (Sprint 25)
+**Estado:** DECIDIDO (implementado en Sprint 25)
+
+**Problema:** la infraestructura de notificaciones (NotificationService, NotificationController,
+NotificationRepository, modelo, endpoints y UI) existía desde Sprint 8/17, pero NotificationService
+no tenía ningún productor: ningún evento real creaba notificaciones ("No producer exists yet").
+
+**Decisión:**
+1. **Mecanismo**: se crea el seam `NotificationPublisher` (interfaz) +
+   `SynchronousNotificationPublisher` (impl síncrona en la misma transacción que la operación),
+   espejo del patrón `ActivityPublisher`/`SynchronousActivityPublisher` (Sprint 3, Decisión A). Si la
+   operación principal falla, no queda notificación falsa (misma transacción). Sin Kafka/RabbitMQ/
+   WebSockets/SSE en este sprint; el seam permite un swap async posterior (20_RABBITMQ_SPECIFICATION.md).
+2. **Destinatarios**: resolución centralizada en `NotificationRecipients` a partir de relaciones
+   reales (case_assignments activos, case_clients, conversation_participants activos). Reglas: el
+   actor nunca es destinatario; nunca se notifica a otra empresa; SUPERADMIN no recibe todo; una
+   acción = exactamente una notificación por destinatario (sin duplicados).
+3. **Eventos conectados** (types centralizados en `NotificationType`):
+   - Caso: `CASE_STATUS_CHANGED` (changeStatus), `CASE_CANCELLED` (cancel), `CASE_REOPENED`
+     (reopen) → usuarios asignados del caso salvo el actor.
+   - Documentos: `DOCUMENT_UPLOADED` (subida por usuario → asignados salvo subidor; subida por
+     cliente Portal → asignados), `DOCUMENT_REVIEWED` (→ quien subió la versión revisada),
+     `DOCUMENT_PUBLISHED` (→ clientes del caso, `recipient_client_id`).
+   - Mensajes: `NEW_MESSAGE` — usuario envía → asignados del caso salvo el autor; en conversación
+     CLIENT también los participantes cliente (Portal); cliente Portal envía → asignados internos.
+     Para garantizar atomicidad, el envío de mensajes se extrae a `ConversationMessageService`
+     (`@Transactional`); los controladores ya no insertan mensajes directamente.
+4. **Contador de no leídas**: nuevos endpoints `GET /notifications/unread-count` y
+   `GET /portal/notifications/unread-count` (scoped al usuario/cliente llamante) para el badge del
+   frontend. El badge del sidenav se actualiza al cargar y en cada navegación (sin polling).
+5. **Email**: fuera de alcance del sprint; IN_APP obligatorio, el dispatcher existente sigue
+   registrando la delivery (Sprint 8 D8-1/D8-2).
+
+**Consecuencias:** la nota "no producer exists" de ADR-NOTIF-001 queda superada para estos eventos;
+los comentarios de NotificationService/NotificationRepository y del frontend que la citaban se
+actualizan. Portal no se convierte en subproyecto: reutiliza el mismo modelo/API con su propio
+endpoint de contador.
+
+**Estado:** APPROVED (implementado en Sprint 25).

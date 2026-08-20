@@ -41,4 +41,11 @@ describe('NotificationService', () => {
     expect(req.request.method).toBe('PATCH');
     req.flush({ ...notification, readAt: '2026-08-18T11:00:00Z' });
   });
+
+  it('unreadCount() GETs /api/v1/notifications/unread-count and maps count', () => {
+    service.unreadCount().subscribe((count) => expect(count).toBe(3));
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/notifications/unread-count`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ count: 3 });
+  });
 });

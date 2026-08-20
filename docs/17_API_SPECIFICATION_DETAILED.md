@@ -204,10 +204,27 @@ Timeline funcional de negocio, distinto del audit log (`ADR-AUDIT-001`). Autoriz
 ## 17C. Notifications
 
 - GET /notifications
+- GET /notifications/unread-count (Sprint 25: contador de no leídas del badge, scoped al usuario)
 - GET /notifications/{id}/deliveries
 - PATCH /notifications/{id}/read
 
 `notification_deliveries` es de solo lectura vía API en V1 (se escribe desde los workers de canal, no desde el cliente).
+
+### 17C.1. Eventos conectados (Sprint 25)
+
+Sprint 25 conectó NotificationService a eventos reales de dominio (misma transacción que la acción; si la operación falla no queda notificación). La resolución de destinatarios usa relaciones reales — nunca se notifica al actor, nunca se notifica a otra empresa, y una acción produce exactamente una notificación por destinatario.
+
+| Evento | type | Destinatarios |
+| --- | --- | --- |
+| Cambio de estado de caso (`changeStatus`) | `CASE_STATUS_CHANGED` | Usuarios asignados al caso salvo el actor |
+| Cancelación de caso (`cancel`) | `CASE_CANCELLED` | Usuarios asignados al caso salvo el actor |
+| Reapertura de caso (`reopen`) | `CASE_REOPENED` | Usuarios asignados al caso salvo el actor |
+| Documento subido por usuario | `DOCUMENT_UPLOADED` | Usuarios asignados al caso salvo el subidor |
+| Documento subido por cliente (Portal) | `DOCUMENT_UPLOADED` | Usuarios asignados al caso |
+| Documento revisado (aprobado/rechazado) | `DOCUMENT_REVIEWED` | Quien subió la versión revisada (usuario o cliente Portal) |
+| Documento publicado en Portal | `DOCUMENT_PUBLISHED` | Clientes del caso (`recipient_client_id`) |
+| Mensaje nuevo (usuario) | `NEW_MESSAGE` | Usuarios asignados del caso salvo el autor; en conversación CLIENT también sus participantes cliente (Portal) |
+| Mensaje nuevo (cliente Portal) | `NEW_MESSAGE` | Usuarios asignados del caso |
 
 ## 17D. Integrations
 
@@ -244,6 +261,8 @@ API separada por permisos, no necesariamente por dominio físico:
 - POST /portal/messages/{messageId}/attachments
 - GET /portal/messages/{messageId}/attachments
 - GET /portal/notifications
+- GET /portal/notifications/unread-count (Sprint 25: contador de no leídas del badge Portal)
+- PATCH /portal/notifications/{id}/read (Sprint 19, ADR-PROCESS-007)
 - PATCH /portal/profile
 
 `POST/GET /portal/messages/{messageId}/attachments` reutiliza `message_attachments` (`ADR-COMMS-001`); no crea un `DOCUMENT` del pipeline formal. Cada llamada evalúa `tenant + case + participant + visibility` antes del permiso, y aplica las mismas reglas de storage (MIME/tamaño/checksum/descarga mediada por backend) que el resto de ficheros del sistema.

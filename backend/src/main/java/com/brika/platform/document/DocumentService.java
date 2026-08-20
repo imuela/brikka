@@ -4,6 +4,9 @@ import com.brika.platform.activity.ActivityPublisher;
 import com.brika.platform.activity.CaseActivityEvent;
 import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
+import com.brika.platform.notification.NotificationPublisher;
+import com.brika.platform.notification.NotificationRecipients;
+import com.brika.platform.notification.NotificationType;
 import com.brika.platform.storage.DocumentStorageKey;
 import com.brika.platform.storage.StorageClient;
 import com.brika.platform.storage.StorageProperties;
@@ -12,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -44,6 +48,8 @@ public class DocumentService {
   private final StorageClient storageClient;
   private final StorageProperties storageProperties;
   private final ActivityPublisher activityPublisher;
+  private final NotificationPublisher notificationPublisher;
+  private final NotificationRecipients notificationRecipients;
 
   public DocumentService(
       DocumentRepository documentRepository,
@@ -51,13 +57,17 @@ public class DocumentService {
       DocumentPublicationRepository documentPublicationRepository,
       StorageClient storageClient,
       StorageProperties storageProperties,
-      ActivityPublisher activityPublisher) {
+      ActivityPublisher activityPublisher,
+      NotificationPublisher notificationPublisher,
+      NotificationRecipients notificationRecipients) {
     this.documentRepository = documentRepository;
     this.documentVersionRepository = documentVersionRepository;
     this.documentPublicationRepository = documentPublicationRepository;
     this.storageClient = storageClient;
     this.storageProperties = storageProperties;
     this.activityPublisher = activityPublisher;
+    this.notificationPublisher = notificationPublisher;
+    this.notificationRecipients = notificationRecipients;
   }
 
   @Transactional
@@ -103,6 +113,20 @@ public class DocumentService {
             uploadedBy,
             "Document version " + versionNumber + " uploaded (" + originalFilename + ")"));
 
+    notificationPublisher.notifyUsers(
+        document.companyId(),
+        NotificationType.DOCUMENT_UPLOADED,
+        notificationRecipients.assignedUsersExcept(document.caseId(), uploadedBy),
+        Map.of(
+            "caseId",
+            document.caseId(),
+            "documentId",
+            document.id(),
+            "versionNumber",
+            versionNumber,
+            "filename",
+            originalFilename));
+
     return documentVersionRepository.findById(versionId).orElseThrow();
   }
 
@@ -145,6 +169,20 @@ public class DocumentService {
             document.caseId(),
             uploadedByClientId,
             "Document version " + versionNumber + " uploaded (" + originalFilename + ")"));
+
+    notificationPublisher.notifyUsers(
+        document.companyId(),
+        NotificationType.DOCUMENT_UPLOADED,
+        notificationRecipients.assignedUsers(document.caseId()),
+        Map.of(
+            "caseId",
+            document.caseId(),
+            "documentId",
+            document.id(),
+            "versionNumber",
+            versionNumber,
+            "filename",
+            originalFilename));
 
     return documentVersionRepository.findById(versionId).orElseThrow();
   }
@@ -191,7 +229,38 @@ public class DocumentService {
     }
     documentVersionRepository.review(document.currentVersionId(), decision, reviewerId, comment);
     documentRepository.updateStatus(document.id(), decision);
-    return documentVersionRepository.findById(document.currentVersionId()).orElseThrow();
+    DocumentVersion version =
+        documentVersionRepository.findById(document.currentVersionId()).orElseThrow();
+    notifyUploaderOfReview(document, decision, version);
+    return version;
+  }
+
+  /**
+   * Notifies whoever uploaded the version under review (user or Portal client) of the decision —
+   * the actor/reviewer is never the recipient.
+   */
+  private void notifyUploaderOfReview(
+      Document document, ReviewStatus decision, DocumentVersion version) {
+    Map<String, Object> payload =
+        Map.of(
+            "caseId", document.caseId(),
+            "documentId", document.id(),
+            "versionNumber", version.versionNumber(),
+            "filename", version.originalFilename(),
+            "decision", decision.name());
+    if (version.uploadedBy() != null) {
+      notificationPublisher.notifyUsers(
+          document.companyId(),
+          NotificationType.DOCUMENT_REVIEWED,
+          List.of(version.uploadedBy()),
+          payload);
+    } else if (version.uploadedByClientId() != null) {
+      notificationPublisher.notifyClients(
+          document.companyId(),
+          NotificationType.DOCUMENT_REVIEWED,
+          List.of(version.uploadedByClientId()),
+          payload);
+    }
   }
 
   @Transactional
@@ -204,6 +273,13 @@ public class DocumentService {
     UUID id =
         documentPublicationRepository.insert(
             document.companyId(), document.id(), document.currentVersionId(), publishedBy);
+    notificationPublisher.notifyClients(
+        document.companyId(),
+        NotificationType.DOCUMENT_PUBLISHED,
+        notificationRecipients.caseClients(document.caseId()),
+        Map.of(
+            "caseId", document.caseId(),
+            "documentId", document.id()));
     return documentPublicationRepository
         .findActiveByDocumentId(document.id())
         .filter(p -> p.id().equals(id))

@@ -4,6 +4,7 @@ import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.crm.ClientPortalAccount;
 import com.brika.platform.notification.Notification;
 import com.brika.platform.notification.NotificationRepository;
+import com.brika.platform.notification.web.NotificationUnreadCountResponse;
 import com.brika.platform.portal.PortalAuthorizationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -45,6 +46,14 @@ public class PortalNotificationController {
     return notificationRepository.findAllByRecipientClientId(account.clientId()).stream()
         .map(n -> PortalNotificationResponse.from(n, objectMapper))
         .toList();
+  }
+
+  @GetMapping("/api/v1/portal/notifications/unread-count")
+  public NotificationUnreadCountResponse unreadCount(Authentication authentication) {
+    portalAuthorizationService.requirePermission(authentication, "PORTAL_NOTIFICATION_READ");
+    ClientPortalAccount account = portalAuthorizationService.currentAccount(authentication);
+    return new NotificationUnreadCountResponse(
+        notificationRepository.countUnreadByRecipientClientId(account.clientId()));
   }
 
   @PatchMapping("/api/v1/portal/notifications/{id}/read")

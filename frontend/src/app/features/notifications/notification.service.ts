@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { ApiClient } from '../../core/http/api-client';
 import { AppNotification } from './notification.model';
@@ -13,6 +13,13 @@ export class NotificationService {
 
   list(): Observable<AppNotification[]> {
     return this.apiClient.get<AppNotification[]>('/api/v1/notifications');
+  }
+
+  /** Sprint 25: unread count for the nav badge, scoped server-side to the calling user. */
+  unreadCount(): Observable<number> {
+    return this.apiClient
+      .get<{ count: number }>('/api/v1/notifications/unread-count')
+      .pipe(map((r) => r.count));
   }
 
   markRead(id: string): Observable<AppNotification> {
