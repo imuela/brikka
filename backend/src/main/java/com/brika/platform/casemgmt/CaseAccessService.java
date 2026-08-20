@@ -36,14 +36,24 @@ public class CaseAccessService {
       Authentication authentication, String permissionCode, UUID caseId) {
     authorizationService.requirePermission(authentication, permissionCode);
     User user = authorizationService.currentUser(authentication);
-    UUID tenantId = authorizationService.requireTenant(authentication);
 
     Case theCase =
         caseRepository
             .findById(caseId)
-            .filter(c -> tenantId.equals(c.companyId()))
             .orElseThrow(() -> new ResourceNotFoundException("CASE_NOT_FOUND", "Case not found."));
 
+    if (user.role() == UserRole.SUPERADMIN) {
+      // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL (platform admin, mirroring
+      // CompanyController).
+      // The tenant is resolved from the resource being accessed, not from the principal (SUPERADMIN
+      // has no company). Permissions are still checked above; this is not a blanket bypass.
+      return new CaseAccessResult(user, theCase.companyId(), theCase);
+    }
+
+    UUID tenantId = authorizationService.requireTenant(authentication);
+    if (!tenantId.equals(theCase.companyId())) {
+      throw new ResourceNotFoundException("CASE_NOT_FOUND", "Case not found.");
+    }
     if (user.role() == UserRole.BROKER
         && !caseAssignmentRepository.hasActiveAssignment(caseId, user.id())) {
       throw new AccessDeniedException("No active case assignment for this case.");

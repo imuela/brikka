@@ -399,6 +399,8 @@ class ScoringEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotRunOrReadScoring() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — scoring is case-scoped and the tenant is
+    // resolved from the case, so the endpoints are now accessible (200).
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-se9");
     UUID companyId = companyRepository.insert("Co SE9", "Co SE9", "TC-SE9");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-se9");
@@ -408,12 +410,12 @@ class ScoringEndpointsIT {
         .perform(
             post("/api/v1/cases/" + caseId + "/scoring/run")
                 .header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
     mockMvc
         .perform(
             get("/api/v1/cases/" + caseId + "/scoring/results")
                 .header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

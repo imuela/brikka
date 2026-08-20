@@ -108,8 +108,11 @@ public class TaskController {
   @GetMapping("/api/v1/tasks")
   public List<TaskResponse> list(Authentication authentication) {
     authorizationService.requirePermission(authentication, "TASK_READ");
-    UUID tenantId = authorizationService.requireTenant(authentication);
     User user = authorizationService.currentUser(authentication);
+    if (authorizationService.isSuperadmin(authentication)) {
+      return taskRepository.findAll().stream().map(TaskResponse::from).toList();
+    }
+    UUID tenantId = authorizationService.requireTenant(authentication);
     boolean restrictToAssignedCases = user.role() == UserRole.BROKER;
     return taskRepository
         .findAllVisibleToUser(tenantId, restrictToAssignedCases, user.id())
@@ -212,7 +215,12 @@ public class TaskController {
     }
 
     authorizationService.requirePermission(authentication, permissionCode);
-    UUID tenantId = authorizationService.requireTenant(authentication);
+    UUID tenantId;
+    if (authorizationService.isSuperadmin(authentication)) {
+      tenantId = task.companyId(); // GLOBAL (ADR-RBAC-002): tenant resolved from the resource.
+    } else {
+      tenantId = authorizationService.requireTenant(authentication);
+    }
     if (!task.companyId().equals(tenantId)) {
       throw new ResourceNotFoundException("TASK_NOT_FOUND", "Task not found.");
     }

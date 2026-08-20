@@ -123,6 +123,10 @@ UNIQUE(company_id): una suscripción activa por empresa en V1.
 - created_at
 - updated_at
 
+Sprint 27 (Bloque 3, `FUNCTIONAL_SPECIFICATION.md` §6): columnas ampliadas, todas nullable/opcionales —
+`document_type` varchar(30), `document_number` varchar(50), `date_of_birth` date, `nationality`
+varchar(100), `address` varchar(255), `employment_status` varchar(50). Migración `V18`.
+
 ### client_portal_accounts
 - id uuid PK
 - company_id FK
@@ -141,6 +145,8 @@ UNIQUE(company_id): una suscripción activa por empresa en V1.
 - reference
 - status
 - operation_type
+- requested_amount numeric(14,2) nullable — Sprint 27: importe inicialmente solicitado (metadato resumen del expediente, distinto de los importes de financing/simulation)
+- description text nullable — Sprint 27: información inicial / notas de la operación
 - created_by
 - created_at
 - updated_at

@@ -68,11 +68,16 @@ public class CaseController {
   public List<CaseResponse> list(Authentication authentication) {
     authorizationService.requirePermission(authentication, "CASE_READ");
     User user = authorizationService.currentUser(authentication);
-    UUID tenantId = authorizationService.requireTenant(authentication);
-    List<Case> cases =
-        user.role() == UserRole.BROKER
-            ? caseRepository.findAllAssignedToUser(tenantId, user.id())
-            : caseRepository.findAllByCompanyId(tenantId);
+    List<Case> cases;
+    if (authorizationService.isSuperadmin(authentication)) {
+      cases = caseRepository.findAll();
+    } else {
+      UUID tenantId = authorizationService.requireTenant(authentication);
+      cases =
+          user.role() == UserRole.BROKER
+              ? caseRepository.findAllAssignedToUser(tenantId, user.id())
+              : caseRepository.findAllByCompanyId(tenantId);
+    }
     return cases.stream().map(CaseResponse::from).toList();
   }
 
@@ -82,7 +87,13 @@ public class CaseController {
     authorizationService.requirePermission(authentication, "CASE_CREATE");
     User user = authorizationService.currentUser(authentication);
     UUID tenantId = authorizationService.requireTenant(authentication);
-    return CaseResponse.from(caseService.createCase(tenantId, user.id(), request.operationType()));
+    return CaseResponse.from(
+        caseService.createCase(
+            tenantId,
+            user.id(),
+            request.operationType(),
+            request.requestedAmount(),
+            request.description()));
   }
 
   @GetMapping("/{id}")
@@ -98,7 +109,12 @@ public class CaseController {
       @RequestBody UpdateCaseApiRequest request) {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CASE_UPDATE", id);
-    Case updated = caseService.updateOperationType(access.theCase(), request.operationType());
+    Case updated =
+        caseService.updateDetails(
+            access.theCase(),
+            request.operationType(),
+            request.requestedAmount(),
+            request.description());
     auditEventWriter.write(
         access.tenantId(),
         access.user().id(),

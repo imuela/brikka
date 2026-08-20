@@ -61,7 +61,7 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(17);
+    assertThat(appliedMigrations).isEqualTo(19);
 
     Integer tableCount =
         jdbc.queryForObject(

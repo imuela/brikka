@@ -460,6 +460,8 @@ class BankMatchOverrideEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotOverride() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — overrides target case-scoped rule results
+    // whose tenant is resolved from the case, so the endpoint is now accessible (200).
     Fixture fx = failingSingleRuleFixture("9");
     String matchResponse = runMatching(fx.manager(), fx.caseId(), fx.bankId());
     UUID ruleResultId = ruleResultId(matchResponse, 0);
@@ -470,7 +472,7 @@ class BankMatchOverrideEndpointsIT {
                 .header("Authorization", fx.superadmin().bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(overrideBody("FAIL", "PASS", "Superadmin attempt")))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

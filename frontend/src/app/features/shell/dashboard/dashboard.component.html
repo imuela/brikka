@@ -2,9 +2,73 @@
   <h1>Panel</h1>
 </div>
 
-<mat-card>
-  <mat-card-content>
-    <p><strong>Email:</strong> {{ sessionStore.user()?.email }}</p>
-    <p><strong>Rol:</strong> {{ sessionStore.role() | statusLabel: roleLabels }}</p>
-  </mat-card-content>
-</mat-card>
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+}
+
+@if (dashboard() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <div class="dashboard-cards">
+    <mat-card>
+      <mat-card-content>
+        <div class="metric-value">{{ dashboard()!.activeCases }}</div>
+        <div class="metric-label">Operaciones activas</div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content>
+        <div class="metric-value">{{ dashboard()!.pendingTasks }}</div>
+        <div class="metric-label">Tareas pendientes</div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content>
+        <div class="metric-value">{{ dashboard()!.overdueTasks }}</div>
+        <div class="metric-label">Tareas vencidas</div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content>
+        <div class="metric-value">{{ dashboard()!.pendingDocumentRequests }}</div>
+        <div class="metric-label">Documentación pendiente</div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="section">
+    <h2>Operaciones por estado</h2>
+    @if (dashboard()!.casesByStatus | keyvalue; as entries) {
+      <div class="status-breakdown">
+        @for (entry of entries; track entry.key) {
+          <span class="status-chip">
+            {{ entry.key | statusLabel: caseStatusLabels }}: {{ entry.value }}
+          </span>
+        }
+      </div>
+    } @else {
+      <p>Sin operaciones.</p>
+    }
+  </div>
+
+  <div class="section">
+    <h2>Actividad reciente</h2>
+    @if (dashboard()!.recentActivity.length === 0) {
+      <p>Sin actividad todavía.</p>
+    } @else {
+      <ul class="activity-list">
+        @for (activity of dashboard()!.recentActivity; track activity.id) {
+          <li>
+            <strong>{{ activity.summary }}</strong>
+            <span class="activity-meta">
+              {{ activity.createdAt | date: 'dd/MM/yyyy HH:mm' }}
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+}

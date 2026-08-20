@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 
@@ -25,6 +26,7 @@ import { CasesService } from '../cases.service';
   imports: [
     ReactiveFormsModule,
     MatFormFieldModule,
+    MatInputModule,
     MatSelectModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -46,14 +48,21 @@ export class CaseFormComponent {
   readonly operationTypes = OPERATION_TYPES;
   readonly operationTypeLabels = OPERATION_TYPE_LABELS;
 
-  readonly form = this.fb.nonNullable.group({
+  readonly form = this.fb.group({
     operationType: ['', Validators.required],
+    requestedAmount: [null as number | null],
+    description: [''],
   });
 
   constructor() {
     if (this.caseId) {
       this.casesService.get(this.caseId).subscribe({
-        next: (theCase) => this.form.patchValue({ operationType: theCase.operationType }),
+        next: (theCase) =>
+          this.form.patchValue({
+            operationType: theCase.operationType,
+            requestedAmount: theCase.requestedAmount,
+            description: theCase.description ?? '',
+          }),
         error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
       });
     }
@@ -66,7 +75,12 @@ export class CaseFormComponent {
     }
     this.loading.set(true);
     this.error.set(null);
-    const value = this.form.getRawValue();
+    const v = this.form.getRawValue();
+    const value = {
+      operationType: v.operationType ?? '',
+      requestedAmount: v.requestedAmount ?? null,
+      description: v.description || null,
+    };
     const request$ = this.caseId
       ? this.casesService.update(this.caseId, value)
       : this.casesService.create(value);

@@ -13,8 +13,8 @@ import org.springframework.stereotype.Repository;
 public class CaseRepository {
 
   private static final String SELECT =
-      "SELECT id, company_id, reference, status, operation_type, created_by, created_at,"
-          + " cancelled_at FROM cases";
+      "SELECT id, company_id, reference, status, operation_type, requested_amount, description,"
+          + " created_by, created_at, cancelled_at FROM cases";
 
   private static final RowMapper<Case> ROW_MAPPER =
       (rs, rowNum) ->
@@ -24,6 +24,8 @@ public class CaseRepository {
               rs.getString("reference"),
               CaseStatus.valueOf(rs.getString("status")),
               rs.getString("operation_type"),
+              rs.getBigDecimal("requested_amount"),
+              rs.getString("description"),
               (UUID) rs.getObject("created_by"),
               rs.getTimestamp("created_at").toInstant(),
               rs.getTimestamp("cancelled_at") == null
@@ -40,15 +42,23 @@ public class CaseRepository {
    * reference is always server-generated (never accepted from a client — no doc specifies
    * caller-supplied references).
    */
-  public UUID insert(UUID companyId, String reference, String operationType, UUID createdBy) {
+  public UUID insert(
+      UUID companyId,
+      String reference,
+      String operationType,
+      java.math.BigDecimal requestedAmount,
+      String description,
+      UUID createdBy) {
     return jdbcTemplate.queryForObject(
-        "INSERT INTO cases (company_id, reference, status, operation_type, created_by) VALUES"
-            + " (?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO cases (company_id, reference, status, operation_type, requested_amount,"
+            + " description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
         UUID.class,
         companyId,
         reference,
         CaseStatus.PRESTUDY.name(),
         operationType,
+        requestedAmount,
+        description,
         createdBy);
   }
 
@@ -60,6 +70,11 @@ public class CaseRepository {
   public List<Case> findAllByCompanyId(UUID companyId) {
     return jdbcTemplate.query(
         SELECT + " WHERE company_id = ? ORDER BY created_at DESC", ROW_MAPPER, companyId);
+  }
+
+  /** Sprint 27 (ADR-RBAC-002): GLOBAL read for SUPERADMIN across all companies. */
+  public List<Case> findAll() {
+    return jdbcTemplate.query(SELECT + " ORDER BY created_at DESC", ROW_MAPPER);
   }
 
   public List<Case> findAllAssignedToUser(UUID companyId, UUID userId) {
@@ -86,6 +101,18 @@ public class CaseRepository {
   public void updateOperationType(UUID id, String operationType) {
     jdbcTemplate.update(
         "UPDATE cases SET operation_type = ?, updated_at = now() WHERE id = ?", operationType, id);
+  }
+
+  /** Sprint 27, Bloque 4: PATCH updates the operation's editable details (type, amount, notes). */
+  public void updateDetails(
+      UUID id, String operationType, java.math.BigDecimal requestedAmount, String description) {
+    jdbcTemplate.update(
+        "UPDATE cases SET operation_type = ?, requested_amount = ?, description = ?, updated_at"
+            + " = now() WHERE id = ?",
+        operationType,
+        requestedAmount,
+        description,
+        id);
   }
 
   /** cancelledAt is set on transition to CANCELLED, and cleared (null) when reopening from it. */

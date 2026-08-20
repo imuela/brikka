@@ -1,9 +1,15 @@
 <div class="page-header">
   <h1>Casos</h1>
-  <a *appHasPermission="'CASE_CREATE'" mat-flat-button color="primary" routerLink="/app/cases/new">
-    <mat-icon>add</mat-icon>
-    Nuevo caso
-  </a>
+  <ng-container *appHasPermission="'CASE_CREATE'">
+    <a
+      *appHideForRole="'SUPERADMIN'"
+      mat-flat-button
+      color="primary"
+      routerLink="/app/cases/new">
+      <mat-icon>add</mat-icon>
+      Nuevo caso
+    </a>
+  </ng-container>
 </div>
 
 @if (error()) {

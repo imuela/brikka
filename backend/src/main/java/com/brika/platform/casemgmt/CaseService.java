@@ -60,8 +60,25 @@ public class CaseService {
 
   @Transactional
   public Case createCase(UUID tenantId, UUID createdBy, String operationType) {
+    return createCase(tenantId, createdBy, operationType, null, null);
+  }
+
+  @Transactional
+  public Case createCase(UUID tenantId, UUID createdBy, String operationType, String description) {
+    return createCase(tenantId, createdBy, operationType, null, description);
+  }
+
+  @Transactional
+  public Case createCase(
+      UUID tenantId,
+      UUID createdBy,
+      String operationType,
+      java.math.BigDecimal requestedAmount,
+      String description) {
     String reference = generateReference();
-    UUID id = caseRepository.insert(tenantId, reference, operationType, createdBy);
+    UUID id =
+        caseRepository.insert(
+            tenantId, reference, operationType, requestedAmount, description, createdBy);
     activityPublisher.publish(
         CaseActivityEvent.byUser(
             "CaseCreated", tenantId, id, createdBy, "Case " + reference + " created"));
@@ -77,6 +94,17 @@ public class CaseService {
   @Transactional
   public Case updateOperationType(Case theCase, String operationType) {
     caseRepository.updateOperationType(theCase.id(), operationType);
+    return caseRepository.findById(theCase.id()).orElseThrow();
+  }
+
+  /** Sprint 27, Bloque 4: PATCH edits the operation's editable details (type, amount, notes). */
+  @Transactional
+  public Case updateDetails(
+      Case theCase,
+      String operationType,
+      java.math.BigDecimal requestedAmount,
+      String description) {
+    caseRepository.updateDetails(theCase.id(), operationType, requestedAmount, description);
     return caseRepository.findById(theCase.id()).orElseThrow();
   }
 

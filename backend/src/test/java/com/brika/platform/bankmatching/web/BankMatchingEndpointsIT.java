@@ -425,11 +425,13 @@ class BankMatchingEndpointsIT {
         superadmin, bankId, List.of(ltvRule("max-ltv-80", "LESS_THAN_OR_EQUAL", 0.80, "FAIL")));
     UUID caseId = createCase(manager);
 
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — matching is case-scoped and the tenant is
+    // resolved from the case, so the endpoint is now accessible (200).
     mockMvc
         .perform(
             post("/api/v1/cases/" + caseId + "/banks/" + bankId + "/matching")
                 .header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

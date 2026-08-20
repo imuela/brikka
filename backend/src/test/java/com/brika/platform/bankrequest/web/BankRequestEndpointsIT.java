@@ -398,6 +398,8 @@ class BankRequestEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotAccessBankRequests() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — bank requests are case-scoped and the tenant
+    // is resolved from the case, so the endpoint is now accessible (200, empty list).
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-br8");
     UUID companyId = companyRepository.insert("Co BR8", "Co BR8", "TC-BR8");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-br8");
@@ -407,7 +409,7 @@ class BankRequestEndpointsIT {
         .perform(
             get("/api/v1/cases/" + caseId + "/bank-requests")
                 .header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

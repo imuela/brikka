@@ -47,13 +47,15 @@ export type OperationType = (typeof OPERATION_TYPES)[number];
 export const ASSIGNMENT_TYPES = ['PRIMARY', 'SECONDARY', 'REVIEWER'] as const;
 export type AssignmentType = (typeof ASSIGNMENT_TYPES)[number];
 
-/** Mirrors backend CaseResponse. */
+/** Mirrors backend CaseResponse (Sprint 27, Bloque 4 adds requestedAmount/description). */
 export interface Case {
   id: string;
   companyId: string;
   reference: string;
   status: string;
   operationType: string;
+  requestedAmount: number | null;
+  description: string | null;
   createdBy: string;
   createdAt: string;
   cancelledAt: string | null;
@@ -78,14 +80,19 @@ export interface CaseClient {
 }
 
 /** Mirrors backend CreateCaseApiRequest. `operationType` is `string` (see note on
- * ChangeCaseStatusRequest.newStatus above) — populated from OPERATION_TYPES. */
+ * ChangeCaseStatusRequest.newStatus above) — populated from OPERATION_TYPES. Sprint 27, Bloque 4
+ * adds optional requestedAmount/description. */
 export interface CreateCaseRequest {
   operationType: string;
+  requestedAmount?: number | null;
+  description?: string | null;
 }
 
-/** Mirrors backend UpdateCaseApiRequest. */
+/** Mirrors backend UpdateCaseApiRequest (Sprint 27, Bloque 4). */
 export interface UpdateCaseRequest {
   operationType: string;
+  requestedAmount?: number | null;
+  description?: string | null;
 }
 
 /** Mirrors backend ChangeCaseStatusApiRequest. `newStatus` is typed as `string` (not `CaseStatus`)

@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -22,6 +23,7 @@ import { ClientsService } from '../clients.service';
     MatProgressSpinnerModule,
     HasPermissionDirective,
     StatusLabelPipe,
+    DatePipe,
   ],
   templateUrl: './client-detail.component.html',
 })

@@ -1,9 +1,15 @@
 <div class="page-header">
   <h1>Tareas</h1>
-  <button *appHasPermission="'TASK_CREATE'" mat-flat-button color="primary" (click)="openCreate()">
-    <mat-icon>add</mat-icon>
-    Nueva tarea
-  </button>
+  <ng-container *appHasPermission="'TASK_CREATE'">
+    <button
+      *appHideForRole="'SUPERADMIN'"
+      mat-flat-button
+      color="primary"
+      (click)="openCreate()">
+      <mat-icon>add</mat-icon>
+      Nueva tarea
+    </button>
+  </ng-container>
 </div>
 
 @if (error()) {

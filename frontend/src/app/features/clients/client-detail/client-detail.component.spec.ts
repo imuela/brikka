@@ -37,7 +37,7 @@ describe('ClientDetailComponent', () => {
 
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
-      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', status: 'ACTIVE' });
+      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
@@ -49,7 +49,7 @@ describe('ClientDetailComponent', () => {
     fixture.detectChanges();
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
-      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', status: 'ACTIVE' });
+      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Editar');

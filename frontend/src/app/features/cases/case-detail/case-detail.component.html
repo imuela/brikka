@@ -26,6 +26,12 @@
         <strong>Estado:</strong>
         <app-status-badge [value]="theCase()!.status" [labels]="caseStatusLabels" />
       </p>
+      @if (theCase()!.requestedAmount !== null) {
+        <p><strong>Importe solicitado:</strong> {{ theCase()!.requestedAmount | number: '1.2-2' }} €</p>
+      }
+      @if (theCase()!.description) {
+        <p><strong>Descripción:</strong> {{ theCase()!.description }}</p>
+      }
       <p><strong>Creado:</strong> {{ theCase()!.createdAt | date: 'dd/MM/yyyy HH:mm' }}</p>
       @if (theCase()!.cancelledAt) {
         <p><strong>Cancelado:</strong> {{ theCase()!.cancelledAt | date: 'dd/MM/yyyy HH:mm' }}</p>

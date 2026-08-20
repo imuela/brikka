@@ -2,6 +2,7 @@ package com.brika.platform.security;
 
 import com.brika.platform.identity.PermissionResolutionService;
 import com.brika.platform.identity.User;
+import com.brika.platform.identity.UserRole;
 import com.brika.platform.tenant.NoActiveTenantException;
 import com.brika.platform.tenant.TenantAccessGuard;
 import com.brika.platform.tenant.TenantContext;
@@ -32,6 +33,17 @@ public class AuthorizationService {
       throw new AccessDeniedException("No authenticated Brika user");
     }
     return token.user();
+  }
+
+  /**
+   * Sprint 27 (ADR-RBAC-002): SUPERADMIN is the platform administrator. Tenant-scoped resources
+   * resolve their tenant from the resource being accessed (see CaseAccessService), so this helper
+   * is used by controllers to branch into the GLOBAL scope instead of requireTenant. It is never a
+   * blanket "return true" bypass: permission checks still run, and tenant isolation among real
+   * tenant users (MANAGER/BROKER/CLIENT) is unchanged.
+   */
+  public boolean isSuperadmin(Authentication authentication) {
+    return currentUser(authentication).role() == UserRole.SUPERADMIN;
   }
 
   public void requirePermission(Authentication authentication, String permissionCode) {

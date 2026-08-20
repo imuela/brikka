@@ -17,6 +17,12 @@ describe('ClientsService', () => {
     lastName: 'Lovelace',
     email: 'ada@brika.test',
     phone: '600000000',
+    documentType: null,
+    documentNumber: null,
+    dateOfBirth: null,
+    nationality: null,
+    address: null,
+    employmentStatus: null,
     status: 'ACTIVE',
   };
 

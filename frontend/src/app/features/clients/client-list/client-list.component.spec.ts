@@ -33,7 +33,7 @@ describe('ClientListComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients`)
       .flush([
-        { id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'a@b.test', phone: '1', status: 'ACTIVE' },
+        { id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'a@b.test', phone: '1', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' },
       ]);
     fixture.detectChanges();
 
@@ -64,5 +64,24 @@ describe('ClientListComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Nuevo cliente');
+  });
+
+  it('hides "Nuevo cliente" for a GLOBAL SUPERADMIN even with CLIENT_CREATE', () => {
+    const fixture = TestBed.createComponent(ClientListComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/clients`).flush([]);
+    fixture.detectChanges();
+
+    sessionStore.setPermissions(['CLIENT_CREATE']);
+    sessionStore.setUser({
+      id: 's1',
+      email: 's@brika.test',
+      role: 'SUPERADMIN',
+      companyId: null,
+      entitlements: {},
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Nuevo cliente');
   });
 });

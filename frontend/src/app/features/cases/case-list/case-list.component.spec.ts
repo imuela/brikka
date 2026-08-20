@@ -41,6 +41,8 @@ describe('CaseListComponent', () => {
           operationType: 'MORTGAGE',
           createdBy: 'u1',
           createdAt: '2026-08-17T10:00:00Z',
+          requestedAmount: null,
+          description: null,
           cancelledAt: null,
         },
       ]);

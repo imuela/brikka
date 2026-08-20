@@ -42,6 +42,9 @@ public class ClientController {
   @GetMapping
   public List<ClientResponse> list(Authentication authentication) {
     authorizationService.requirePermission(authentication, "CLIENT_READ");
+    if (authorizationService.isSuperadmin(authentication)) {
+      return clientRepository.findAll().stream().map(ClientResponse::from).toList();
+    }
     UUID tenantId = authorizationService.requireTenant(authentication);
     return clientRepository.findAllByCompanyId(tenantId).stream()
         .map(ClientResponse::from)
@@ -51,6 +54,9 @@ public class ClientController {
   @GetMapping("/{id}")
   public ClientResponse get(Authentication authentication, @PathVariable UUID id) {
     authorizationService.requirePermission(authentication, "CLIENT_READ");
+    if (authorizationService.isSuperadmin(authentication)) {
+      return ClientResponse.from(requireClient(id));
+    }
     UUID tenantId = authorizationService.requireTenant(authentication);
     return ClientResponse.from(requireClientInTenant(id, tenantId));
   }
@@ -62,7 +68,17 @@ public class ClientController {
     UUID tenantId = authorizationService.requireTenant(authentication);
     UUID id =
         clientRepository.insert(
-            tenantId, request.firstName(), request.lastName(), request.email(), request.phone());
+            tenantId,
+            request.firstName(),
+            request.lastName(),
+            request.email(),
+            request.phone(),
+            request.documentType(),
+            request.documentNumber(),
+            request.dateOfBirth(),
+            request.nationality(),
+            request.address(),
+            request.employmentStatus());
     return ClientResponse.from(clientRepository.findById(id).orElseThrow());
   }
 
@@ -75,7 +91,17 @@ public class ClientController {
     UUID tenantId = authorizationService.requireTenant(authentication);
     requireClientInTenant(id, tenantId);
     clientRepository.update(
-        id, request.firstName(), request.lastName(), request.email(), request.phone());
+        id,
+        request.firstName(),
+        request.lastName(),
+        request.email(),
+        request.phone(),
+        request.documentType(),
+        request.documentNumber(),
+        request.dateOfBirth(),
+        request.nationality(),
+        request.address(),
+        request.employmentStatus());
     // Sprint 12 D12-2 (ADR-AUDIT-002): only the client id is recorded, never the updated field
     // values — conservative default to avoid persisting client PII inside audit_events.metadata.
     auditEventWriter.write(
@@ -94,6 +120,12 @@ public class ClientController {
     return clientRepository
         .findById(id)
         .filter(client -> tenantId.equals(client.companyId()))
+        .orElseThrow(() -> new ResourceNotFoundException("CLIENT_NOT_FOUND", "Client not found."));
+  }
+
+  private Client requireClient(UUID id) {
+    return clientRepository
+        .findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("CLIENT_NOT_FOUND", "Client not found."));
   }
 }

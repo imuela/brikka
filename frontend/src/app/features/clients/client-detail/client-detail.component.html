@@ -18,6 +18,24 @@
     <mat-card-content>
       <p><strong>Email:</strong> {{ client()!.email }}</p>
       <p><strong>Teléfono:</strong> {{ client()!.phone }}</p>
+      @if (client()!.documentType || client()!.documentNumber) {
+        <p>
+          <strong>Documento:</strong>
+          {{ client()!.documentType }} {{ client()!.documentNumber }}
+        </p>
+      }
+      @if (client()!.dateOfBirth) {
+        <p><strong>Fecha de nacimiento:</strong> {{ client()!.dateOfBirth | date: 'dd/MM/yyyy' }}</p>
+      }
+      @if (client()!.nationality) {
+        <p><strong>Nacionalidad:</strong> {{ client()!.nationality }}</p>
+      }
+      @if (client()!.address) {
+        <p><strong>Dirección:</strong> {{ client()!.address }}</p>
+      }
+      @if (client()!.employmentStatus) {
+        <p><strong>Situación laboral:</strong> {{ client()!.employmentStatus }}</p>
+      }
       <p><strong>Estado:</strong> {{ client()!.status | statusLabel: clientStatusLabels }}</p>
     </mat-card-content>
   </mat-card>

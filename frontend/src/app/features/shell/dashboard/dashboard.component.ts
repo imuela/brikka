@@ -1,19 +1,38 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
-import { SessionStore } from '../../../core/session/session.store';
-import { ROLE_LABELS } from '../../../shared/labels/status-labels';
+import { ApiError } from '../../../core/http/api-error';
+import { friendlyErrorMessage } from '../../../core/http/error-messages';
+import { CASE_STATUS_LABELS } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
+import { DashboardService } from './dashboard.service';
+import { Dashboard } from './dashboard.model';
 
-/** Sprint 13 foundation placeholder — proves the shell/session pipeline works end-to-end. No
- * business content; Sprint 14+ features replace or extend this. */
+/** Sprint 27, Bloque 2: role-aware operational dashboard replacing the Sprint 13 placeholder. */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [MatCardModule, StatusLabelPipe],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatProgressSpinnerModule,
+    StatusLabelPipe,
+  ],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
-  readonly sessionStore = inject(SessionStore);
-  readonly roleLabels = ROLE_LABELS;
+  private readonly dashboardService = inject(DashboardService);
+
+  readonly dashboard = signal<Dashboard | null>(null);
+  readonly error = signal<string | null>(null);
+  readonly caseStatusLabels = CASE_STATUS_LABELS;
+
+  constructor() {
+    this.dashboardService.getDashboard().subscribe({
+      next: (data) => this.dashboard.set(data),
+      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+    });
+  }
 }

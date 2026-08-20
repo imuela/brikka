@@ -66,6 +66,11 @@ public class TaskRepository {
     return jdbcTemplate.query(SELECT + " WHERE id = ?", ROW_MAPPER, id).stream().findFirst();
   }
 
+  /** Sprint 27 (ADR-RBAC-002): GLOBAL read for SUPERADMIN across all companies. */
+  public List<Task> findAll() {
+    return jdbcTemplate.query(SELECT + " ORDER BY created_at DESC", ROW_MAPPER);
+  }
+
   /**
    * MANAGER/SUPERADMIN see every task in the tenant; BROKER sees caseless tasks plus tasks
    * belonging to cases they are actively assigned to — same CASE ASSIGNMENT rule as everywhere

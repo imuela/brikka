@@ -76,12 +76,24 @@ Sin endpoints de facturación/pago: fuera de V1.
 - PATCH /users/{id}
 - POST /users/{id}/disable
 
+Scope: para MANAGER/BROKER el tenant es siempre el del llamante (resuelto servidor, nunca del cliente).
+Para SUPERADMIN (Sprint 27, ADR-RBAC-002) las lecturas son GLOBALES (todas las empresas). En POST /users,
+SUPERADMIN debe aportar `companyId` (el rol global no tiene empresa propia); para el resto de roles se
+ignora.
+
 ## 6. Clients
 
 - GET /clients
 - POST /clients
 - GET /clients/{id}
 - PATCH /clients/{id}
+
+Lecturas GLOBALES para SUPERADMIN (Sprint 27, ADR-RBAC-002); la creación/edición operativa sigue atada
+al tenant del llamante.
+
+Sprint 27 (Bloque 3): `CreateClientApiRequest`/`UpdateClientApiRequest`/`ClientResponse` amplían el modelo
+con campos opcionales `documentType`, `documentNumber`, `dateOfBirth`, `nationality`, `address`,
+`employmentStatus`. Solo `firstName`/`lastName`/`email`/`phone` son requeridos.
 
 ## 7. Cases
 
@@ -94,6 +106,15 @@ Sin endpoints de facturación/pago: fuera de V1.
 - POST /cases/{id}/status
 - POST /cases/{id}/cancel
 - POST /cases/{id}/reopen
+
+Sprint 27 (ADR-RBAC-002): el acceso scoped por caso (detalle y recursos anidados: property, documentos,
+conversaciones, simulaciones, financiación, ofertas) es GLOBAL para SUPERADMIN — el tenant se resuelve del
+caso. La creación de casos sigue atada al tenant del llamante.
+
+Sprint 27 (Bloque 4): `CreateCaseApiRequest`/`UpdateCaseApiRequest`/`CaseResponse` amplían el modelo con
+`requestedAmount` (BigDecimal, importe inicialmente solicitado) y `description` (String, información/notas
+iniciales de la operación). Ambos son opcionales (la creación heredada solo con `operationType` sigue
+funcionando) y están reflejados en `GET/POST /cases` y `PATCH /cases/{id}`.
 
 ## 8. Property
 
@@ -200,6 +221,10 @@ Timeline funcional de negocio, distinto del audit log (`ADR-AUDIT-001`). Autoriz
 
 - GET /cases/{caseId}/activities
 - GET /activities (dashboard, filtrado por tenant + asignación)
+
+## 17D. Dashboard (Sprint 27, Bloque 2)
+
+`GET /dashboard` — resumen operativo adaptado al rol (`FUNCTIONAL_SPECIFICATION.md` §3). Requiere `ACTIVITY_READ`. Devuelve: `activeCases`, `casesByStatus` (distribución no-terminal), `pendingTasks`, `overdueTasks`, `pendingDocumentRequests` y `recentActivity` (últimas 10). Alcance: MANAGER = toda su empresa; BROKER = solo casos asignados; SUPERADMIN = global (ADR-RBAC-002). CLIENT no tiene acceso (usa el portal).
 
 ## 17C. Notifications
 

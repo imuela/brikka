@@ -149,7 +149,7 @@ class IdentityEndpointsIT {
     String body =
         objectMapper.writeValueAsString(
             new CreateUserApiRequest(
-                "new@brika.test", "New", "User", "BROKER", "ext-" + UUID.randomUUID()));
+                "new@brika.test", "New", "User", "BROKER", "ext-" + UUID.randomUUID(), null));
     mockMvc
         .perform(
             post("/api/v1/users")
@@ -184,11 +184,43 @@ class IdentityEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotAccessUsersEndpoint() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — user reads span all companies (200). The
+    // SUPERADMIN caller itself is always present. Array size varies with other methods, so only
+    // accessibility and the caller's own presence are asserted.
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-us1");
 
     mockMvc
         .perform(get("/api/v1/users").header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(jsonPath("$[?(@.email=='superadmin-us1@brika.test')]").exists());
+  }
+
+  @Test
+  void superadminCreatesUserInExplicitCompany() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): a GLOBAL SUPERADMIN has no company of their own, so user creation
+    // requires an explicit companyId. A tenant user (MANAGER/BROKER) never passes companyId.
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-us2");
+    UUID companyId = companyRepository.insert("Co SU2", "Co SU2", "TC-SU2");
+
+    String body =
+        objectMapper.writeValueAsString(
+            new CreateUserApiRequest(
+                "su-target@brika.test", "First", "Last", "BROKER", "ext-su-target", companyId));
+    mockMvc
+        .perform(
+            post("/api/v1/users")
+                .header("Authorization", superadmin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.companyId").value(companyId.toString()))
+        .andExpect(jsonPath("$.role").value("BROKER"));
+
+    mockMvc
+        .perform(get("/api/v1/users").header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.email=='su-target@brika.test')]").exists());
   }
 
   @Test
@@ -199,7 +231,12 @@ class IdentityEndpointsIT {
     String createBody =
         objectMapper.writeValueAsString(
             new CreateUserApiRequest(
-                "crud-target@brika.test", "Target", "User", "BROKER", "ext-" + UUID.randomUUID()));
+                "crud-target@brika.test",
+                "Target",
+                "User",
+                "BROKER",
+                "ext-" + UUID.randomUUID(),
+                null));
     String response =
         mockMvc
             .perform(
@@ -245,7 +282,8 @@ class IdentityEndpointsIT {
                 "Audit",
                 "Target",
                 "BROKER",
-                "ext-" + UUID.randomUUID()));
+                "ext-" + UUID.randomUUID(),
+                null));
     String response =
         mockMvc
             .perform(

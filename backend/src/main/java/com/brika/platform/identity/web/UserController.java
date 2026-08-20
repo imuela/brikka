@@ -26,10 +26,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 17_API_SPECIFICATION_DETAILED.md §5. Scope is always the caller's own tenant, resolved server-
- * side (AuthorizationService.requireTenant) — company_id is never accepted from the client
- * (06_SECURITY_SPECIFICATION.md §4). In practice only MANAGER/BROKER can pass requireTenant: a
- * SUPERADMIN request is denied since SUPPORT_SESSION is not implemented (ADR-RBAC-001).
+ * 17_API_SPECIFICATION_DETAILED.md §5. For a tenant user (MANAGER/BROKER) scope is always the
+ * caller's own tenant, resolved server-side (AuthorizationService.requireTenant) — company_id is
+ * never accepted from the client (06_SECURITY_SPECIFICATION.md §4). A GLOBAL SUPERADMIN (Sprint 27,
+ * ADR-RBAC-002) reads across all companies and resolves the tenant from the target resource; user
+ * creation for SUPERADMIN requires an explicit companyId (the platform admin has no company of
+ * their own).
  */
 @RestController
 @RequestMapping("/api/v1/users")
@@ -57,6 +59,9 @@ public class UserController {
   @GetMapping
   public List<UserResponse> list(Authentication authentication) {
     authorizationService.requirePermission(authentication, "USER_READ");
+    if (authorizationService.isSuperadmin(authentication)) {
+      return userRepository.findAll().stream().map(UserResponse::from).toList();
+    }
     UUID tenantId = authorizationService.requireTenant(authentication);
     return userRepository.findAllByCompanyId(tenantId).stream().map(UserResponse::from).toList();
   }
@@ -64,6 +69,9 @@ public class UserController {
   @GetMapping("/{id}")
   public UserResponse get(Authentication authentication, @PathVariable UUID id) {
     authorizationService.requirePermission(authentication, "USER_READ");
+    if (authorizationService.isSuperadmin(authentication)) {
+      return UserResponse.from(requireUser(id));
+    }
     UUID tenantId = authorizationService.requireTenant(authentication);
     return UserResponse.from(requireUserInTenant(id, tenantId));
   }
@@ -72,7 +80,12 @@ public class UserController {
   public UserResponse create(
       Authentication authentication, @RequestBody CreateUserApiRequest request) {
     authorizationService.requirePermission(authentication, "USER_CREATE");
-    UUID tenantId = authorizationService.requireTenant(authentication);
+    UUID tenantId;
+    if (authorizationService.isSuperadmin(authentication)) {
+      tenantId = requireNotNull(request.companyId(), "SUPERADMIN user creation requires companyId");
+    } else {
+      tenantId = authorizationService.requireTenant(authentication);
+    }
     UserRole role = parseRole(request.role());
     try {
       User created =
@@ -107,8 +120,7 @@ public class UserController {
       @PathVariable UUID id,
       @RequestBody UpdateUserApiRequest request) {
     authorizationService.requirePermission(authentication, "USER_UPDATE");
-    UUID tenantId = authorizationService.requireTenant(authentication);
-    requireUserInTenant(id, tenantId);
+    UUID tenantId = resolveTenantForTargetUser(authentication, id);
     userRepository.updateName(id, request.firstName(), request.lastName());
     return UserResponse.from(requireUserInTenant(id, tenantId));
   }
@@ -116,8 +128,7 @@ public class UserController {
   @PostMapping("/{id}/disable")
   public UserResponse disable(Authentication authentication, @PathVariable UUID id) {
     authorizationService.requirePermission(authentication, "USER_DISABLE");
-    UUID tenantId = authorizationService.requireTenant(authentication);
-    requireUserInTenant(id, tenantId);
+    UUID tenantId = resolveTenantForTargetUser(authentication, id);
     userRepository.disable(id);
     auditEventWriter.write(
         tenantId,
@@ -130,12 +141,39 @@ public class UserController {
     return UserResponse.from(requireUserInTenant(id, tenantId));
   }
 
+  /**
+   * GLOBAL SUPERADMIN (ADR-RBAC-002) resolves the tenant from the target user's company; tenant
+   * users resolve it from their own active session. Either way the target must exist and, for a
+   * tenant user, must belong to the caller's tenant.
+   */
+  private UUID resolveTenantForTargetUser(Authentication authentication, UUID id) {
+    if (authorizationService.isSuperadmin(authentication)) {
+      return requireUser(id).companyId();
+    }
+    UUID tenantId = authorizationService.requireTenant(authentication);
+    requireUserInTenant(id, tenantId);
+    return tenantId;
+  }
+
   /** A user that exists but belongs to another tenant is reported the same as "not found". */
   private User requireUserInTenant(UUID id, UUID tenantId) {
     return userRepository
         .findById(id)
         .filter(user -> tenantId.equals(user.companyId()))
         .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND", "User not found."));
+  }
+
+  private User requireUser(UUID id) {
+    return userRepository
+        .findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND", "User not found."));
+  }
+
+  private UUID requireNotNull(UUID value, String message) {
+    if (value == null) {
+      throw new ValidationException("MISSING_COMPANY_ID", message);
+    }
+    return value;
   }
 
   private UserRole parseRole(String role) {

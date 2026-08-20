@@ -43,12 +43,18 @@ describe('ClientFormComponent', () => {
       lastName: 'Lovelace',
       email: 'ada@brika.test',
       phone: '600000000',
+      documentType: '',
+      documentNumber: '',
+      dateOfBirth: '',
+      nationality: '',
+      address: '',
+      employmentStatus: '',
     });
     fixture.componentInstance.submit();
 
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/clients`);
     expect(req.request.method).toBe('POST');
-    req.flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', status: 'ACTIVE' });
+    req.flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
 
     expect(navigateSpy).toHaveBeenCalledWith(['/app/clients', 'c1']);
   });
@@ -64,7 +70,7 @@ describe('ClientFormComponent', () => {
 
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
-      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', status: 'ACTIVE' });
+      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
     fixture.detectChanges();
 
     expect(fixture.componentInstance.form.value.firstName).toBe('Ada');
@@ -72,7 +78,7 @@ describe('ClientFormComponent', () => {
     fixture.componentInstance.submit();
     const patchReq = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`);
     expect(patchReq.request.method).toBe('PATCH');
-    patchReq.flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', status: 'ACTIVE' });
+    patchReq.flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
   });
 
   it('does not submit an invalid form', () => {
@@ -99,6 +105,12 @@ describe('ClientFormComponent', () => {
       lastName: 'Lovelace',
       email: 'ada@brika.test',
       phone: '600000000',
+      documentType: '',
+      documentNumber: '',
+      dateOfBirth: '',
+      nationality: '',
+      address: '',
+      employmentStatus: '',
     });
     fixture.componentInstance.submit();
 

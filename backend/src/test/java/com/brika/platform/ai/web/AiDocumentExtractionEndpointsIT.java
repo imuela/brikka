@@ -379,6 +379,8 @@ class AiDocumentExtractionEndpointsIT {
     UUID documentId = createDocument(manager, caseId);
     UUID versionId = uploadVersion(manager, documentId);
 
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — document extraction is document/case-scoped
+    // and the tenant is resolved from the resource, so the endpoint is now accessible (200).
     mockMvc
         .perform(
             post("/api/v1/documents/" + documentId + "/ai/document-extractions")
@@ -387,7 +389,7 @@ class AiDocumentExtractionEndpointsIT {
                 .content(
                     objectMapper.writeValueAsString(
                         new CreateDocumentExtractionApiRequest(versionId))))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

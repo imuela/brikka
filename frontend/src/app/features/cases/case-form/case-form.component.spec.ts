@@ -31,7 +31,9 @@ const theCase = {
   operationType: 'PURCHASE',
   createdBy: 'u1',
   createdAt: '2026-08-17T10:00:00Z',
-  cancelledAt: null,
+  requestedAmount: null,
+    description: null,
+    cancelledAt: null,
 };
 
 describe('CaseFormComponent', () => {
@@ -49,7 +51,11 @@ describe('CaseFormComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.isEditMode).toBe(false);
 
-    fixture.componentInstance.form.setValue({ operationType: 'PURCHASE' });
+    fixture.componentInstance.form.setValue({
+      operationType: 'PURCHASE',
+      requestedAmount: 250000,
+      description: 'refinance',
+    });
     fixture.componentInstance.submit();
 
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases`);
@@ -98,7 +104,11 @@ describe('CaseFormComponent', () => {
 
     const fixture = TestBed.createComponent(CaseFormComponent);
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({ operationType: 'PURCHASE' });
+    fixture.componentInstance.form.setValue({
+      operationType: 'PURCHASE',
+      requestedAmount: 250000,
+      description: 'refinance',
+    });
     fixture.componentInstance.submit();
 
     httpMock

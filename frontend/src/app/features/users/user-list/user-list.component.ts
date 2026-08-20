@@ -8,6 +8,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
+import { HideForRoleDirective } from '../../../shared/directives/hide-for-role.directive';
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
@@ -32,6 +33,7 @@ import { UserService } from '../user.service';
     MatProgressSpinnerModule,
     MatTooltipModule,
     HasPermissionDirective,
+    HideForRoleDirective,
     StatusLabelPipe,
     StatusBadgeComponent,
   ],

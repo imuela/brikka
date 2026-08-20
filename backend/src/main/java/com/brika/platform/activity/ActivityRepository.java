@@ -66,6 +66,11 @@ public class ActivityRepository {
         SELECT + " WHERE company_id = ? ORDER BY created_at DESC", ROW_MAPPER, companyId);
   }
 
+  /** Sprint 27 (ADR-RBAC-002): GLOBAL read for SUPERADMIN across all companies. */
+  public List<Activity> findAll() {
+    return jdbcTemplate.query(SELECT + " ORDER BY created_at DESC", ROW_MAPPER);
+  }
+
   /** Dashboard for BROKER: only activities of cases the user is actively assigned to. */
   public List<Activity> findAllAssignedToUser(UUID companyId, UUID userId) {
     return jdbcTemplate.query(

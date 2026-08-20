@@ -178,6 +178,8 @@ class AiUseCaseEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotSummarize() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — AI use-cases are case-scoped and the tenant
+    // is resolved from the case, so the endpoint is now accessible (200).
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-au4");
     UUID companyId = companyRepository.insert("Co AU4", "Co AU4", "TC-AU4");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-au4");
@@ -189,7 +191,7 @@ class AiUseCaseEndpointsIT {
                 .header("Authorization", superadmin.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(aiUseCaseBody("notes")))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

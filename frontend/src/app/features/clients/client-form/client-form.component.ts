@@ -13,8 +13,8 @@ import { ClientsService } from '../clients.service';
 /**
  * Create (/app/clients/new) and edit (/app/clients/:id/edit) share this component — same fields
  * for both requests (CreateClientApiRequest and UpdateClientApiRequest are identical shapes).
- * Only client-side validation is "required" (a form must have something to submit); the backend
- * does not document any format/length rule beyond that, so none is invented here.
+ * Sprint 27, Bloque 3 adds the extended attributes (document, date of birth, nationality, address,
+ * employment status) as optional — only name/email/phone remain required.
  */
 @Component({
   selector: 'app-client-form',
@@ -40,17 +40,35 @@ export class ClientFormComponent {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
-  readonly form = this.fb.nonNullable.group({
+  readonly form = this.fb.group({
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
-    email: ['', Validators.required],
+    email: ['', [Validators.required, Validators.email]],
     phone: ['', Validators.required],
+    documentType: [''],
+    documentNumber: [''],
+    dateOfBirth: [''],
+    nationality: [''],
+    address: [''],
+    employmentStatus: [''],
   });
 
   constructor() {
     if (this.clientId) {
       this.clientsService.get(this.clientId).subscribe({
-        next: (client) => this.form.patchValue(client),
+        next: (client) =>
+          this.form.patchValue({
+            firstName: client.firstName,
+            lastName: client.lastName,
+            email: client.email,
+            phone: client.phone,
+            documentType: client.documentType ?? '',
+            documentNumber: client.documentNumber ?? '',
+            dateOfBirth: client.dateOfBirth ?? '',
+            nationality: client.nationality ?? '',
+            address: client.address ?? '',
+            employmentStatus: client.employmentStatus ?? '',
+          }),
         error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
       });
     }
@@ -63,7 +81,19 @@ export class ClientFormComponent {
     }
     this.loading.set(true);
     this.error.set(null);
-    const value = this.form.getRawValue();
+    const v = this.form.getRawValue();
+    const value: { firstName: string; lastName: string; email: string; phone: string; documentType: string | null; documentNumber: string | null; dateOfBirth: string | null; nationality: string | null; address: string | null; employmentStatus: string | null } = {
+      firstName: v.firstName ?? '',
+      lastName: v.lastName ?? '',
+      email: v.email ?? '',
+      phone: v.phone ?? '',
+      documentType: v.documentType || null,
+      documentNumber: v.documentNumber || null,
+      dateOfBirth: v.dateOfBirth || null,
+      nationality: v.nationality || null,
+      address: v.address || null,
+      employmentStatus: v.employmentStatus || null,
+    };
     const request$ = this.clientId
       ? this.clientsService.update(this.clientId, value)
       : this.clientsService.create(value);

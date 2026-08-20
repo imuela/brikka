@@ -461,6 +461,8 @@ class DocumentEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotAccessDocumentsEndpoint() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — documents are case-scoped and the tenant is
+    // resolved from the case, so the endpoint is now accessible (200, empty list).
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-dc5");
     UUID companyId = companyRepository.insert("Co DC5", "Co DC5", "TC-DC5");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-dc5");
@@ -470,7 +472,8 @@ class DocumentEndpointsIT {
         .perform(
             get("/api/v1/cases/" + caseId + "/documents")
                 .header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(0)));
   }
 
   @Test

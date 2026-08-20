@@ -333,7 +333,17 @@ class CrossModuleE2EIT {
     UUID caseId = createCase(manager);
     String clientBody =
         objectMapper.writeValueAsString(
-            new CreateClientApiRequest("Portal", "Client", "portal-e2e2@client.test", "600000000"));
+            new CreateClientApiRequest(
+                "Portal",
+                "Client",
+                "portal-e2e2@client.test",
+                "600000000",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     String clientResponse =
         mockMvc
             .perform(

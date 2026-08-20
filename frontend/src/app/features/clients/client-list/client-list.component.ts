@@ -6,6 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
+import { HideForRoleDirective } from '../../../shared/directives/hide-for-role.directive';
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { CLIENT_STATUS_LABELS } from '../../../shared/labels/status-labels';
@@ -23,6 +24,7 @@ import { ClientsService } from '../clients.service';
     MatIconModule,
     MatProgressSpinnerModule,
     HasPermissionDirective,
+    HideForRoleDirective,
     StatusBadgeComponent,
   ],
   templateUrl: './client-list.component.html',

@@ -19,7 +19,9 @@ const theCase = {
   operationType: 'MORTGAGE',
   createdBy: 'u1',
   createdAt: '2026-08-17T10:00:00Z',
-  cancelledAt: null,
+  requestedAmount: null,
+    description: null,
+    cancelledAt: null,
 };
 
 describe('CaseDetailComponent', () => {

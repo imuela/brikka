@@ -47,6 +47,9 @@ public class ActivityController {
   public List<ActivityResponse> dashboard(Authentication authentication) {
     authorizationService.requirePermission(authentication, "ACTIVITY_READ");
     User user = authorizationService.currentUser(authentication);
+    if (authorizationService.isSuperadmin(authentication)) {
+      return activityRepository.findAll().stream().map(ActivityResponse::from).toList();
+    }
     UUID tenantId = authorizationService.requireTenant(authentication);
     List<Activity> activities =
         user.role() == UserRole.BROKER

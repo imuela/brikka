@@ -1,9 +1,15 @@
 <div class="page-header">
   <h1>Usuarios</h1>
-  <a *appHasPermission="'USER_CREATE'" mat-flat-button color="primary" routerLink="/app/users/new">
-    <mat-icon>add</mat-icon>
-    Nuevo usuario
-  </a>
+  <ng-container *appHasPermission="'USER_CREATE'">
+    <a
+      *appHideForRole="'SUPERADMIN'"
+      mat-flat-button
+      color="primary"
+      routerLink="/app/users/new">
+      <mat-icon>add</mat-icon>
+      Nuevo usuario
+    </a>
+  </ng-container>
 </div>
 
 @if (error()) {

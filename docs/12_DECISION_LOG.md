@@ -1130,3 +1130,36 @@ latencia de la operación, sin romper los eventos, destinatarios ni aislamiento 
 transporte es `rabbitmq` (asíncrona), mientras el default `sync` preserva el comportamiento de Sprint
 25 para el resto de la suite y despliegues que no quieran broker. Los ITs síncronos no tocan RabbitMQ
 (no hay beans AMQP en modo sync). El ADR no introduce WebSockets/SSE/polling ni cambio de API/frontend.
+
+## ADR-RBAC-002 — SUPERADMIN como administrador global (Sprint 27)
+**Estado:** DECIDIDO (implementado en Sprint 27, Bloque 1)
+
+**Problema:** carencia 1 del sprint: SUPERADMIN no puede acceder a casi ninguna pantalla. El SUPPORT_SESSION
+(ADR-RBAC-001) no está implementado, y `AuthorizationService.requireTenant` rechaza a SUPERADMIN (no tiene
+empresa), con lo que todo endpoint scoped por tenant devolvía 403 y el rol quedaba inútil en la práctica.
+
+**Decisión:**
+1. **SUPERADMIN = administrador global (GLOBAL), nunca un bypass.** Los permisos se siguen comprobando
+   (`requirePermission`); lo único que cambia es la resolución del tenant: en vez de `requireTenant`
+   (que devuelve empty para SUPERADMIN), el tenant se resuelve desde el **recurso accedido**. Es el mismo
+   patrón que ya usaba `CompanyController` para la rama global.
+2. **Lecturas globales**: las pantallas tenant (Casos, Clientes, Tareas, Usuarios, Actividad) y los
+   recursos scoped por caso (documentos, conversaciones, simulaciones, financiación, ofertas) pasan por
+   `isSuperadmin()` o por `CaseAccessService` (que resuelve el tenant del case), devolviendo los datos de
+   todas las empresas. `NOTIFICATION_READ` queda fuera (notificaciones son personales; SUPERADMIN sigue
+   sin ese permiso).
+3. **Escritura administrativa global**: creación de usuario por SUPERADMIN requiere `companyId` explícito
+   en `CreateUserApiRequest` (el rol global no tiene empresa propia); update/disable resuelven el tenant
+   del usuario objetivo. Para el resto (MANAGER/BROKER) `companyId` se ignora: sigue la regla "el tenant
+   nunca viene del cliente".
+4. **Escrituras operativas de tenant (crear/editar caso, cliente, tarea)**: siguen atadas al tenant del
+   llamante. Hasta que exista SUPPORT_SESSION no tiene sentido que SUPERADMIN las haga sin elegir empresa;
+   el frontend **oculta** esos botones de creación para SUPERADMIN (directiva `appHideForRole`) para no
+   producir el 403 sin justificación que el sprint prohíbe (§8), en vez de exponerlos y que el backend los
+   rechace. Es la alternativa aceptada en lugar de un selector de empresa en cada pantalla (Sprint 28+).
+5. **No se debilita el aislamiento** entre usuarios de tenant (MANAGER/BROKER/CLIENT): para ellos
+   `requireTenant` y las comprobaciones de pertenencia/sin asignación se mantienen intactas.
+
+**Consecuencias:** SUPERADMIN puede navegar y leer todas las pantallas y administrar usuarios/empresas a
+nivel global; la creación de registros operativos de tenant desde la UI de SUPERADMIN queda aplazada a
+SUPPORT_SESSION (Sprint 28+). ADR-RBAC-001 (SUPPORT_SESSION pendiente) sigue vigente para ese alcance.

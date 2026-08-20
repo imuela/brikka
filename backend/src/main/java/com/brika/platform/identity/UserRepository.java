@@ -64,6 +64,11 @@ public class UserRepository {
         SELECT_WITH_ROLE + " WHERE u.company_id = ? ORDER BY u.email", USER_ROW_MAPPER, companyId);
   }
 
+  /** Sprint 27 (ADR-RBAC-002): GLOBAL read for SUPERADMIN across all companies. */
+  public List<User> findAll() {
+    return jdbcTemplate.query(SELECT_WITH_ROLE + " ORDER BY u.email", USER_ROW_MAPPER);
+  }
+
   /**
    * users.email is unique only per company (uq_users_company_email, ADR-IDENTITY-001) — a global
    * lookup by email alone can return more than one row if two companies happen to share an email.

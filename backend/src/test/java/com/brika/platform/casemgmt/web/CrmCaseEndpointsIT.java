@@ -99,7 +99,17 @@ class CrmCaseEndpointsIT {
   private UUID createClient(TestPrincipal creator, String emailPrefix) throws Exception {
     String body =
         objectMapper.writeValueAsString(
-            new CreateClientApiRequest("Cli", "Ent", emailPrefix + "@brika.test", "600000000"));
+            new CreateClientApiRequest(
+                "Cli",
+                "Ent",
+                emailPrefix + "@brika.test",
+                "600000000",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     String response =
         mockMvc
             .perform(
@@ -135,7 +145,9 @@ class CrmCaseEndpointsIT {
     TestPrincipal client = createUser(UserRole.CLIENT, companyId, "client-cc2");
 
     String body =
-        objectMapper.writeValueAsString(new CreateClientApiRequest("A", "B", "a@b.test", "600"));
+        objectMapper.writeValueAsString(
+            new CreateClientApiRequest(
+                "A", "B", "a@b.test", "600", null, null, null, null, null, null));
     mockMvc
         .perform(
             post("/api/v1/clients")
@@ -143,6 +155,52 @@ class CrmCaseEndpointsIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void extendedClientAttributesRoundTripThroughCreateAndGet() throws Exception {
+    // Sprint 27, Bloque 3 (FUNCTIONAL_SPECIFICATION.md §6): document, date of birth, nationality,
+    // address and employment status are persisted and returned alongside the core fields.
+    UUID companyId = companyRepository.insert("Co CC8", "Co CC8", "TC-CC8");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cc8");
+
+    String body =
+        objectMapper.writeValueAsString(
+            new CreateClientApiRequest(
+                "Elena",
+                "Nito",
+                "elena@brika.test",
+                "600000000",
+                "DNI",
+                "12345678A",
+                java.time.LocalDate.of(1990, 5, 4),
+                "Española",
+                "Calle Mayor 1",
+                "EMPLEADO"));
+    String response =
+        mockMvc
+            .perform(
+                post("/api/v1/clients")
+                    .header("Authorization", manager.bearer())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.documentType").value("DNI"))
+            .andExpect(jsonPath("$.documentNumber").value("12345678A"))
+            .andExpect(jsonPath("$.dateOfBirth").value("1990-05-04"))
+            .andExpect(jsonPath("$.nationality").value("Española"))
+            .andExpect(jsonPath("$.address").value("Calle Mayor 1"))
+            .andExpect(jsonPath("$.employmentStatus").value("EMPLEADO"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    UUID clientId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+
+    mockMvc
+        .perform(get("/api/v1/clients/" + clientId).header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.documentNumber").value("12345678A"))
+        .andExpect(jsonPath("$.employmentStatus").value("EMPLEADO"));
   }
 
   @Test
@@ -252,11 +310,47 @@ class CrmCaseEndpointsIT {
 
   @Test
   void superadminWithoutSupportSessionCannotAccessCasesEndpoint() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — the tenant is resolved from the resource,
+    // so /api/v1/cases is now accessible (200) instead of the pre-sprint 403. No SUPPORT_SESSION
+    // is required. The array size varies with other methods in this class, so only accessibility
+    // (200 + JSON array) is asserted.
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-cs6");
 
     mockMvc
         .perform(get("/api/v1/cases").header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray());
+  }
+
+  @Test
+  void superadminReadsCasesClientsAndActivityGloballyAcrossCompanies() throws Exception {
+    // Sprint 27 (ADR-RBAC-002): SUPERADMIN is GLOBAL — the tenant is resolved from the resource, so
+    // it reads a case (list + single), the case's client, and the activity dashboard from a company
+    // that is not its own (it has none). Tenant isolation for real tenant users is unchanged.
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-cs9");
+    UUID companyA = companyRepository.insert("Co SA", "Co SA", "TC-SA");
+    TestPrincipal managerA = createUser(UserRole.MANAGER, companyA, "manager-sa");
+    UUID caseId = createCase(managerA);
+    UUID clientId = createClient(managerA, "cli-sa");
+
+    mockMvc
+        .perform(get("/api/v1/cases").header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.id=='" + caseId + "')]").exists());
+
+    mockMvc
+        .perform(get("/api/v1/cases/" + caseId).header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(caseId.toString()));
+
+    mockMvc
+        .perform(get("/api/v1/clients").header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.id=='" + clientId + "')]").exists());
+
+    mockMvc
+        .perform(get("/api/v1/activities").header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk());
   }
 
   @Test
@@ -379,7 +473,17 @@ class CrmCaseEndpointsIT {
 
     String updateBody =
         objectMapper.writeValueAsString(
-            new UpdateClientApiRequest("Updated", "Name", "updated@brika.test", "600000001"));
+            new UpdateClientApiRequest(
+                "Updated",
+                "Name",
+                "updated@brika.test",
+                "600000001",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     mockMvc
         .perform(
             patch("/api/v1/clients/" + clientId)
@@ -461,5 +565,54 @@ class CrmCaseEndpointsIT {
     assertThat(events).extracting(AuditEvent::action).contains("CASE_REOPENED");
     assertThat(events).allMatch(e -> companyId.equals(e.companyId()));
     assertThat(events).allMatch(e -> "CASE".equals(e.resourceType()));
+  }
+
+  @Test
+  void operationDetailsRoundTripThroughCreateGetAndPatch() throws Exception {
+    UUID companyId = companyRepository.insert("Co DET", "Co DET", "TC-DET");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-det");
+
+    UUID caseId = createCase(manager);
+    mockMvc
+        .perform(get("/api/v1/cases/" + caseId).header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.requestedAmount").value(org.hamcrest.Matchers.nullValue()))
+        .andExpect(jsonPath("$.description").value(org.hamcrest.Matchers.nullValue()));
+
+    String createBody =
+        objectMapper.writeValueAsString(
+            new CreateCaseApiRequest(
+                "MORTGAGE",
+                new java.math.BigDecimal("250000.00"),
+                "Refinanciación de la vivienda habitual"));
+    String createdJson =
+        mockMvc
+            .perform(
+                post("/api/v1/cases")
+                    .header("Authorization", manager.bearer())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createBody))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.requestedAmount").value(250000.00))
+            .andExpect(jsonPath("$.description").value("Refinanciación de la vivienda habitual"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    UUID createdId = UUID.fromString(objectMapper.readTree(createdJson).get("id").asText());
+
+    String patchBody =
+        objectMapper.writeValueAsString(
+            new UpdateCaseApiRequest(
+                "REFINANCE", new java.math.BigDecimal("300000.50"), "Notas editadas"));
+    mockMvc
+        .perform(
+            patch("/api/v1/cases/" + createdId)
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(patchBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.operationType").value("REFINANCE"))
+        .andExpect(jsonPath("$.requestedAmount").value(300000.50))
+        .andExpect(jsonPath("$.description").value("Notas editadas"));
   }
 }

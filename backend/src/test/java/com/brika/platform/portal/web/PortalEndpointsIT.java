@@ -127,7 +127,16 @@ class PortalEndpointsIT {
     String body =
         objectMapper.writeValueAsString(
             new CreateClientApiRequest(
-                firstName, "Client", firstName + "@client.test", "600000000"));
+                firstName,
+                "Client",
+                firstName + "@client.test",
+                "600000000",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     String response =
         mockMvc
             .perform(
