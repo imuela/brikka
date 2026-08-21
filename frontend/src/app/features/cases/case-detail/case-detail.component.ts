@@ -28,9 +28,12 @@ import {
   REVIEW_STATUS_LABELS,
   TASK_STATUS_LABELS,
   TASK_TYPE_LABELS,
+  VIABILITY_CATEGORY_LABELS,
 } from '../../../shared/labels/status-labels';
 import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
+import { FinancialAnalysisResult } from '../../financial-analysis/financial-analysis.model';
+import { FinancialAnalysisService } from '../../financial-analysis/financial-analysis.service';
 import { Bank } from '../../banks/bank.model';
 import { BankService } from '../../banks/bank.service';
 import { RunMatchingDialogComponent } from '../../bank-matching/bank-matching-dialogs/run-matching-dialog.component';
@@ -123,6 +126,7 @@ export class CaseDetailComponent {
   private readonly bankRequestService = inject(BankRequestService);
   private readonly taskService = inject(TaskService);
   private readonly communicationService = inject(CommunicationService);
+  private readonly financialAnalysisService = inject(FinancialAnalysisService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
@@ -169,6 +173,20 @@ export class CaseDetailComponent {
   readonly conversations = signal<Conversation[] | null>(null);
   readonly conversationColumns = ['type', 'status', 'createdAt', 'actions'];
 
+  readonly financialAnalysisResults = signal<FinancialAnalysisResult[] | null>(null);
+  readonly financialAnalysisRunning = signal(false);
+  readonly financialAnalysisError = signal<string | null>(null);
+  readonly financialAnalysisColumns = [
+    'client',
+    'monthlyIncome',
+    'existingMonthlyDebts',
+    'monthlyPayment',
+    'dtiPercent',
+    'viabilityCategory',
+    'calculatedAt',
+  ];
+  readonly viabilityCategoryLabels = VIABILITY_CATEGORY_LABELS;
+
   constructor() {
     this.loadCase();
     this.loadAssignments();
@@ -195,6 +213,7 @@ export class CaseDetailComponent {
     this.loadOffers();
     this.loadTasks();
     this.loadConversations();
+    this.loadFinancialAnalysis();
   }
 
   private loadCase(): void {
@@ -690,5 +709,32 @@ export class CaseDetailComponent {
       },
       width: '600px',
     });
+  }
+
+  private loadFinancialAnalysis(): void {
+    this.financialAnalysisService.list(this.caseId).subscribe({
+      next: (results) => this.financialAnalysisResults.set(results),
+      error: (err: ApiError) => this.financialAnalysisError.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  runFinancialAnalysis(): void {
+    this.financialAnalysisRunning.set(true);
+    this.financialAnalysisError.set(null);
+    this.financialAnalysisService.run(this.caseId).subscribe({
+      next: (results) => {
+        this.financialAnalysisRunning.set(false);
+        this.financialAnalysisResults.set(results);
+      },
+      error: (err: ApiError) => {
+        this.financialAnalysisRunning.set(false);
+        this.financialAnalysisError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  financialAnalysisClientName(clientId: string): string {
+    const client = this.clients()?.find((c) => c.clientId === clientId);
+    return client ? `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() : clientId;
   }
 }

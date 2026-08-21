@@ -44,9 +44,13 @@ export class CancelDialogComponent {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
+  /** Backend stores "REASON_CODE: comment" in a varchar(500) column (V20) — this stays safely
+   * under that limit for every reason code, including the longest ("PROPERTY_ISSUE: "). */
+  readonly maxCommentLength = 480;
+
   readonly form = this.fb.nonNullable.group({
     reason: ['', Validators.required],
-    comment: [''],
+    comment: ['', Validators.maxLength(this.maxCommentLength)],
   });
 
   submit(): void {

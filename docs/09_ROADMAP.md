@@ -20,6 +20,7 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 | L — Frontend V1 | Sprint 13, Sprint 14, Sprint 15, Sprint 16, Sprint 17, Sprint 18, Sprint 19 (`ADR-PROCESS-004`, `ADR-PROCESS-005`, `ADR-PROCESS-006`, `ADR-PROCESS-007`) |
 | M — Rebranding Brikka + normalización UX | Sprint 20 (`ADR-PROCESS-008`) — última fase antes de la auditoría general (Sprint 21 en adelante) |
 | N — Autenticación propia (sustitución de Keycloak) | Sprint 22 (`ADR-AUTH-001` y adenda de cierre) — completado: Keycloak retirado, emisor JWT propio, Argon2id, recuperación de contraseña con Mailpit local, 8 usuarios de desarrollo verificados |
+| O — Auditoría general y consolidación funcional (reconstrucción histórica — ver nota) | Sprint 21 (sin evidencia de ejecución como unidad propia — hueco documental, ver `12_DECISION_LOG.md` y el propio git log), Sprint 23 (adenda: hidratación de sesión tras recarga, `12_DECISION_LOG.md`), Sprint 24 (`ADR-ENV-001`: entornos LOCAL/TEST/PROD, claves JWT persistentes, seed reproducible), Sprint 25 (`ADR-NOTIF-002`: eventos de dominio conectados a notificaciones IN_APP), Sprint 26 (`ADR-NOTIF-003`: transporte asíncrono de notificaciones por RabbitMQ), Sprint 27 (`ADR-RBAC-002`, `29_SPRINT_27_IMPLEMENTATION_REPORT.md`: SUPERADMIN global, Dashboard, Cliente/Caso ampliados), bloque de hardening de dependencias post-Sprint-27 (Spring Boot 3.5.16, 0 CRITICAL/0 HIGH Java en Trivy, commit `78bead5`), Sprint 28 (`ADR-RBAC-002` consolidación: modelo SUPERADMIN/RBAC reconciliado con el código real, gap de `CLIENT_PORTAL_ACCOUNT_CREATE` confirmado correcto por diseño, alcance real de SUPPORT_SESSION acotado) |
 
 ## Fase A — Consolidación documental
 - especificación;
@@ -120,6 +121,38 @@ Este documento es el mapa **macro** de fases para negocio/stakeholders. El plan 
 **A partir de aquí continúa la auditoría general del proyecto (Sprint 21 en adelante).** Sprint 22
 (autenticación propia, Keycloak retirado) ha cerrado la Fase N y deja la aplicación funcional de
 extremo a extremo en local sin dependencias de identidad externas.
+
+## Fase O — Auditoría general y consolidación funcional
+
+**Nota de reconstrucción histórica (Sprint 28):** esta fase, a diferencia de las anteriores, no fue
+planificada por adelantado en este documento ni en `25_CLAUDE_CODE_EXECUTION_GUIDE.md` — ambos
+quedaron detenidos en el Sprint 20/22 respectivamente mientras el trabajo real de Sprints 21-27
+avanzaba en el repositorio. Lo que sigue se ha reconstruido a partir de `git log`, los tags
+existentes y las ADR correspondientes en `12_DECISION_LOG.md`, no de una definición original de
+sprint — se marca explícitamente para no aparentar una planificación que no existió en su momento.
+
+- **Sprint 21**: sin evidencia de ejecución como unidad de trabajo propia (cero commits entre
+  `af19ed1` (Sprint 20) y `69901f2` (Sprint 22), cero documento que lo mencione por nombre).
+- **Sprint 22**: autenticación propia, retirada de Keycloak (Fase N, ver arriba).
+- **Sprint 23**: corrección de un P0 heredado — hidratación de sesión tras recarga (F5), persistencia
+  del refresh token en `sessionStorage` (adenda documentada en `12_DECISION_LOG.md`, sin informe de
+  cierre propio).
+- **Sprint 24**: separación de entornos LOCAL/TEST/PROD, claves JWT persistentes, email SMTP real,
+  seed reproducible (`ADR-ENV-001`, sin informe de cierre propio).
+- **Sprint 25**: notificaciones IN_APP conectadas a eventos de dominio reales (`ADR-NOTIF-002`, sin
+  informe de cierre propio).
+- **Sprint 26**: transporte asíncrono de notificaciones vía RabbitMQ (`ADR-NOTIF-003`, sin informe de
+  cierre propio).
+- **Sprint 27**: SUPERADMIN administrador global, Dashboard básico, Cliente y Caso ampliados
+  (`ADR-RBAC-002`, `29_SPRINT_27_IMPLEMENTATION_REPORT.md`).
+- **Bloque de hardening de dependencias** (post-Sprint-27, previo a Sprint 28): Spring Boot 3.3.4 →
+  3.5.16, BouncyCastle, RabbitMQ client, Netty y PostgreSQL driver actualizados — 55 → 0
+  vulnerabilidades Java CRITICAL/HIGH confirmadas por Trivy. Commit `78bead5`.
+- **Sprint 28**: consolidación del modelo RBAC/tenant/SUPERADMIN introducido y modificado en Sprints
+  22-27, corrección del alcance real de `SUPPORT_SESSION` frente al diseño original de
+  `ADR-RBAC-001`, cierre del gap frontend de creación de usuario por SUPERADMIN (backend ya lo
+  soportaba desde Sprint 27, el formulario no lo exponía), y reconciliación de esta documentación con
+  el estado real del código y de `git log`.
 
 ## Regla de progreso
 

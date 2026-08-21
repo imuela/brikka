@@ -217,6 +217,58 @@ El plan original terminaba en el Sprint 12 (backend, "Release"). El objetivo del
 - migración de datos `V16__normalize_operation_type_seed_data.sql`: el único valor de `operation_type` usado en toda la base de datos de desarrollo (`MORTGAGE`) se corrige a `PURCHASE` para ser válido bajo el nuevo catálogo — sin cambio de esquema, sin `CHECK` constraint añadido (el backend sigue aceptando cualquier texto; solo el frontend impone el catálogo cerrado);
 - fuera de alcance: auditoría general del proyecto (será el sprint siguiente), refactor arquitectónico, nuevas funcionalidades/entidades/permisos, retemado visual completo (color/tipografía) de la aplicación, catálogo de `notification.type` (sin productor real conectado todavía, inventar una traducción sería especulativo), catálogo de `plan.status` (texto libre por diseño explícito, mismo patrón que los 4 campos Tipo antes de esta decisión), catálogo de `BankMatchRuleResult.field`/`.operator` (claves técnicas del motor de reglas, visibles solo a broker/manager que ya trabajan con el JSON de criterios sin traducir en la misma pantalla).
 
+### Sprints 21-27 — reconstrucción histórica (Sprint 28)
+
+**Esta guía dejó de actualizarse tras el Sprint 20.** Los Sprints 21-27 y el bloque de hardening de
+dependencias posterior se ejecutaron y mergearon en `main` sin que esta sección se mantuviera al
+día — es exactamente el vacío documental que el Sprint 28 corrige. Lo que sigue **no es una
+definición de sprint original**: es una reconstrucción a partir de `git log`, los tags existentes y
+las ADR de `12_DECISION_LOG.md`, marcada como tal para no aparentar una planificación que no existió
+en el momento de cada sprint. El detalle completo por sprint está en la Fase O de `09_ROADMAP.md`;
+aquí solo el resumen mínimo necesario para que esta guía deje de tener el hueco.
+
+- **Sprint 21**: sin evidencia de ejecución como unidad de trabajo propia — cero commits entre
+  `af19ed1` (Sprint 20) y `69901f2` (Sprint 22), cero documento que lo mencione por nombre.
+- **Sprint 22 — Autenticación propia** (`69901f2`, `ADR-AUTH-001`, `28_SPRINT_22_IMPLEMENTATION_REPORT.md`): retirada de Keycloak, JWT autofirmado (RSA por realm interno/Portal), Argon2id, refresh tokens rotativos, recuperación de contraseña con Mailpit local.
+- **Sprint 23 — Hidratación de sesión** (`ba9d058`, adenda en `12_DECISION_LOG.md` línea 753): corrige P0 heredado — `SessionService.hydrate()`/`PortalSessionService.hydrate()` nunca se llamaban; refresh token persistido en `sessionStorage` para sobrevivir a un F5 (excepción documentada a "tokens solo en memoria").
+- **Sprint 24 — Entornos, claves y seed** (`e99f4c7`, tag `sprint-24`, `ADR-ENV-001`): perfiles `local`/`test`/`prod`, `ProdEnvironmentValidator` fail-closed, claves JWT persistentes, Argon2id elevado a 32MiB/3 iteraciones, `DevSeedRunner` idempotente.
+- **Sprint 25 — Notificaciones conectadas** (`36c7b0a`, tag `sprint-25`, `ADR-NOTIF-002`): `NotificationPublisher`/`SynchronousNotificationPublisher`, eventos de Caso/Documento/Mensaje conectados (antes sin productor real), contador de no leídas.
+- **Sprint 26 — Notificaciones asíncronas por RabbitMQ** (`84a7dad`, tag `sprint-26`, `ADR-NOTIF-003`): toggle `sync`/`rabbitmq`, topología de colas + DLQ, publicación after-commit, `NotificationAsyncIntegrationIT` contra broker real.
+- **Sprint 27 — Core functional V1** (`14d3ba8`, tag `sprint-27`, `ADR-RBAC-002`, `29_SPRINT_27_IMPLEMENTATION_REPORT.md`): SUPERADMIN administrador GLOBAL (tenant resuelto del recurso accedido en vez de `requireTenant`), Dashboard básico, Cliente ampliado (V18), Caso ampliado (V19).
+- **Bloque de hardening de dependencias** (post-Sprint-27, commit `78bead5`, sin tag ni documento propio): Spring Boot 3.3.4 → 3.5.16, BouncyCastle/RabbitMQ client/Netty/PostgreSQL actualizados vía overrides puntuales investigados individualmente — 55 → 0 vulnerabilidades Java CRITICAL/HIGH confirmadas por Trivy.
+
+### Sprint 28 — Consolidación RBAC/tenant/SUPERADMIN + reconciliación documental (`ADR-RBAC-002`)
+
+- **Auditoría del modelo real post-Sprint-27**: se contrastó `ADR-RBAC-001` (diseño original,
+  SUPPORT_SESSION como único acceso de SUPERADMIN a lo tenant-owned) contra `ADR-RBAC-002` (Sprint
+  27, tenant resuelto del recurso para lecturas + gestión de usuarios GLOBAL) y el código real. Ver
+  `06_SECURITY_SPECIFICATION.md` §3.1B para el modelo reconciliado.
+- **`ClientPortalAccountController` investigado, confirmado correcto por diseño**: usa
+  `requireTenant()` sin rama SUPERADMIN, pero `CLIENT_PORTAL_ACCOUNT_CREATE` nunca fue concedido a
+  SUPERADMIN (`V11__portal_account_permission.sql`, Sprint 19) — no es un gap del patrón Sprint 27,
+  es una exclusión de permiso anterior e intencionada. No se modificó código; se añadió un test que
+  lo deja fijado (`CrmCaseEndpointsIT.superadminCannotCreateClientPortalAccount`).
+- **`BankMatchOverrideController` y otros comentarios de clase desactualizados corregidos** (sin
+  cambio de comportamiento): el código ya usaba `CaseAccessService` correctamente desde Sprint 27;
+  solo el comentario describía el modelo antiguo (`AuthorizationService.java`, `TenantContext.java`,
+  `PermissionResolutionService.java`, `hide-for-role.directive.ts` también corregidos por la misma
+  razón).
+- **Gap real corregido — creación de usuario por SUPERADMIN desde el frontend**: el backend soporta
+  esta capacidad desde Sprint 27 (`companyId` explícito, `UserController.create()`), pero
+  `user-list.component.html` seguía ocultando el botón "Nuevo usuario" para SUPERADMIN
+  (`*appHideForRole`) y `user-form.component.ts` no tenía ningún campo para elegir la empresa. Ambos
+  corregidos: el botón ya no se oculta, y el formulario muestra un selector de empresa
+  (`CompanyService.list()`, ya existente) solo cuando el usuario autenticado es SUPERADMIN.
+- **Test nuevo — manipulación de `companyId` rechazada**: `IdentityEndpointsIT.managerCreatingUserIgnoresAnySuppliedCompanyIdAndUsesOwnTenant` prueba explícitamente que un MANAGER no puede plantar un usuario en una empresa ajena enviando `companyId` en el cuerpo de la petición.
+- **`BankContactController` — hallazgo separado, no corregido en este sprint**: SUPERADMIN posee los
+  4 permisos `BANK_CONTACT_*` (scope `SUPPORT_SESSION` en `ADR-RBAC-001`) pero el controller no tiene
+  ninguna rama SUPERADMIN — a diferencia de Casos/Clientes/Tareas/Usuarios/Actividad,
+  `ADR-RBAC-002` nunca mencionó Bank Contacts como parte de su alcance. Extender el patrón GLOBAL
+  aquí sería una decisión de alcance nueva, no una corrección de una regresión de Sprint 27 — queda
+  documentado como candidato para un sprint futuro, no implementado ahora.
+- **Regla añadida para sprints futuros**: todo sprint debe quedar registrado en esta guía (aunque sea
+  de forma resumida) antes de darse por cerrado — ver regla 7 más abajo.
+
 ## 4. Cada sprint
 
 Debe producir:
@@ -233,6 +285,12 @@ Si una decisión necesaria no está documentada, Claude Code debe:
 2. explicar impacto;
 3. solicitar decisión;
 4. no inventar una solución estructural.
+
+## 7. Regla de registro obligatorio (Sprint 28)
+
+Ningún sprint se considera cerrado sin una entrada en esta guía — aunque sea un resumen breve con
+commit/tag y las decisiones/ADR que lo respaldan. El vacío documental de los Sprints 21-27 (detectado
+y reconstruido en el Sprint 28) no debe repetirse.
 
 ## 6. Correspondencia con el roadmap macro
 

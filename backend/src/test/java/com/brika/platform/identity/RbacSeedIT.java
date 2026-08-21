@@ -61,22 +61,26 @@ class RbacSeedIT {
   }
 
   @Test
-  void totalRolePermissionCountIsExactly243() {
+  void totalRolePermissionCountIsExactly250() {
+    // 243 through V15, + 1 (Sprint 29 stabilization, V21: SUPERADMIN x NOTIFICATION_READ),
+    // + 6 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ x SUPERADMIN/MANAGER/BROKER).
     Integer count = jdbc().queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);
-    assertThat(count).isEqualTo(243);
-    assertThat(rolePermissionRepository.count()).isEqualTo(243);
+    assertThat(count).isEqualTo(250);
+    assertThat(rolePermissionRepository.count()).isEqualTo(250);
   }
 
   @Test
   void roleAndPermissionRepositoriesExposeTheFullCatalog() {
     assertThat(roleRepository.findAll()).hasSize(4);
-    assertThat(permissionRepository.findAll()).hasSize(114);
+    // 114 through V21, + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ).
+    assertThat(permissionRepository.findAll()).hasSize(116);
   }
 
   @Test
   void rolePermissionRepositoryResolvesPermissionCodesForSuperadmin() {
     Role superadmin = roleRepository.findByCode("SUPERADMIN");
-    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(88);
+    // 89 through V21, + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ).
+    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(91);
   }
 
   @Test
@@ -98,14 +102,19 @@ class RbacSeedIT {
         .containsExactlyInAnyOrderEntriesOf(
             Map.of(
                 "SUPERADMIN",
-                    88L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13) + 1 (ADR-BANKENGINE-002,
+                    91L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13) + 1 (ADR-BANKENGINE-002,
                 // V14) + 4 (Sprint 10 D10-1, V15: AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/
-                // AI_DRAFT_MESSAGE)
-                "MANAGER", 79L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 1
-                // (ADR-BANKENGINE-002, V14) + 4 (Sprint 10 D10-1, V15)
-                "BROKER", 65L, // 58 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 4
-                // (Sprint 10 D10-1, V15)
-                "CLIENT", 11L));
+                // AI_DRAFT_MESSAGE) + 1 (Sprint 29 stabilization, V21: NOTIFICATION_READ — an
+                // oversight from before Sprint 27's GLOBAL model; notifications stay scoped to the
+                // caller's own recipientUserId regardless of this grant) + 2 (Sprint 31, V24:
+                // FINANCIAL_ANALYSIS_RUN/READ)
+                "MANAGER", 81L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 1
+                // (ADR-BANKENGINE-002, V14) + 4 (Sprint 10 D10-1, V15) + 2 (Sprint 31, V24:
+                // FINANCIAL_ANALYSIS_RUN/READ)
+                "BROKER", 67L, // 58 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 4
+                // (Sprint 10 D10-1, V15) + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ)
+                "CLIENT", 11L)); // unchanged — Sprint 31 deliberately never grants CLIENT/Portal
+    // access to financial analysis (V24 seeds no CLIENT rows)
   }
 
   /**
@@ -173,11 +182,30 @@ class RbacSeedIT {
     return List.of("AI_USE", "AI_DOCUMENT_ANALYZE", "AI_SUMMARIZE", "AI_DRAFT_MESSAGE");
   }
 
+  /**
+   * Sprint 29 (stabilization, V21): SUPERADMIN never had NOTIFICATION_READ, so the "Notificaciones"
+   * screen 403'd on every load for the one role with the broadest operational visibility elsewhere.
+   * NotificationController scopes strictly to the caller's own recipientUserId, so this grant only
+   * lets SUPERADMIN read their own notifications — never anyone else's.
+   */
+  @Test
+  void v21NotificationReadIsSeededForSuperadmin() {
+    Integer count =
+        jdbc()
+            .queryForObject(
+                "SELECT COUNT(*) FROM role_permissions rp"
+                    + " JOIN roles r ON r.id = rp.role_id"
+                    + " JOIN permissions p ON p.id = rp.permission_id"
+                    + " WHERE r.code = 'SUPERADMIN' AND p.code = 'NOTIFICATION_READ'",
+                Integer.class);
+    assertThat(count).as("SUPERADMIN x NOTIFICATION_READ must be seeded by V21").isEqualTo(1);
+  }
+
   private static List<String[]> sampleNotAssignedCombinations() {
     return List.of(
         new String[] {"CLIENT", "CASE_READ"},
         new String[] {"BROKER", "COMPANY_CREATE"},
-        new String[] {"SUPERADMIN", "NOTIFICATION_READ"},
+        new String[] {"BROKER", "NOTIFICATION_MANAGE"},
         new String[] {"MANAGER", "AUDIT_READ"},
         new String[] {"BROKER", "CASE_ASSIGN"},
         new String[] {"SUPERADMIN", "CASE_REOPEN"},

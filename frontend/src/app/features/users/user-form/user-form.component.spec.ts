@@ -6,9 +6,10 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 
 import { environment } from '../../../../environments/environment';
 import { errorInterceptor } from '../../../core/http/error.interceptor';
+import { SessionStore } from '../../../core/session/session.store';
 import { UserFormComponent } from './user-form.component';
 
-function configureWithRouteParam(id: string | null) {
+function configureWithRouteParam(id: string | null, role: 'BROKER' | 'SUPERADMIN' = 'BROKER') {
   TestBed.configureTestingModule({
     imports: [UserFormComponent, NoopAnimationsModule],
     providers: [
@@ -20,6 +21,13 @@ function configureWithRouteParam(id: string | null) {
         useValue: { snapshot: { paramMap: convertToParamMap(id ? { id } : {}) } },
       },
     ],
+  });
+  TestBed.inject(SessionStore).setUser({
+    id: 'caller-1',
+    email: 'caller@brika.test',
+    role,
+    companyId: role === 'SUPERADMIN' ? null : 'caller-co',
+    entitlements: {},
   });
 }
 
@@ -53,6 +61,7 @@ describe('UserFormComponent', () => {
       lastName: 'Broker',
       role: 'BROKER',
       externalIdentityId: 'ext-1',
+      companyId: '',
     });
     fixture.componentInstance.submit();
 
@@ -119,6 +128,7 @@ describe('UserFormComponent', () => {
       lastName: 'Broker',
       role: 'BROKER',
       externalIdentityId: 'ext-1',
+      companyId: '',
     });
     fixture.componentInstance.submit();
 
@@ -130,5 +140,37 @@ describe('UserFormComponent', () => {
       );
 
     expect(fixture.componentInstance.error()).toBe('No es posible asignar ese rol en esta operación.');
+  });
+
+  it('SUPERADMIN sees a required company picker and companyId reaches the request body', () => {
+    configureWithRouteParam(null, 'SUPERADMIN');
+    httpMock = TestBed.inject(HttpTestingController);
+    const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    const fixture = TestBed.createComponent(UserFormComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isSuperadmin).toBe(true);
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/companies`)
+      .flush([{ id: 'co-9', legalName: 'Co 9', tradeName: 'Co 9', taxId: 'T9', status: 'ACTIVE' }]);
+
+    expect(fixture.componentInstance.form.controls.companyId.hasError('required')).toBe(true);
+
+    fixture.componentInstance.form.setValue({
+      email: 'new@brika.test',
+      firstName: 'New',
+      lastName: 'User',
+      role: 'BROKER',
+      externalIdentityId: 'ext-2',
+      companyId: 'co-9',
+    });
+    fixture.componentInstance.submit();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`);
+    expect(req.request.body.companyId).toBe('co-9');
+    req.flush({ ...user, id: 'u2', companyId: 'co-9' });
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/app/users']);
   });
 });

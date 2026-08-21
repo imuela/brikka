@@ -25,6 +25,18 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   DOCUMENT_REQUIREMENT_NOT_FOUND: 'No se ha encontrado el requisito de documentación.',
   DOCUMENT_VERSION_NOT_FOUND: 'No se ha encontrado la versión del documento.',
   EMPTY_FILE: 'El fichero seleccionado está vacío.',
+  EVIDENCE_DOCUMENT_VERSION_NOT_FOUND: 'El documento de evidencia indicado no existe.',
+  FINANCIAL_PROFILE_NOT_FOUND: 'Este cliente todavía no tiene un perfil financiero registrado.',
+  FINANCIAL_PROFILE_REQUIRED:
+    'Todos los clientes del caso necesitan un perfil financiero antes de ejecutar el análisis.',
+  FINANCING_DATA_REQUIRED:
+    'El caso necesita una oferta bancaria seleccionada o una simulación (capital, tipo de interés y plazo) antes de poder ejecutar el análisis.',
+  MONTHLY_INCOME_REQUIRED: 'Falta el dato de ingresos mensuales en el perfil financiero del cliente.',
+  MONTHLY_INCOME_INVALID: 'Los ingresos mensuales del cliente no son válidos.',
+  NO_CLIENTS_ON_CASE: 'El caso no tiene ningún cliente asociado todavía.',
+  INVALID_FINANCIAL_PROFILE_SOURCE: 'La fuente del dato no es válida.',
+  INVALID_FINANCIAL_PROFILE_STATUS: 'El estado de verificación no es válido.',
+  NEGATIVE_FINANCIAL_VALUE: 'Los importes y cantidades no pueden ser negativos.',
   FILE_TOO_LARGE: 'El fichero supera el tamaño máximo permitido.',
   FORBIDDEN: 'No tienes permisos para realizar esta acción.',
   INVALID_ADDRESS: 'La dirección introducida no es válida.',

@@ -149,6 +149,72 @@ class BankEndpointsIT {
   }
 
   @Test
+  void creatingANewCriteriaVersionSupersedesThePreviousActiveOne() throws Exception {
+    // Sprint 29 (stabilization): BankCriteriaVersionRepository#insert always creates a version
+    // ACTIVE, but nothing used to supersede the prior ACTIVE row — BankMatchingService silently
+    // picked whichever ACTIVE row had the latest effective_from, leaving an older row saying
+    // ACTIVE while not actually governing matching. "Activate a version" must be exclusive.
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-bk1b");
+    UUID bankId = createBank(superadmin, "BK1B");
+
+    Map<String, Object> rule =
+        Map.of(
+            "id", "max-ltv-80",
+            "field", "computed.ltv",
+            "operator", "LESS_THAN_OR_EQUAL",
+            "value", 0.80,
+            "severity", "FAIL",
+            "reason", "LTV must not exceed 80%");
+    String v1Body =
+        objectMapper.writeValueAsString(
+            new CreateBankCriteriaVersionApiRequest(
+                "v1", null, null, Map.of("rules", List.of(rule))));
+    mockMvc
+        .perform(
+            post("/api/v1/banks/" + bankId + "/criteria")
+                .header("Authorization", superadmin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(v1Body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    String v2Body =
+        objectMapper.writeValueAsString(
+            new CreateBankCriteriaVersionApiRequest(
+                "v2", null, null, Map.of("rules", List.of(rule))));
+    mockMvc
+        .perform(
+            post("/api/v1/banks/" + bankId + "/criteria")
+                .header("Authorization", superadmin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(v2Body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    String listResponse =
+        mockMvc
+            .perform(
+                get("/api/v1/banks/" + bankId + "/criteria")
+                    .header("Authorization", superadmin.bearer()))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    com.fasterxml.jackson.databind.JsonNode versions = objectMapper.readTree(listResponse);
+    long activeCount = 0;
+    for (com.fasterxml.jackson.databind.JsonNode v : versions) {
+      if ("ACTIVE".equals(v.get("status").asText())) {
+        activeCount++;
+        org.assertj.core.api.Assertions.assertThat(v.get("version").asText()).isEqualTo("v2");
+      } else {
+        org.assertj.core.api.Assertions.assertThat(v.get("status").asText())
+            .isEqualTo("SUPERSEDED");
+      }
+    }
+    org.assertj.core.api.Assertions.assertThat(activeCount).isEqualTo(1);
+  }
+
+  @Test
   void brokerCanReadBanksButCannotCreateOrUpdate() throws Exception {
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-bk2");
     UUID bankId = createBank(superadmin, "BK2");

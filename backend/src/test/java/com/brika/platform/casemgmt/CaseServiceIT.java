@@ -47,6 +47,7 @@ class CaseServiceIT {
   @Autowired private UserProvisioningService userProvisioningService;
   @Autowired private ClientRepository clientRepository;
   @Autowired private CaseService caseService;
+  @Autowired private CaseRepository caseRepository;
   @Autowired private CaseClientRepository caseClientRepository;
   @Autowired private CaseStatusHistoryRepository caseStatusHistoryRepository;
   @Autowired private ActivityRepository activityRepository;
@@ -148,6 +149,40 @@ class CaseServiceIT {
     assertThat(cancelled.cancelledAt()).isNotNull();
     List<Activity> activities = activityRepository.findAllByCaseId(created.id());
     assertThat(activities).extracting(Activity::activityType).contains("CaseCancelled");
+  }
+
+  @Test
+  void cancelWithAnOrdinaryLengthCommentSucceeds() {
+    UUID companyId = newCompany("TC-CS6B");
+    User manager = newManager(companyId, "mgr-cs6b");
+    Case created = caseService.createCase(companyId, manager.id(), "MORTGAGE");
+
+    Case cancelled =
+        caseService.cancel(
+            created,
+            manager.id(),
+            CancellationReason.CLIENT_REQUEST,
+            "El cliente ha decidido posponer la operacion por motivos personales.");
+
+    assertThat(cancelled.status()).isEqualTo(CaseStatus.CANCELLED);
+  }
+
+  @Test
+  void cancelWithACommentTooLongIsRejectedWithoutHittingTheDatabaseConstraint() {
+    UUID companyId = newCompany("TC-CS6C");
+    User manager = newManager(companyId, "mgr-cs6c");
+    Case created = caseService.createCase(companyId, manager.id(), "MORTGAGE");
+    String tooLong = "x".repeat(600);
+
+    assertThatThrownBy(
+            () -> caseService.cancel(created, manager.id(), CancellationReason.OTHER, tooLong))
+        .isInstanceOf(ValidationException.class)
+        .extracting(ex -> ((ValidationException) ex).code())
+        .isEqualTo("CANCELLATION_COMMENT_TOO_LONG");
+
+    // the case must remain untouched — validated before any write, not rolled back after one
+    Case reread = caseRepository.findById(created.id()).orElseThrow();
+    assertThat(reread.status()).isEqualTo(CaseStatus.PRESTUDY);
   }
 
   @Test

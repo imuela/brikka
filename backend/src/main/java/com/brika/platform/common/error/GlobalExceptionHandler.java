@@ -7,15 +7,26 @@ import com.brika.platform.common.observability.CorrelationIdFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Baseline error handling: any unhandled exception is logged server-side (with stack trace) and
  * answered with the standard error body, never a stack trace to the client.
+ *
+ * <p>Sprint 29 (stabilization): {@link NoResourceFoundException} and {@link
+ * DataIntegrityViolationException} used to fall through to {@link #handleUnexpected}, answering an
+ * unmapped route or a caller-triggered DB constraint violation (missing required field, value too
+ * long, etc.) with the same generic 500 as a real internal failure. Both are caller-input problems,
+ * not server bugs, so they get their own handlers below with the HTTP status that actually matches
+ * the cause. Domain code should still validate proactively (see e.g. CaseService.cancel,
+ * DocumentRequestService.create) — the constraint-violation handler here is a backstop for whatever
+ * a specific validation missed, not the primary defense.
  */
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -73,6 +84,27 @@ public class GlobalExceptionHandler {
     String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
     ErrorResponse body = new ErrorResponse(exception.code(), exception.getMessage(), requestId);
     return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    ErrorResponse body = new ErrorResponse("NOT_FOUND", "Resource not found.", requestId);
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+  }
+
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+      DataIntegrityViolationException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    log.warn("Data integrity violation (requestId={})", requestId, exception);
+    ErrorResponse body =
+        new ErrorResponse(
+            "INVALID_REQUEST",
+            "The request could not be completed because it violates a data constraint (e.g. a"
+                + " required field is missing or a value is too long).",
+            requestId);
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
   }
 
   @ExceptionHandler(Exception.class)

@@ -199,3 +199,29 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   INTERNAL: 'Tarea interna',
   GENERAL: 'General',
 };
+
+/** Sprint 31. Mirrors backend chk_case_financial_analysis_results_viability_category (V23
+ * migration). Internal, orientative classification — see ViabilityClassifier.DISCLAIMER. */
+export const VIABILITY_CATEGORY_LABELS: Record<string, string> = {
+  FAVORABLE: 'Favorable',
+  REVISAR: 'A revisar',
+  NO_VIABLE: 'No viable',
+};
+
+/** Sprint 30. Mirrors backend chk_client_financial_profiles_source (V22 migration) — a catalog
+ * owned by this feature, not inherited from Legacy. */
+export const FINANCIAL_PROFILE_SOURCE_LABELS: Record<string, string> = {
+  CLIENT: 'Cliente',
+  BROKER: 'Broker/gestor',
+  AI: 'IA',
+};
+
+/** Sprint 30. Mirrors backend chk_client_financial_profiles_status (V22 migration). No automatic
+ * transition logic exists yet — this is a manually-selected label, not a computed state. */
+export const FINANCIAL_PROFILE_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendiente de verificar',
+  CONFIRMED: 'Confirmado',
+  ESTIMATED: 'Estimado',
+  REJECTED: 'Rechazado',
+  OUTDATED: 'Desactualizado',
+};

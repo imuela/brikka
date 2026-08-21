@@ -2,6 +2,7 @@ package com.brika.platform.document;
 
 import com.brika.platform.activity.ActivityPublisher;
 import com.brika.platform.activity.CaseActivityEvent;
+import com.brika.platform.common.error.ValidationException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +30,10 @@ public class DocumentRequestService {
       Instant dueAt,
       UUID requestedBy,
       UUID requirementId) {
+    if (documentTypeId == null) {
+      throw new ValidationException(
+          "DOCUMENT_TYPE_ID_REQUIRED", "documentTypeId is required to create a document request.");
+    }
     UUID id =
         documentRequestRepository.insert(
             tenantId,

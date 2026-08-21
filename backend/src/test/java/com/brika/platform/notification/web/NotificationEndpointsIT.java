@@ -157,11 +157,37 @@ class NotificationEndpointsIT {
   }
 
   @Test
-  void superadminCannotAccessNotifications() throws Exception {
+  void superadminCanAccessTheirOwnNotifications() throws Exception {
+    // Sprint 29 (stabilization, V21): NOTIFICATION_READ was granted to MANAGER/BROKER in V9 but
+    // never to SUPERADMIN — an oversight from before Sprint 27's GLOBAL model. This used to assert
+    // 403 (superadminCannotAccessNotifications); it now asserts the corrected behavior. The
+    // controller still scopes strictly to the caller's own recipientUserId (never tenant-wide),
+    // so this is not a widening of what SUPERADMIN can see — only that they can see their own.
     TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-n4");
+    // notifications.company_id is NOT NULL even though SUPERADMIN itself belongs to no tenant —
+    // scoping here is by recipientUserId, so any real company works to satisfy the FK.
+    UUID anyCompanyId = companyRepository.insert("Co N4", "Co N4", "TC-N4");
+
+    Notification notification =
+        notificationService.create(
+            anyCompanyId, superadmin.user().id(), null, "TASK_ASSIGNED", Map.of("title", "hello"));
 
     mockMvc
         .perform(get("/api/v1/notifications").header("Authorization", superadmin.bearer()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(notification.id().toString()));
+
+    mockMvc
+        .perform(
+            get("/api/v1/notifications/unread-count").header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.count").value(1));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/notifications/" + notification.id() + "/read")
+                .header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.readAt").value(notNullValue()));
   }
 }

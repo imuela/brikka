@@ -16,8 +16,10 @@ import org.springframework.stereotype.Component;
  * Ties the already-approved building blocks (PermissionResolutionService, TenantContext,
  * TenantAccessGuard) into the "tenant + role/permission + resource scope" pipeline required by
  * 06_SECURITY_SPECIFICATION.md §3.0 / 17_API_SPECIFICATION_DETAILED.md §21. A permission alone
- * never grants access: every write here also requires a resolved tenant, and for SUPERADMIN that
- * never happens without SUPPORT_SESSION (not implemented), so SUPERADMIN is denied in practice.
+ * never grants access: {@link #requireTenant} resolves the caller's own tenant and returns empty
+ * for SUPERADMIN (who has none), so a write gated purely by requireTenant is denied for SUPERADMIN
+ * unless the controller branches on {@link #isSuperadmin} first and resolves the tenant from the
+ * target resource instead (Sprint 27, ADR-RBAC-002) — see that method's javadoc.
  */
 @Component
 public class AuthorizationService {
@@ -55,7 +57,11 @@ public class AuthorizationService {
   }
 
   /**
-   * Requires a resolved tenant (never true for SUPERADMIN without SUPPORT_SESSION) and returns it.
+   * Requires the caller's own resolved tenant and returns it — always empty for SUPERADMIN (who has
+   * no company of their own), so this throws for SUPERADMIN callers. Tenant-owned writes that
+   * SUPERADMIN must still be able to perform (Sprint 27, ADR-RBAC-002) resolve the tenant from the
+   * target resource instead, via an {@link #isSuperadmin} branch in the controller — this method is
+   * only appropriate for the caller's own tenant, never the resource's.
    */
   public UUID requireTenant(Authentication authentication) {
     User user = currentUser(authentication);

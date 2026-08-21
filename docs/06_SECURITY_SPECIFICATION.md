@@ -38,18 +38,50 @@ Un `RBAC permission` (qué puede hacer un rol) y un `entitlement` (qué funciona
 
 Una funcionalidad limitada por plan requiere ambas comprobaciones: `tenant + permission + entitlement`. Tener el permiso RBAC nunca es suficiente por sí solo cuando la funcionalidad depende de plan.
 
-### 3.1B SUPPORT_SESSION — acceso de SUPERADMIN a recursos tenant-owned (`ADR-RBAC-001`)
+### 3.1B SUPERADMIN, tenant resolution y SUPPORT_SESSION (`ADR-RBAC-001` + `ADR-RBAC-002`, Sprint 28)
 
-`SUPERADMIN` no tiene acceso cross-tenant permanente a ningún recurso tenant-owned. Su único camino de acceso es una `SUPPORT_SESSION` activa:
+El diseño original de esta sección (Sprint 2, `ADR-RBAC-001`) preveía `SUPPORT_SESSION` como el
+**único** camino de acceso de `SUPERADMIN` a cualquier recurso tenant-owned, tanto para lectura como
+para escritura. Ese mecanismo (entidad `support_sessions`, verificación en `TenantContext`,
+endpoints de apertura/cierre, `support_session_id` en `audit_events`) **sigue sin implementarse** —
+no existe ninguna migración ni tabla `support_sessions` en el esquema. Lo que sí cambió es el modelo
+real de acceso de SUPERADMIN, vía Sprint 27 (`ADR-RBAC-002`):
 
-- exactamente una `target_company_id` por sesión, nunca `'*'` ni todas las empresas;
-- `reason` y `expires_at` obligatorios; no se permiten sesiones indefinidas;
-- `status`: `ACTIVE` / `EXPIRED` / `CLOSED`;
-- toda acción realizada durante la sesión queda auditada con referencia a la sesión (`support_session_id` en `audit_events`);
-- `SUPPORT_SESSION` no cambia el rol de SUPERADMIN ni concede permisos nuevos: solo habilita el uso de los permisos ya marcados `SUPPORT_SESSION` en `ADR-RBAC-001`, y solo contra `target_company_id`;
-- al expirar o cerrarse la sesión, el acceso tenant desaparece inmediatamente, sin periodo de gracia.
+**Lecturas y el subconjunto de escrituras que Sprint 27 cubrió — sin SUPPORT_SESSION:**
+`SUPERADMIN` es administrador **GLOBAL**. En vez de resolver su propio tenant (que no tiene —
+`TenantContext.resolve` devuelve `Optional.empty()` para este rol, sin excepción), el tenant se
+resuelve **desde el recurso accedido** (mismo patrón ya usado por `CompanyController` desde antes de
+Sprint 27). Esto cubre:
+- lecturas de Casos, Clientes, Tareas, Usuarios y Actividad, y de los recursos derivados de un caso
+  (documentos, conversaciones, simulaciones, financiación, ofertas, bank matching) vía
+  `CaseAccessService`;
+- gestión de usuarios completa (`USER_CREATE`/`READ`/`UPDATE`/`DISABLE`/`ASSIGN_ROLE`): a diferencia
+  de las lecturas anteriores, esto **no es un derivado de "resolver desde el recurso"** — es una
+  reasignación explícita de esos 5 permisos a alcance GLOBAL, divergiendo del scope `SUPPORT_SESSION`
+  que `ADR-RBAC-001` les asignaba originalmente. `USER_CREATE` para SUPERADMIN exige `companyId`
+  explícito en la petición (el admin global no tiene empresa propia); MANAGER/BROKER nunca pueden
+  influir el tenant de un usuario creado — cualquier `companyId` que envíen se ignora
+  (verificado por test, `IdentityEndpointsIT.managerCreatingUserIgnoresAnySuppliedCompanyIdAndUsesOwnTenant`).
+- override manual de bank matching (`BANK_MATCHING_OVERRIDE`), vía el mismo `CaseAccessService`.
 
-Mientras `SUPPORT_SESSION` no esté implementado, `TenantContext` debe resolver "sin tenant" para SUPERADMIN en todos los casos, sin excepción, sin fallback y sin bypass — ni por `company_id` recibido del cliente, ni por ausencia de filtro en un repositorio/servicio, ni por un filtro JPA opt-in mal configurado. El mecanismo completo (entidad `support_sessions`, verificación en `TenantContext`, endpoints de apertura/cierre) no forma parte de Sprint 2; el sprint de implementación queda pendiente de asignación explícita en `25_CLAUDE_CODE_EXECUTION_GUIDE.md`.
+**Escrituras operativas de tenant que Sprint 27 dejó sin resolver — bloqueadas, sin error 403 no
+justificado:** crear/editar Caso, Cliente o Tarea desde SUPERADMIN sigue exigiendo `requireTenant()`
+(que SUPERADMIN nunca resuelve). El frontend oculta esos botones de creación para SUPERADMIN
+(`*appHideForRole="'SUPERADMIN'"`) en vez de exponerlos para que el backend los rechace. **Esto es lo
+único que `SUPPORT_SESSION` seguiría resolviendo si se implementara.**
+
+**Caso aparte, no relacionado con Sprint 27:** `CLIENT_PORTAL_ACCOUNT_CREATE` nunca fue concedido a
+SUPERADMIN en absoluto (`V11__portal_account_permission.sql`, Sprint 19, `ADR-PORTAL-AUTH-001`) — es
+una exclusión de permiso intencionada y anterior al propio `ADR-RBAC-001`, no un caso pendiente de
+SUPPORT_SESSION. Verificado por test (`CrmCaseEndpointsIT.superadminCannotCreateClientPortalAccount`).
+
+**Estado de SUPPORT_SESSION (Sprint 28):** sigue sin implementarse. Su alcance real, si se
+implementa, se reduce a las escrituras operativas de tenant listadas arriba — no a "todo lo
+tenant-owned" como preveía el diseño original, porque Sprint 27 ya resolvió la mayor parte de las
+lecturas y toda la gestión de usuarios por una vía distinta y ya vigente. Mientras no exista,
+`TenantContext` sigue resolviendo "sin tenant" para SUPERADMIN sin excepción para su **propio**
+tenant — eso no cambia; lo que cambió es que muchos controllers ya no dependen de esa resolución
+para SUPERADMIN, consultando en su lugar el tenant del recurso.
 
 ### 3.2 Conversaciones (mensajería)
 

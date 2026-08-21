@@ -7,9 +7,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * Pure RBAC query (user_roles -> role_permissions -> permissions), per ADR-RBAC-001. Not wired to
- * any authenticated principal, filter, or endpoint yet — that requires OAuth2/JWT (out of scope for
- * this block) and TenantContext resolved from the real token.
+ * Pure RBAC query (user_roles -> role_permissions -> permissions), per ADR-RBAC-001. Consumed by
+ * {@link com.brika.platform.security.AuthorizationService#requirePermission} on every authenticated
+ * request, resolved for the real principal from the validated JWT.
  */
 @Service
 public class PermissionResolutionService {

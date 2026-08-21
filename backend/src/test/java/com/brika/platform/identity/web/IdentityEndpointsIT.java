@@ -113,11 +113,12 @@ class IdentityEndpointsIT {
     mockMvc
         .perform(get("/api/v1/me/permissions").header("Authorization", manager.bearer()))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.permissions", hasSize(79))) // 71 (ADR-RBAC-001) + 1
+        .andExpect(jsonPath("$.permissions", hasSize(81))) // 71 (ADR-RBAC-001) + 1
         // (CLIENT_PORTAL_ACCOUNT_CREATE, ADR-PORTAL-AUTH-001, V11) + 2
         // (BANK_MATCHING_RUN/READ, ADR-BANKENGINE-001, V13) + 1
         // (BANK_MATCHING_OVERRIDE, ADR-BANKENGINE-002, V14) + 4
-        // (AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE, Sprint 10 D10-1, V15)
+        // (AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE, Sprint 10 D10-1, V15) + 2
+        // (FINANCIAL_ANALYSIS_RUN/READ, Sprint 31, V24)
         .andExpect(jsonPath("$.permissions", hasItem("AI_USE")))
         .andExpect(jsonPath("$.permissions", not(hasItem("AI_MANAGE_CONFIGURATION"))))
         .andExpect(jsonPath("$.permissions", hasItem("CASE_REOPEN")));
@@ -135,6 +136,37 @@ class IdentityEndpointsIT {
         .perform(get("/api/v1/users").header("Authorization", managerA.bearer()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(2)));
+  }
+
+  @Test
+  void managerCreatingUserIgnoresAnySuppliedCompanyIdAndUsesOwnTenant() throws Exception {
+    // Sprint 28 audit: UserController.create() only honours request.companyId() when the caller is
+    // SUPERADMIN; for MANAGER/BROKER it always resolves the caller's own tenant via requireTenant()
+    // and any companyId in the request body is silently ignored — this proves it, rather than just
+    // asserting it in a comment. A MANAGER attempting to plant a user in a foreign company must
+    // fail
+    // closed: the created user still belongs to the MANAGER's own company, never the foreign one.
+    UUID ownCompany = companyRepository.insert("Co CID1", "Co CID1", "TC-CID1");
+    UUID foreignCompany = companyRepository.insert("Co CID2", "Co CID2", "TC-CID2");
+    TestPrincipal manager = createUser(UserRole.MANAGER, ownCompany, "manager-cid1");
+
+    String body =
+        objectMapper.writeValueAsString(
+            new CreateUserApiRequest(
+                "planted@brika.test",
+                "Planted",
+                "User",
+                "BROKER",
+                "ext-" + UUID.randomUUID(),
+                foreignCompany));
+    mockMvc
+        .perform(
+            post("/api/v1/users")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.companyId").value(ownCompany.toString()));
   }
 
   @Test

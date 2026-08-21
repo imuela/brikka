@@ -6,9 +6,11 @@ import { SessionStore } from '../../core/session/session.store';
  * `*appHideForRole="'SUPERADMIN'"` — hides the element when the current session's role equals the
  * given value. Sprint 27 (ADR-RBAC-002): a GLOBAL SUPERADMIN can read every tenant screen but, with
  * no company of their own and SUPPORT_SESSION not yet implemented, cannot create tenant-operational
- * records (client/case/task/user) from the UI — so the create action is hidden rather than letting
+ * records (client/case/task) from the UI — so the create action is hidden rather than letting
  * the backend reject it with 403 (03_TECHNICAL_SPECIFICATION.md §3 / sprint §8 no-unjustified-403).
- * It is UX-only, never a substitute for the backend's own authorization check.
+ * User creation is the one exception: Sprint 27 made it a GLOBAL SUPERADMIN capability (with an
+ * explicit companyId, ADR-RBAC-002 point 3), so "Nuevo usuario" is never hidden by this directive
+ * (Sprint 28). It is UX-only, never a substitute for the backend's own authorization check.
  */
 @Directive({
   selector: '[appHideForRole]',

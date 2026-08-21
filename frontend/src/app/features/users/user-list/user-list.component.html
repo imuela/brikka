@@ -2,7 +2,6 @@
   <h1>Usuarios</h1>
   <ng-container *appHasPermission="'USER_CREATE'">
     <a
-      *appHideForRole="'SUPERADMIN'"
       mat-flat-button
       color="primary"
       routerLink="/app/users/new">

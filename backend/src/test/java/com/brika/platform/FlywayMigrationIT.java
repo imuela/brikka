@@ -61,7 +61,11 @@ class FlywayMigrationIT {
     Integer appliedMigrations =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true", Integer.class);
-    assertThat(appliedMigrations).isEqualTo(19);
+    // 19 through V19 + V20 (Sprint 29: widen case_status_history.reason) + V21 (Sprint 29:
+    // SUPERADMIN x NOTIFICATION_READ) + V22 (Sprint 30: client financial profile) = 22.
+    // + V23 (Sprint 31: case_financial_analysis_results) + V24 (Sprint 31: FINANCIAL_ANALYSIS_RUN/
+    // READ permissions) = 24.
+    assertThat(appliedMigrations).isEqualTo(24);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -72,8 +76,10 @@ class FlywayMigrationIT {
     // V13 adds bank_match_results + bank_match_rule_results = 50. V14 adds
     // bank_match_rule_overrides = 51. V15/V16 add no table. V17 adds 7 (user_credentials,
     // portal_account_credentials, user_refresh_tokens, portal_refresh_tokens,
-    // user_password_reset_tokens, portal_password_reset_tokens, login_attempts) = 58.
-    assertThat(tableCount).isEqualTo(58);
+    // user_password_reset_tokens, portal_password_reset_tokens, login_attempts) = 58. V18-V21 add
+    // no table. V22 (Sprint 30) adds client_financial_profiles + client_financial_profile_history
+    // = 60. V23 (Sprint 31) adds case_financial_analysis_results = 61. V24 adds no table.
+    assertThat(tableCount).isEqualTo(61);
 
     Boolean companyIdNullable =
         jdbc.queryForObject(
@@ -94,9 +100,10 @@ class FlywayMigrationIT {
     Integer permissionCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM permissions", Integer.class);
     assertThat(permissionCount)
-        .isEqualTo(114); // 110 full atomic catalog (14_DEFINITIVE_PERMISSION_CATALOG.md) + 1
+        .isEqualTo(116); // 110 full atomic catalog (14_DEFINITIVE_PERMISSION_CATALOG.md) + 1
     // CLIENT_PORTAL_ACCOUNT_CREATE (ADR-PORTAL-AUTH-001, V11) + 2 BANK_MATCHING_RUN/READ
-    // (ADR-BANKENGINE-001, V13) + 1 BANK_MATCHING_OVERRIDE (ADR-BANKENGINE-002, V14)
+    // (ADR-BANKENGINE-001, V13) + 1 BANK_MATCHING_OVERRIDE (ADR-BANKENGINE-002, V14) + 2
+    // FINANCIAL_ANALYSIS_RUN/READ (Sprint 31, V24)
 
     Integer documentTypeCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM document_types", Integer.class);
@@ -109,8 +116,10 @@ class FlywayMigrationIT {
     // (SUPERADMIN/MANAGER/BROKER x BANK_MATCHING_RUN/READ, V13) + 2 from ADR-BANKENGINE-002
     // (MANAGER/SUPERADMIN x BANK_MATCHING_OVERRIDE, V14) = 231 + 12 from Sprint 10 D10-1
     // (SUPERADMIN/MANAGER/BROKER x AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE,
-    // V15) = 243. Full breakdown and PENDING/NOT_ASSIGNED absence verified in RbacSeedIT.
-    assertThat(rolePermissionCount).isEqualTo(243);
+    // V15) = 243, + 1 from Sprint 29 stabilization (SUPERADMIN x NOTIFICATION_READ, V21) = 244,
+    // + 6 from Sprint 31 (SUPERADMIN/MANAGER/BROKER x FINANCIAL_ANALYSIS_RUN/READ, V24) = 250.
+    // Full breakdown and PENDING/NOT_ASSIGNED absence verified in RbacSeedIT.
+    assertThat(rolePermissionCount).isEqualTo(250);
 
     Boolean reviewCommentExists =
         jdbc.queryForObject(

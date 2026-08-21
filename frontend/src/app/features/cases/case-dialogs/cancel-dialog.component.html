@@ -14,7 +14,11 @@
 
     <mat-form-field>
       <mat-label>Comentario (opcional)</mat-label>
-      <input matInput formControlName="comment" />
+      <input matInput formControlName="comment" [maxlength]="maxCommentLength" />
+      <mat-hint align="end">{{ form.controls.comment.value?.length ?? 0 }}/{{ maxCommentLength }}</mat-hint>
+      @if (form.controls.comment.hasError('maxlength')) {
+        <mat-error>El comentario es demasiado largo (máximo {{ maxCommentLength }} caracteres).</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

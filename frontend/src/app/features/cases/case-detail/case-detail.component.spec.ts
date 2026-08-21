@@ -66,6 +66,7 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -94,6 +95,7 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -125,6 +127,7 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
@@ -273,6 +276,7 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
 
     expect(fixture.componentInstance.bankName('b1')).toBe('Banco Demo Desarrollo');
     expect(fixture.componentInstance.bankName('unknown')).toBe('unknown');
@@ -881,6 +885,99 @@ describe('CaseDetailComponent', () => {
       expect.objectContaining({
         data: { conversation, clients: [], assignableUsers: [] },
       }),
+    );
+  });
+
+  it('the Análisis financiero section is gated by FINANCIAL_ANALYSIS_READ', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Análisis financiero');
+
+    sessionStore.setPermissions(['FINANCIAL_ANALYSIS_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Análisis financiero');
+    expect(fixture.nativeElement.textContent).toContain('Sin análisis financiero todavía');
+  });
+
+  it('shows the "Ejecutar análisis" button only with FINANCIAL_ANALYSIS_RUN', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['FINANCIAL_ANALYSIS_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Ejecutar análisis');
+
+    sessionStore.setPermissions(['FINANCIAL_ANALYSIS_READ', 'FINANCIAL_ANALYSIS_RUN']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Ejecutar análisis');
+  });
+
+  it('running the analysis renders the DTI, payment, viability and disclaimer for each client', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['FINANCIAL_ANALYSIS_READ', 'FINANCIAL_ANALYSIS_RUN']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.runFinancialAnalysis();
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`);
+    expect(req.request.method).toBe('POST');
+    req.flush([
+      {
+        id: 'far1',
+        caseId: 'k1',
+        clientId: 'c1',
+        principal: 200000,
+        interestRate: 3.5,
+        termMonths: 360,
+        monthlyPayment: 898.09,
+        monthlyIncome: 3000,
+        existingMonthlyDebts: 300,
+        dtiPercent: 39.94,
+        viabilityCategory: 'REVISAR',
+        quotaSource: 'SIMULATION',
+        quotaSourceId: 's1',
+        rulesVersion: 'brikka-dti-v1',
+        explanation: {
+          disclaimer:
+            'Regla orientativa interna de Brikka V1. No representa un criterio oficial ni garantiza la aprobación por una entidad financiera.',
+        },
+        calculatedBy: 'u1',
+        calculatedAt: '2026-08-21T10:00:00Z',
+      },
+    ]);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('A revisar');
+    expect(text).toContain('39.94');
+    expect(text).toContain('orientativa interna');
+  });
+
+  it('shows the structured backend error when the analysis cannot be run', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['FINANCIAL_ANALYSIS_READ', 'FINANCIAL_ANALYSIS_RUN']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.runFinancialAnalysis();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`)
+      .flush(
+        { code: 'FINANCING_DATA_REQUIRED', message: 'no financing', requestId: 'r1' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.financialAnalysisError()).toContain(
+      'oferta bancaria seleccionada o una simulación',
     );
   });
 });

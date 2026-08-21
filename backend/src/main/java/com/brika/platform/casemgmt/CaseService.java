@@ -128,6 +128,7 @@ public class CaseService {
     if (current == CaseStatus.PRESTUDY && newStatus == CaseStatus.DOCUMENTATION) {
       requireAtLeastOneClient(theCase.id());
     }
+    requireReasonFits(reason);
 
     caseRepository.updateStatus(theCase.id(), newStatus, null);
     caseStatusHistoryRepository.insert(
@@ -159,15 +160,42 @@ public class CaseService {
     }
   }
 
+  /**
+   * case_status_history.reason is varchar(500) (V20) — validated here, not just left to the DB
+   * constraint, so a too-long reason/comment fails fast with a structured 400 instead of an
+   * unhandled DataIntegrityViolationException (Sprint 29 stabilization). Applied at every call site
+   * that writes to this column with caller-supplied free text.
+   */
+  static final int MAX_STATUS_HISTORY_REASON_LENGTH = 500;
+
+  private static void requireReasonFits(String reason) {
+    if (reason != null && reason.length() > MAX_STATUS_HISTORY_REASON_LENGTH) {
+      throw new ValidationException(
+          "REASON_TOO_LONG",
+          "Reason/comment is too long: at most "
+              + MAX_STATUS_HISTORY_REASON_LENGTH
+              + " characters.");
+    }
+  }
+
   @Transactional
   public Case cancel(Case theCase, UUID actorUserId, CancellationReason reason, String comment) {
     CaseStatus current = theCase.status();
     if (current.isTerminal()) {
       throw new ValidationException("CASE_TERMINAL", "Case is already in a terminal state.");
     }
-    caseRepository.updateStatus(theCase.id(), CaseStatus.CANCELLED, Instant.now());
     String historyReason =
         comment == null || comment.isBlank() ? reason.name() : reason.name() + ": " + comment;
+    if (historyReason.length() > MAX_STATUS_HISTORY_REASON_LENGTH) {
+      throw new ValidationException(
+          "CANCELLATION_COMMENT_TOO_LONG",
+          "Comment is too long: the reason and comment together must be at most "
+              + (MAX_STATUS_HISTORY_REASON_LENGTH - reason.name().length() - 2)
+              + " characters for reason \""
+              + reason.name()
+              + "\".");
+    }
+    caseRepository.updateStatus(theCase.id(), CaseStatus.CANCELLED, Instant.now());
     caseStatusHistoryRepository.insert(
         theCase.companyId(),
         theCase.id(),
@@ -204,6 +232,7 @@ public class CaseService {
       throw new ValidationException(
           "INVALID_TARGET_STATUS", "Reopen target status must not be terminal.");
     }
+    requireReasonFits(reason);
     caseRepository.updateStatus(theCase.id(), targetStatus, null);
     caseStatusHistoryRepository.insert(
         theCase.companyId(), theCase.id(), current, targetStatus, actorUserId, reason);

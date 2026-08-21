@@ -33,6 +33,18 @@
         separado (recuperación de contraseña o alta gestionada por un SUPERADMIN).
       </mat-hint>
     </mat-form-field>
+
+    @if (isSuperadmin) {
+      <mat-form-field>
+        <mat-label>Empresa</mat-label>
+        <mat-select formControlName="companyId" required>
+          @for (company of companies(); track company.id) {
+            <mat-option [value]="company.id">{{ company.tradeName }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>Como SUPERADMIN, elige a qué empresa pertenece este usuario.</mat-hint>
+      </mat-form-field>
+    }
   }
 
   @if (error()) {

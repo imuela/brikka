@@ -71,6 +71,14 @@ brika:
     # time, so business/services code is unaware of the transport.
     transport: ${NOTIFICATION_TRANSPORT:sync}
 
+  financial-analysis:
+    # Sprint 31: no approved DTI/viability thresholds exist anywhere in the project documentation
+    # or Legacy — these are Brikka's own internal, orientative defaults (see ViabilityClassifier's
+    # class Javadoc), centralized here rather than hardcoded so they can be tuned without a
+    # recompile. Every result computed from them carries ViabilityClassifier.DISCLAIMER.
+    dti-favorable-max-percent: ${FINANCIAL_ANALYSIS_DTI_FAVORABLE_MAX_PERCENT:35}
+    dti-revisar-max-percent: ${FINANCIAL_ANALYSIS_DTI_REVISAR_MAX_PERCENT:40}
+
   security:
     # Sprint 13 D1 (06_SECURITY_SPECIFICATION.md §9, "CORS controlado"): comma-separated list
     # of allowed browser origins, never a wildcard. Defaults to the local Angular dev server.

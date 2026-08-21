@@ -411,6 +411,80 @@
     }
   </div>
 
+  <div class="section" *appHasPermission="'FINANCIAL_ANALYSIS_READ'">
+    <div class="section-header">
+      <h2>Análisis financiero</h2>
+      <button
+        *appHasPermission="'FINANCIAL_ANALYSIS_RUN'"
+        mat-flat-button
+        color="primary"
+        [disabled]="financialAnalysisRunning()"
+        (click)="runFinancialAnalysis()">
+        @if (financialAnalysisRunning()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          Ejecutar análisis
+        }
+      </button>
+    </div>
+    @if (financialAnalysisError()) {
+      <p class="error-text">{{ financialAnalysisError() }}</p>
+    }
+    @if (financialAnalysisResults() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (financialAnalysisResults()!.length === 0) {
+      <p>Sin análisis financiero todavía. Ejecuta el análisis para ver la cuota, el DTI y la clasificación de viabilidad de cada cliente del caso.</p>
+    } @else {
+      <div class="table-scroll">
+      <table mat-table [dataSource]="financialAnalysisResults()!">
+        <ng-container matColumnDef="client">
+          <th mat-header-cell *matHeaderCellDef>Cliente</th>
+          <td mat-cell *matCellDef="let result">{{ financialAnalysisClientName(result.clientId) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="monthlyIncome">
+          <th mat-header-cell *matHeaderCellDef>Ingresos</th>
+          <td mat-cell *matCellDef="let result">
+            {{ result.monthlyIncome | currency: 'EUR' : 'symbol' : '1.0-2' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="existingMonthlyDebts">
+          <th mat-header-cell *matHeaderCellDef>Deudas existentes</th>
+          <td mat-cell *matCellDef="let result">
+            {{ result.existingMonthlyDebts | currency: 'EUR' : 'symbol' : '1.0-2' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="monthlyPayment">
+          <th mat-header-cell *matHeaderCellDef>Cuota estimada</th>
+          <td mat-cell *matCellDef="let result">
+            {{ result.monthlyPayment | currency: 'EUR' : 'symbol' : '1.0-2' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="dtiPercent">
+          <th mat-header-cell *matHeaderCellDef>DTI</th>
+          <td mat-cell *matCellDef="let result">{{ result.dtiPercent }}%</td>
+        </ng-container>
+        <ng-container matColumnDef="viabilityCategory">
+          <th mat-header-cell *matHeaderCellDef>Viabilidad</th>
+          <td mat-cell *matCellDef="let result">
+            <app-status-badge [value]="result.viabilityCategory" [labels]="viabilityCategoryLabels" />
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="calculatedAt">
+          <th mat-header-cell *matHeaderCellDef>Calculado</th>
+          <td mat-cell *matCellDef="let result">
+            {{ result.calculatedAt | date: 'dd/MM/yyyy HH:mm' }}
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="financialAnalysisColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: financialAnalysisColumns"></tr>
+      </table>
+      </div>
+      <p style="color: rgba(0, 0, 0, 0.6); font-size: 0.85em;">
+        {{ financialAnalysisResults()![0].explanation.disclaimer }}
+      </p>
+    }
+  </div>
+
   <div class="section" *appHasPermission="'BANK_MATCHING_READ'">
     <div class="section-header">
       <h2>Matching bancario</h2>

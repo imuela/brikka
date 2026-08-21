@@ -1,0 +1,101 @@
+<h2 mat-dialog-title>Perfil financiero</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <h3>Situación personal</h3>
+    <mat-form-field>
+      <mat-label>Estado civil</mat-label>
+      <input matInput formControlName="maritalStatus" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Personas a cargo</mat-label>
+      <input matInput type="number" min="0" formControlName="dependents" />
+      @if (form.controls.dependents.hasError('min')) {
+        <mat-error>No puede ser negativo.</mat-error>
+      }
+    </mat-form-field>
+
+    <h3>Situación laboral</h3>
+    <mat-form-field>
+      <mat-label>Tipo de empleo</mat-label>
+      <input matInput formControlName="employmentType" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Tipo de contrato</mat-label>
+      <input matInput formControlName="contractType" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Empleador</mat-label>
+      <input matInput formControlName="employerName" />
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Años en el empleo actual</mat-label>
+      <input matInput type="number" min="0" formControlName="yearsEmployed" />
+      @if (form.controls.yearsEmployed.hasError('min')) {
+        <mat-error>No puede ser negativo.</mat-error>
+      }
+    </mat-form-field>
+
+    <h3>Ingresos, ahorro y deudas</h3>
+    <mat-form-field>
+      <mat-label>Ingresos mensuales (€)</mat-label>
+      <input matInput type="number" min="0" step="0.01" formControlName="monthlyIncome" />
+      @if (form.controls.monthlyIncome.hasError('min')) {
+        <mat-error>No puede ser negativo.</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Ahorro (€)</mat-label>
+      <input matInput type="number" min="0" step="0.01" formControlName="savings" />
+      @if (form.controls.savings.hasError('min')) {
+        <mat-error>No puede ser negativo.</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Cuota mensual de otras deudas (€)</mat-label>
+      <input matInput type="number" min="0" step="0.01" formControlName="otherDebtsMonthlyPayment" />
+      @if (form.controls.otherDebtsMonthlyPayment.hasError('min')) {
+        <mat-error>No puede ser negativo.</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Deuda de tarjetas de crédito (€)</mat-label>
+      <input matInput type="number" min="0" step="0.01" formControlName="creditCardDebt" />
+      @if (form.controls.creditCardDebt.hasError('min')) {
+        <mat-error>No puede ser negativo.</mat-error>
+      }
+    </mat-form-field>
+
+    <h3>Procedencia del dato</h3>
+    <mat-form-field>
+      <mat-label>Fuente</mat-label>
+      <mat-select formControlName="source" required>
+        @for (source of sources; track source) {
+          <mat-option [value]="source">{{ source | statusLabel: sourceLabels }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Estado de verificación</mat-label>
+      <mat-select formControlName="status" required>
+        @for (status of statuses; track status) {
+          <mat-option [value]="status">{{ status | statusLabel: statusLabels }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Guardar
+      }
+    </button>
+  </mat-dialog-actions>
+</form>

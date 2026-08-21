@@ -65,6 +65,27 @@ describe('CancelDialogComponent', () => {
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 
+  it('rejects a comment longer than the backend limit before submitting', () => {
+    const fixture = TestBed.createComponent(CancelDialogComponent);
+    fixture.detectChanges();
+    const tooLong = 'x'.repeat(fixture.componentInstance.maxCommentLength + 1);
+    fixture.componentInstance.form.setValue({ reason: 'OTHER', comment: tooLong });
+
+    expect(fixture.componentInstance.form.controls.comment.hasError('maxlength')).toBe(true);
+
+    fixture.componentInstance.submit();
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/cases/k1/cancel`);
+  });
+
+  it('accepts a comment right at the backend limit', () => {
+    const fixture = TestBed.createComponent(CancelDialogComponent);
+    fixture.detectChanges();
+    const atLimit = 'x'.repeat(fixture.componentInstance.maxCommentLength);
+    fixture.componentInstance.form.setValue({ reason: 'OTHER', comment: atLimit });
+
+    expect(fixture.componentInstance.form.controls.comment.hasError('maxlength')).toBe(false);
+  });
+
   it('cancelDialog() closes the dialog without a result', () => {
     const fixture = TestBed.createComponent(CancelDialogComponent);
     fixture.detectChanges();

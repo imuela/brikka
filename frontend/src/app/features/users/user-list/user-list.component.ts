@@ -8,7 +8,6 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { HasPermissionDirective } from '../../../shared/directives/has-permission.directive';
-import { HideForRoleDirective } from '../../../shared/directives/hide-for-role.directive';
 import { ApiError } from '../../../core/http/api-error';
 import { friendlyErrorMessage } from '../../../core/http/error-messages';
 import { ConfirmDialogComponent } from '../../../shared/dialogs/confirm-dialog.component';
@@ -19,9 +18,10 @@ import { User } from '../user.model';
 import { UserService } from '../user.service';
 
 /** Tenant-wide user list (GET /api/v1/users). BROKER only has USER_READ (read-only, no action
- * buttons render); MANAGER has full CRUD within their own tenant; SUPERADMIN has USER_READ seeded
- * too, but never resolves a tenant without an active SUPPORT_SESSION (not implemented), so the
- * request always fails with 403 — shown via friendlyErrorMessage, no workaround attempted here. */
+ * buttons render); MANAGER has full CRUD within their own tenant; SUPERADMIN is GLOBAL (Sprint 27,
+ * ADR-RBAC-002) — reads every company's users, and can create/update/disable them too (Sprint 28:
+ * the "Nuevo usuario" action is no longer hidden for SUPERADMIN, see UserFormComponent for the
+ * companyId picker it now shows for that role). */
 @Component({
   selector: 'app-user-list',
   standalone: true,
@@ -33,7 +33,6 @@ import { UserService } from '../user.service';
     MatProgressSpinnerModule,
     MatTooltipModule,
     HasPermissionDirective,
-    HideForRoleDirective,
     StatusLabelPipe,
     StatusBadgeComponent,
   ],

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -131,6 +132,7 @@ public class BankController {
   }
 
   @PostMapping("/api/v1/banks/{id}/criteria")
+  @Transactional
   public BankCriteriaVersionResponse createCriteria(
       Authentication authentication,
       @PathVariable UUID id,
@@ -139,6 +141,10 @@ public class BankController {
     requireBank(id);
     String rulesJson = writeJson(request.rules());
     criteriaRulesValidator.validate(rulesJson);
+    // Sprint 29: a new version is always created ACTIVE (see BankCriteriaVersionRepository#insert)
+    // — supersede whatever was ACTIVE before so "activate a version" stays exclusive per bank and
+    // BankMatchingService is never left picking among several rows that all say ACTIVE.
+    bankCriteriaVersionRepository.supersedeActiveVersions(id);
     UUID criteriaId =
         bankCriteriaVersionRepository.insert(
             id, request.version(), request.effectiveFrom(), request.effectiveTo(), rulesJson);

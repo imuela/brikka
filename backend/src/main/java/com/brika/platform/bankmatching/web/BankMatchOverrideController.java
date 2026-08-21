@@ -19,9 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
  * ADR-BANKENGINE-002: manual correction of a single bank_match_rule_results row. Three-hop derived
  * access (ruleResult -> matchResult -> case), same masking discipline as BankOfferController's
  * two-hop pattern in Sprint 6A — a rule result belonging to another tenant's case is indistinguish-
- * able from one that never existed. MANAGER (CASE ASSIGNMENT via CaseAccessService) and SUPERADMIN
- * (SUPPORT_SESSION only, enforced by the same requireTenant pipeline as every other tenant-scoped
- * write) may override; BROKER and CLIENT never get BANK_MATCHING_OVERRIDE (V14).
+ * able from one that never existed. MANAGER and SUPERADMIN may override (V14): both go through
+ * {@link com.brika.platform.casemgmt.CaseAccessService}, which resolves SUPERADMIN's tenant from
+ * the case itself (Sprint 27, ADR-RBAC-002) rather than requiring SUPPORT_SESSION. BROKER and
+ * CLIENT never get BANK_MATCHING_OVERRIDE.
  */
 @RestController
 public class BankMatchOverrideController {

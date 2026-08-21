@@ -341,6 +341,30 @@ class DocumentEndpointsIT {
   }
 
   @Test
+  void creatingADocumentRequestWithoutDocumentTypeIdReturnsAStructured400NotA500()
+      throws Exception {
+    // Sprint 29 (stabilization): the Angular form already requires this field, so this path is
+    // only reachable by a caller talking to the API directly — but the backend must not depend on
+    // the frontend for it: this used to hit a NOT NULL constraint and answer an unhandled 500.
+    UUID companyId = companyRepository.insert("Co DQ2", "Co DQ2", "TC-DQ2");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-dq2");
+    UUID caseId = createCase(manager);
+
+    String createBody =
+        objectMapper.writeValueAsString(
+            new CreateDocumentRequestApiRequest(null, null, null, null));
+
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/document-requests")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(createBody))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("DOCUMENT_TYPE_ID_REQUIRED"));
+  }
+
+  @Test
   void documentUploadReviewPublishAndDownloadFullCycle() throws Exception {
     UUID companyId = companyRepository.insert("Co DC1", "Co DC1", "TC-DC1");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-dc1");

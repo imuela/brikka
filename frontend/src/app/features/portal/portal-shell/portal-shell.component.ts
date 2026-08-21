@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -28,10 +28,14 @@ import { LogoComponent } from '../../../shared/logo/logo.component';
 })
 export class PortalShellComponent {
   private readonly portalAuthService = inject(PortalAuthService);
+  private readonly router = inject(Router);
   readonly portalSessionStore = inject(PortalSessionStore);
 
+  /** Sprint 29 (stabilization): same fix as the internal ShellComponent's UserMenuComponent —
+   * clearing the session alone left the Portal SPA rendering the previous screen. */
   logout(): void {
     this.portalAuthService.logout();
     this.portalSessionStore.clear();
+    void this.router.navigate(['/portal/login']);
   }
 }

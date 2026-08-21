@@ -59,6 +59,21 @@ public class BankCriteriaVersionRepository {
         SELECT + " WHERE bank_id = ? ORDER BY effective_from DESC", ROW_MAPPER, bankId);
   }
 
+  /**
+   * Sprint 29 (stabilization): {@link #insert} always creates the new version ACTIVE, but nothing
+   * enforced that only one version per bank is ACTIVE at a time — {@link
+   * com.brika.platform.bankmatching.BankMatchingService} picks whichever ACTIVE row has the latest
+   * {@code effective_from}, so an older ACTIVE row was silently orphaned rather than ever being
+   * superseded. Called before inserting a new ACTIVE version so "activate a version" is exclusive
+   * per bank, matching what the Angular criteria screen already implies.
+   */
+  public void supersedeActiveVersions(UUID bankId) {
+    jdbcTemplate.update(
+        "UPDATE bank_criteria_versions SET status = 'SUPERSEDED' WHERE bank_id = ? AND status ="
+            + " 'ACTIVE'",
+        bankId);
+  }
+
   public void update(UUID id, String status, Instant effectiveTo, String rulesJson) {
     jdbcTemplate.update(
         "UPDATE bank_criteria_versions SET status = ?, effective_to = ?, rules = ?::jsonb WHERE"

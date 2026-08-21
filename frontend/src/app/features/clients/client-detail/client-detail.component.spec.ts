@@ -31,6 +31,15 @@ describe('ClientDetailComponent', () => {
 
   afterEach(() => httpMock.verify());
 
+  function flushNoFinancialProfile(): void {
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1/financial-profile`)
+      .flush(
+        { code: 'FINANCIAL_PROFILE_NOT_FOUND', message: 'Not found.', requestId: 'r0' },
+        { status: 404, statusText: 'Not Found' },
+      );
+  }
+
   it('shows the client fetched from the backend', () => {
     const fixture = TestBed.createComponent(ClientDetailComponent);
     fixture.detectChanges();
@@ -38,6 +47,7 @@ describe('ClientDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
       .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
+    flushNoFinancialProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Ada Lovelace');
@@ -50,6 +60,7 @@ describe('ClientDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
       .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
+    flushNoFinancialProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Editar');
@@ -66,8 +77,56 @@ describe('ClientDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
       .flush({ code: 'CLIENT_NOT_FOUND', message: 'Client not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    flushNoFinancialProfile();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado el cliente solicitado.');
+  });
+
+  it('shows an empty state when the client has no financial profile yet', () => {
+    const fixture = TestBed.createComponent(ClientDetailComponent);
+    fixture.detectChanges();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
+      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
+    flushNoFinancialProfile();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'todavía no tiene un perfil financiero registrado',
+    );
+  });
+
+  it('shows the financial profile fetched from the backend', () => {
+    const fixture = TestBed.createComponent(ClientDetailComponent);
+    fixture.detectChanges();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1`)
+      .flush({ id: 'c1', companyId: 'co1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@brika.test', phone: '600000000', documentType: null, documentNumber: null, dateOfBirth: null, nationality: null, address: null, employmentStatus: null, status: 'ACTIVE' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/clients/c1/financial-profile`).flush({
+      id: 'fp1',
+      companyId: 'co1',
+      clientId: 'c1',
+      maritalStatus: 'MARRIED',
+      dependents: 2,
+      employmentType: 'EMPLOYEE',
+      contractType: 'PERMANENT',
+      employerName: 'Acme S.L.',
+      yearsEmployed: 5,
+      monthlyIncome: 2500,
+      savings: 15000,
+      otherDebtsMonthlyPayment: 300,
+      creditCardDebt: 500,
+      source: 'BROKER',
+      status: 'CONFIRMED',
+      evidenceDocumentVersionId: null,
+      updatedBy: 'u1',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Acme S.L.');
+    expect(fixture.nativeElement.textContent).toContain('Confirmado');
   });
 });

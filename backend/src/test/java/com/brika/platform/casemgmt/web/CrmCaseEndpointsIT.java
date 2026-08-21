@@ -615,4 +615,91 @@ class CrmCaseEndpointsIT {
         .andExpect(jsonPath("$.requestedAmount").value(300000.50))
         .andExpect(jsonPath("$.description").value("Notas editadas"));
   }
+
+  @Test
+  void superadminCannotCreateClientPortalAccount() throws Exception {
+    // Sprint 28 audit: CLIENT_PORTAL_ACCOUNT_CREATE was never granted to SUPERADMIN
+    // (V11__portal_account_permission.sql, ADR-PORTAL-AUTH-001, Sprint 19 — "SUPERADMIN is
+    // intentionally not granted this permission"). This is correct-by-design and predates Sprint
+    // 27's GLOBAL-tenant-resolution pattern entirely: SUPERADMIN is rejected at the permission
+    // check itself, before any tenant resolution is even attempted. This test locks in that
+    // intentional exclusion so it is not "fixed" by mistake later.
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-pa1");
+    UUID companyId = companyRepository.insert("Co PA1", "Co PA1", "TC-PA1");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-pa1");
+    UUID clientId = createClient(manager, "cli-pa1");
+
+    String body =
+        objectMapper.writeValueAsString(
+            new com.brika.platform.crm.web.CreatePortalAccountApiRequest(
+                "ext-portal-" + UUID.randomUUID()));
+    mockMvc
+        .perform(
+            post("/api/v1/clients/" + clientId + "/portal-account")
+                .header("Authorization", superadmin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void cancellingACaseWithAnOrdinaryCommentSucceedsOverHttp() throws Exception {
+    UUID companyId = companyRepository.insert("Co CN1", "Co CN1", "TC-CN1");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cn1");
+    UUID caseId = createCase(manager);
+
+    String body =
+        objectMapper.writeValueAsString(
+            new CancelCaseApiRequest(
+                "CLIENT_REQUEST",
+                "El cliente ha decidido posponer la operacion por motivos personales."));
+
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/cancel")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("CANCELLED"));
+  }
+
+  @Test
+  void cancellingACaseWithATooLongCommentReturnsAStructured400NotA500() throws Exception {
+    // Sprint 29 (stabilization): this used to overflow case_status_history.reason (varchar(50) at
+    // the time) and answer an unhandled DataIntegrityViolationException as a generic 500 — the
+    // exact "Ha ocurrido un error inesperado" pattern reported by users. Column is now varchar(500)
+    // (V20) and CaseService validates up front regardless.
+    UUID companyId = companyRepository.insert("Co CN2", "Co CN2", "TC-CN2");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cn2");
+    UUID caseId = createCase(manager);
+
+    String body =
+        objectMapper.writeValueAsString(new CancelCaseApiRequest("OTHER", "x".repeat(600)));
+
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/cancel")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("CANCELLATION_COMMENT_TOO_LONG"));
+  }
+
+  @Test
+  void anUnmappedRouteReturns404NotA500() throws Exception {
+    // Sprint 29 (stabilization): NoResourceFoundException used to fall through to the generic
+    // Exception handler and answer 500 for a route that simply doesn't exist.
+    TestPrincipal manager =
+        createUser(
+            UserRole.MANAGER,
+            companyRepository.insert("Co CN3", "Co CN3", "TC-CN3"),
+            "manager-cn3");
+
+    mockMvc
+        .perform(get("/api/v1/this-route-does-not-exist").header("Authorization", manager.bearer()))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+  }
 }

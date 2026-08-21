@@ -39,4 +39,55 @@
       <p><strong>Estado:</strong> {{ client()!.status | statusLabel: clientStatusLabels }}</p>
     </mat-card-content>
   </mat-card>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Perfil financiero</h2>
+      <button
+        *appHasPermission="'CLIENT_UPDATE'"
+        mat-flat-button
+        color="primary"
+        (click)="openFinancialProfileDialog()">
+        @if (financialProfile() === undefined) {
+          Crear perfil financiero
+        } @else {
+          Editar perfil financiero
+        }
+      </button>
+    </div>
+    @if (financialProfileError()) {
+      <p class="error-text">{{ financialProfileError() }}</p>
+    } @else if (financialProfile() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (financialProfile() === undefined) {
+      <p>Este cliente todavía no tiene un perfil financiero registrado.</p>
+    } @else {
+      <mat-card>
+        <mat-card-content>
+          <p><strong>Estado civil:</strong> {{ financialProfile()!.maritalStatus || '—' }}</p>
+          <p><strong>Personas a cargo:</strong> {{ financialProfile()!.dependents ?? '—' }}</p>
+          <p><strong>Tipo de empleo:</strong> {{ financialProfile()!.employmentType || '—' }}</p>
+          <p><strong>Tipo de contrato:</strong> {{ financialProfile()!.contractType || '—' }}</p>
+          <p><strong>Empleador:</strong> {{ financialProfile()!.employerName || '—' }}</p>
+          <p><strong>Años en el empleo actual:</strong> {{ financialProfile()!.yearsEmployed ?? '—' }}</p>
+          <p><strong>Ingresos mensuales:</strong> {{ financialProfile()!.monthlyIncome ?? '—' }} €</p>
+          <p><strong>Ahorro:</strong> {{ financialProfile()!.savings ?? '—' }} €</p>
+          <p>
+            <strong>Cuota mensual de otras deudas:</strong>
+            {{ financialProfile()!.otherDebtsMonthlyPayment ?? '—' }} €
+          </p>
+          <p><strong>Deuda de tarjetas de crédito:</strong> {{ financialProfile()!.creditCardDebt ?? '—' }} €</p>
+          <p>
+            <strong>Fuente:</strong>
+            {{ financialProfile()!.source | statusLabel: financialProfileSourceLabels }}
+          </p>
+          <p>
+            <strong>Estado de verificación:</strong>
+            {{ financialProfile()!.status | statusLabel: financialProfileStatusLabels }}
+          </p>
+          <p><strong>Última actualización:</strong> {{ financialProfile()!.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
 }
