@@ -12,6 +12,26 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # Sprint 26: NotificationAsyncIntegrationIT connects to a real RabbitMQ broker rather than a
+    # Testcontainers one (see the test's own javadoc — Testcontainers RabbitMQ needs more RAM than
+    # the local dev host has). Locally that broker is the docs/docker-compose.yml "rabbitmq"
+    # service, already running; GitHub Actions has no such standing service, so it's declared here
+    # instead, matching that service's image/credentials/port exactly (host port 25672, same as
+    # application.yml's spring.rabbitmq.port default) so no other configuration has to change.
+    services:
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: brika
+          RABBITMQ_DEFAULT_PASS: brika_dev_password
+        ports:
+          - 25672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 15s
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

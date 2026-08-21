@@ -144,8 +144,20 @@ management:
   # aggregate /actuator/health return 503 and broke both CorsConfigurationIT and the
   # backend-docker healthcheck. SMTP is still required/validated in PROD
   # (ProdEnvironmentValidator); it is simply not a readiness signal.
+  #
+  # Post-Sprint 27 (CI 503, recurrence): same failure mode, different auto-configured indicator.
+  # Sprint 26 added spring-boot-starter-amqp, which unconditionally registers a
+  # RabbitHealthIndicator against spring.rabbitmq.host:port — independent of
+  # brika.notifications.transport (application.yml:23-24 already documents that the sync
+  # transport, the default, never even opens a RabbitMQ connection). Any IT that boots the full
+  # context without a reachable broker (e.g. CorsConfigurationIT, which only needs Postgres) got
+  # dragged into a DOWN aggregate health status it has nothing to do with. RabbitMQ delivery is
+  # still exercised for real by NotificationAsyncIntegrationIT; this only stops its down-ness from
+  # gating readiness for endpoints/tests that never touch it.
   health:
     mail:
+      enabled: false
+    rabbit:
       enabled: false
 
 # DB_* defaults match the Sprint 0 docker-compose Postgres service
