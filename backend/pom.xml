@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.4</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -47,11 +47,15 @@
         <!-- Sprint 22 (autenticación propia, autorización §2/§11): Argon2PasswordEncoder
              (spring-security-crypto) requires a BouncyCastle Argon2 implementation on the
              classpath — the JDK has none built in. This is the dependency Spring Security's
-             own documentation names for Argon2id support, not an arbitrary addition. -->
+             own documentation names for Argon2id support, not an arbitrary addition.
+             Post-Sprint 27 remediation Fase 3: bumped to 1.80.2 (from 1.78.1) to fix
+             CVE-2025-14813 (GOST CTR mode) — the exact minimum version the advisory names as
+             fixed, chosen deliberately over a newer one since bc-java's own release notes
+             were not reachable to verify anything further introduces no regressions. -->
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.78.1</version>
+            <version>1.80.2</version>
         </dependency>
 
         <!-- Sprint 22 cierre, punto 5: EmailService abstraction backing password reset locally
@@ -153,6 +157,45 @@
                 <version>2.28.16</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Post-Sprint 27 remediation Fase 6: explicit overrides one patch ahead of the
+                 Spring Boot 3.5.16 BOM, each investigated individually (compatibility, actual
+                 code exposure) before applying — never bumped just because Trivy said so.
+
+                 amqp-client 5.25.0 -> 5.33.1: fixes CVE-2026-63337/69219/69220. 5.33.0 itself
+                 introduced deliberate breaking changes (TLS hostname verification on by default,
+                 JSON-RPC allowlist) — verified irrelevant here: RabbitMqConfig only ever touches
+                 Spring AMQP's own ConnectionFactory interface, never com.rabbitmq.client's, and
+                 application.yml has no TLS config for RabbitMQ. -->
+            <dependency>
+                <groupId>com.rabbitmq</groupId>
+                <artifactId>amqp-client</artifactId>
+                <version>5.33.1</version>
+            </dependency>
+
+            <!-- Netty 4.1.135.Final -> 4.1.136.Final (all artifacts, kept aligned to avoid
+                 version skew within the Netty family): fixes CVE-2026-59901/55831/55833/56745/
+                 56819. Netty only enters via awssdk netty-nio-client, an async HTTP client that
+                 is never instantiated — StorageConfig builds a sync S3Client with no explicit
+                 httpClient, so it resolves url-connection-client via SPI; no Netty channel is
+                 ever created. A same-minor-line patch bump on a dormant dependency. -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>4.1.136.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- PostgreSQL driver 42.7.11 -> 42.7.12: fixes CVE-2026-54291 (SCRAM-SHA-256-PLUS
+                 channel-binding downgrade). Single patch, same pattern already validated in
+                 Fase 5 (42.7.7 -> 42.7.11 across all 432 tests, including every Testcontainers
+                 Postgres IT, with zero issues). -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
