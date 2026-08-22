@@ -37,6 +37,18 @@
           <button mat-icon-button (click)="download(version.id)" aria-label="Descargar">
             <mat-icon>download</mat-icon>
           </button>
+          <button
+            *appHasPermission="'AI_DOCUMENT_ANALYZE'"
+            mat-button
+            color="primary"
+            [disabled]="analyzing() === version.id"
+            (click)="analyze(version.id)">
+            @if (analyzing() === version.id) {
+              <mat-spinner diameter="16" />
+            } @else {
+              Analizar con IA
+            }
+          </button>
         </td>
       </ng-container>
       <tr mat-header-row *matHeaderRowDef="columns"></tr>
@@ -44,6 +56,81 @@
     </table>
     </div>
   }
+
+  <div class="section" *appHasPermission="'AI_DOCUMENT_ANALYZE'">
+    <h3>Análisis con IA</h3>
+    <p style="color: rgba(0, 0, 0, 0.6); font-size: 0.85em;">
+      Resultado generado automáticamente. Debe ser revisado y validado por un usuario. No modifica
+      automáticamente los datos del expediente.
+    </p>
+    @if (aiError()) {
+      <p class="error-text">{{ aiError() }}</p>
+    }
+    @if (extractions() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (extractions()!.length === 0) {
+      <p>Sin análisis todavía.</p>
+    } @else {
+      @for (extraction of extractions()!; track extraction.id) {
+        <div style="border: 1px solid rgba(0,0,0,0.12); border-radius: 4px; padding: 0.75em; margin-bottom: 0.5em;">
+          <p>
+            Versión {{ versionNumber(extraction.documentVersionId) }} —
+            <app-status-badge [value]="extraction.status" [labels]="documentAiStatusLabels" />
+            @if (extraction.status !== 'NO_PROVIDER') {
+              ({{ extraction.provider }} / {{ extraction.model }})
+            }
+            — {{ extraction.createdAt | date: 'dd/MM/yyyy HH:mm' }}
+          </p>
+
+          @if (extraction.status === 'NO_PROVIDER') {
+            <p><em>No hay ningún proveedor de IA configurado en este entorno.</em></p>
+          }
+
+          @if (extraction.status === 'FAILED') {
+            <p><em>El proveedor de IA no pudo completar el análisis.</em></p>
+          }
+
+          @if (extractionData(extraction); as data) {
+            @if (data.summary) {
+              <p>{{ data.summary }}</p>
+            }
+            @if (extractionFields(extraction).length > 0) {
+              <table>
+                <tr><th>Campo</th><th>Valor detectado</th><th>Confianza</th></tr>
+                @for (field of extractionFields(extraction); track field.name) {
+                  <tr>
+                    <td>{{ field.name }}</td>
+                    <td>{{ field.value }}</td>
+                    <td>{{ field.confidence != null ? (field.confidence * 100 | number: '1.0-0') + '%' : '—' }}</td>
+                  </tr>
+                }
+              </table>
+            }
+            @if (data.inconsistencies && data.inconsistencies.length > 0) {
+              <div style="background: #fbe9e7; padding: 0.5em; border-radius: 4px; margin-top: 0.5em;">
+                <strong>Inconsistencias detectadas:</strong>
+                @for (inconsistency of data.inconsistencies; track inconsistency.field) {
+                  <p style="margin: 0.25em 0;">
+                    {{ inconsistency.field }}: dato actual del sistema
+                    <strong>{{ inconsistency.profileValue }}</strong>
+                    frente a dato detectado en el documento
+                    <strong>{{ inconsistency.documentValue }}</strong>.
+                  </p>
+                }
+              </div>
+            }
+            @if (data.warnings && data.warnings.length > 0) {
+              <p style="color: rgba(0,0,0,0.6);">
+                @for (warning of data.warnings; track warning) {
+                  {{ warning }}<br />
+                }
+              </p>
+            }
+          }
+        </div>
+      }
+    }
+  </div>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">

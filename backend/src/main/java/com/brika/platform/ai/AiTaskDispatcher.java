@@ -12,8 +12,17 @@ import java.util.UUID;
  * D10-5; HttpAiTaskDispatcher is real, working code that talks to an actual running Worker over
  * HTTP, but is not the active default (keeps `mvn verify` self-contained, no Python process
  * dependency).
+ *
+ * <p>Sprint 33: {@code downloadContext} lets a real Worker fetch the document's actual bytes via a
+ * short-lived presigned URL (computed by the caller, {@link DocumentExtractionService}, which
+ * already has storage access) — LocalAiTaskDispatcher ignores it entirely (no network call at all),
+ * HttpAiTaskDispatcher forwards it in the dispatch payload.
  */
 public interface AiTaskDispatcher {
 
-  void dispatchDocumentExtraction(UUID extractionId, UUID documentVersionId, UUID companyId);
+  void dispatchDocumentExtraction(
+      UUID extractionId,
+      UUID documentVersionId,
+      UUID companyId,
+      DocumentDownloadContext downloadContext);
 }

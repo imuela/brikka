@@ -4,7 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.brika.platform.casemgmt.CaseClientRepository;
+import com.brika.platform.casemgmt.ParticipationType;
 import com.brika.platform.casemgmt.web.CreateCaseApiRequest;
+import com.brika.platform.crm.ClientFinancialProfileService;
+import com.brika.platform.crm.ClientRepository;
 import com.brika.platform.document.DocumentTypeRepository;
 import com.brika.platform.document.web.CreateDocumentApiRequest;
 import com.brika.platform.identity.CompanyRepository;
@@ -14,6 +18,7 @@ import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -98,6 +103,9 @@ class AiExtractionCallbackEndpointsIT {
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
   @Autowired private DocumentTypeRepository documentTypeRepository;
+  @Autowired private CaseClientRepository caseClientRepository;
+  @Autowired private ClientRepository clientRepository;
+  @Autowired private ClientFinancialProfileService clientFinancialProfileService;
   @Autowired private DataSource dataSource;
 
   private record TestPrincipal(String externalIdentityId, User user) {
@@ -197,7 +205,8 @@ class AiExtractionCallbackEndpointsIT {
     UUID extractionId = createPendingExtraction(manager, documentId, versionId);
 
     String body =
-        objectMapper.writeValueAsString(new WorkerCallbackApiRequest(List.of(), Map.of()));
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(List.of(), Map.of(), null, null, null, null));
     mockMvc
         .perform(
             post("/internal/ai/document-extractions/" + extractionId + "/callback")
@@ -223,7 +232,8 @@ class AiExtractionCallbackEndpointsIT {
     UUID extractionId = createPendingExtraction(manager, documentId, versionId);
 
     String body =
-        objectMapper.writeValueAsString(new WorkerCallbackApiRequest(List.of(), Map.of()));
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(List.of(), Map.of(), null, null, null, null));
     mockMvc
         .perform(
             post("/internal/ai/document-extractions/" + extractionId + "/callback")
@@ -249,7 +259,8 @@ class AiExtractionCallbackEndpointsIT {
     UUID extractionId = createPendingExtraction(manager, documentId, versionId);
 
     String body =
-        objectMapper.writeValueAsString(new WorkerCallbackApiRequest(List.of(), Map.of()));
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(List.of(), Map.of(), null, null, null, null));
     mockMvc
         .perform(
             post("/internal/ai/document-extractions/" + extractionId + "/callback")
@@ -270,7 +281,8 @@ class AiExtractionCallbackEndpointsIT {
     UUID extractionId = createPendingExtraction(manager, documentId, versionId);
 
     String body =
-        objectMapper.writeValueAsString(new WorkerCallbackApiRequest(List.of(), Map.of()));
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(List.of(), Map.of(), null, null, null, null));
     mockMvc
         .perform(
             post("/internal/ai/document-extractions/" + extractionId + "/callback")
@@ -278,5 +290,191 @@ class AiExtractionCallbackEndpointsIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
         .andExpect(status().isOk());
+  }
+
+  @Test
+  void callbackWithRealFieldsIsRecordedAsCompleted() throws Exception {
+    UUID companyId = companyRepository.insert("Co CB5", "Co CB5", "TC-CB5");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cb5");
+    UUID caseId = createCase(manager);
+    UUID documentId = createDocument(manager, caseId);
+    UUID versionId = uploadVersion(manager, documentId);
+    UUID extractionId = createPendingExtraction(manager, documentId, versionId);
+
+    String body =
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(
+                List.of(Map.of("name", "monthly_income", "value", "1900", "confidence", 0.9)),
+                Map.of("overall", 0.9),
+                "anthropic",
+                "claude-3-5-sonnet-20241022",
+                "Payslip summary.",
+                List.of()));
+    mockMvc
+        .perform(
+            post("/internal/ai/document-extractions/" + extractionId + "/callback")
+                .header("X-Ai-Worker-Secret", SECRET)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+
+    JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+    Map<String, Object> row =
+        jdbc.queryForMap(
+            "SELECT status, provider, model FROM document_extractions WHERE id = ?", extractionId);
+    assertThat(row.get("status")).isEqualTo("COMPLETED");
+    assertThat(row.get("provider")).isEqualTo("anthropic");
+    assertThat(row.get("model")).isEqualTo("claude-3-5-sonnet-20241022");
+  }
+
+  @Test
+  void callbackWithProviderAttemptedButNoUsableFieldsIsRecordedAsFailed() throws Exception {
+    UUID companyId = companyRepository.insert("Co CB6", "Co CB6", "TC-CB6");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cb6");
+    UUID caseId = createCase(manager);
+    UUID documentId = createDocument(manager, caseId);
+    UUID versionId = uploadVersion(manager, documentId);
+    UUID extractionId = createPendingExtraction(manager, documentId, versionId);
+
+    String body =
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(
+                List.of(),
+                Map.of(),
+                "anthropic",
+                "claude-3-5-sonnet-20241022",
+                null,
+                List.of("AI provider returned an unusable response: not valid JSON")));
+    mockMvc
+        .perform(
+            post("/internal/ai/document-extractions/" + extractionId + "/callback")
+                .header("X-Ai-Worker-Secret", SECRET)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+
+    JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+    String status =
+        jdbc.queryForObject(
+            "SELECT status FROM document_extractions WHERE id = ?", String.class, extractionId);
+    assertThat(status).isEqualTo("FAILED");
+  }
+
+  @Test
+  void completedResultDetectsIncomeInconsistencyAgainstClientFinancialProfile() throws Exception {
+    UUID companyId = companyRepository.insert("Co CB7", "Co CB7", "TC-CB7");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cb7");
+    UUID caseId = createCase(manager);
+    UUID documentId = createDocument(manager, caseId);
+    UUID versionId = uploadVersion(manager, documentId);
+    UUID extractionId = createPendingExtraction(manager, documentId, versionId);
+
+    UUID clientId =
+        clientRepository.insert(companyId, "Cli", "Ent", "cli-cb7@brika.test", "600000000");
+    caseClientRepository.insert(caseId, clientId, ParticipationType.HOLDER, true);
+    clientFinancialProfileService.upsert(
+        companyId,
+        clientId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        new BigDecimal("3000"),
+        null,
+        null,
+        null,
+        "BROKER",
+        "CONFIRMED",
+        null,
+        manager.user().id());
+
+    String body =
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(
+                List.of(Map.of("name", "monthly_income", "value", "1900", "confidence", 0.9)),
+                Map.of("overall", 0.9),
+                "anthropic",
+                "claude-3-5-sonnet-20241022",
+                "Payslip summary.",
+                List.of()));
+    mockMvc
+        .perform(
+            post("/internal/ai/document-extractions/" + extractionId + "/callback")
+                .header("X-Ai-Worker-Secret", SECRET)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+
+    JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+    String extractedDataJson =
+        jdbc.queryForObject(
+            "SELECT extracted_data::text FROM document_extractions WHERE id = ?",
+            String.class,
+            extractionId);
+    var extractedData = objectMapper.readTree(extractedDataJson);
+    var inconsistencies = extractedData.get("inconsistencies");
+    assertThat(inconsistencies).hasSize(1);
+    assertThat(inconsistencies.get(0).get("field").asText()).isEqualTo("monthly_income");
+    assertThat(inconsistencies.get(0).get("profileValue").asDouble()).isEqualTo(3000.0);
+    assertThat(inconsistencies.get(0).get("documentValue").asDouble()).isEqualTo(1900.0);
+  }
+
+  @Test
+  void completedResultWithNoMeaningfulDifferenceReportsNoInconsistency() throws Exception {
+    UUID companyId = companyRepository.insert("Co CB8", "Co CB8", "TC-CB8");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-cb8");
+    UUID caseId = createCase(manager);
+    UUID documentId = createDocument(manager, caseId);
+    UUID versionId = uploadVersion(manager, documentId);
+    UUID extractionId = createPendingExtraction(manager, documentId, versionId);
+
+    UUID clientId =
+        clientRepository.insert(companyId, "Cli", "Ent", "cli-cb8@brika.test", "600000000");
+    caseClientRepository.insert(caseId, clientId, ParticipationType.HOLDER, true);
+    clientFinancialProfileService.upsert(
+        companyId,
+        clientId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        new BigDecimal("1900"),
+        null,
+        null,
+        null,
+        "BROKER",
+        "CONFIRMED",
+        null,
+        manager.user().id());
+
+    String body =
+        objectMapper.writeValueAsString(
+            new WorkerCallbackApiRequest(
+                List.of(Map.of("name", "monthly_income", "value", "1900", "confidence", 0.9)),
+                Map.of("overall", 0.9),
+                "anthropic",
+                "claude-3-5-sonnet-20241022",
+                "Payslip summary.",
+                List.of()));
+    mockMvc
+        .perform(
+            post("/internal/ai/document-extractions/" + extractionId + "/callback")
+                .header("X-Ai-Worker-Secret", SECRET)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+
+    JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+    String extractedDataJson =
+        jdbc.queryForObject(
+            "SELECT extracted_data::text FROM document_extractions WHERE id = ?",
+            String.class,
+            extractionId);
+    var inconsistencies = objectMapper.readTree(extractedDataJson).get("inconsistencies");
+    assertThat(inconsistencies).isEmpty();
   }
 }

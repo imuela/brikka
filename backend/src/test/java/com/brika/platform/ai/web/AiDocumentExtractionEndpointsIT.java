@@ -9,8 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.brika.platform.audit.AuditEvent;
 import com.brika.platform.audit.AuditEventRepository;
+import com.brika.platform.casemgmt.CaseClientRepository;
+import com.brika.platform.casemgmt.ParticipationType;
 import com.brika.platform.casemgmt.web.CreateCaseApiRequest;
 import com.brika.platform.casemgmt.web.CreateCaseAssignmentApiRequest;
+import com.brika.platform.crm.ClientFinancialProfileRepository;
+import com.brika.platform.crm.ClientFinancialProfileService;
+import com.brika.platform.crm.ClientRepository;
 import com.brika.platform.document.DocumentTypeRepository;
 import com.brika.platform.document.web.CreateDocumentApiRequest;
 import com.brika.platform.identity.CompanyRepository;
@@ -20,6 +25,7 @@ import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -102,6 +108,10 @@ class AiDocumentExtractionEndpointsIT {
   @Autowired private DocumentTypeRepository documentTypeRepository;
   @Autowired private DataSource dataSource;
   @Autowired private AuditEventRepository auditEventRepository;
+  @Autowired private CaseClientRepository caseClientRepository;
+  @Autowired private ClientRepository clientRepository;
+  @Autowired private ClientFinancialProfileService clientFinancialProfileService;
+  @Autowired private ClientFinancialProfileRepository clientFinancialProfileRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -428,5 +438,104 @@ class AiDocumentExtractionEndpointsIT {
             get("/api/v1/ai/document-extractions/" + extractionId)
                 .header("Authorization", managerA.bearer()))
         .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void analyzingANewVersionNeverOverwritesTheOlderVersionsExtraction() throws Exception {
+    UUID companyId = companyRepository.insert("Co AI10", "Co AI10", "TC-AI10");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-ai10");
+    UUID caseId = createCase(manager);
+    UUID documentId = createDocument(manager, caseId);
+    UUID versionOne = uploadVersion(manager, documentId);
+
+    String firstResponse =
+        mockMvc
+            .perform(
+                post("/api/v1/documents/" + documentId + "/ai/document-extractions")
+                    .header("Authorization", manager.bearer())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            new CreateDocumentExtractionApiRequest(versionOne))))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    UUID firstExtractionId =
+        UUID.fromString(objectMapper.readTree(firstResponse).get("id").asText());
+
+    UUID versionTwo = uploadVersion(manager, documentId);
+    mockMvc
+        .perform(
+            post("/api/v1/documents/" + documentId + "/ai/document-extractions")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CreateDocumentExtractionApiRequest(versionTwo))))
+        .andExpect(status().isOk());
+
+    // The version-1 extraction is untouched: it still exists, still points at version 1, still
+    // NO_PROVIDER — a new version's analysis is a new row, never a mutation of a prior one.
+    mockMvc
+        .perform(
+            get("/api/v1/ai/document-extractions/" + firstExtractionId)
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.documentVersionId").value(versionOne.toString()));
+
+    mockMvc
+        .perform(
+            get("/api/v1/documents/" + documentId + "/ai/document-extractions")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(2));
+  }
+
+  @Test
+  void requestingAnExtractionNeverModifiesTheClientFinancialProfileItMightBeComparedAgainst()
+      throws Exception {
+    UUID companyId = companyRepository.insert("Co AI11", "Co AI11", "TC-AI11");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-ai11");
+    UUID caseId = createCase(manager);
+    UUID clientId =
+        clientRepository.insert(companyId, "Cli", "Ent", "cli-ai11@brika.test", "600000000");
+    caseClientRepository.insert(caseId, clientId, ParticipationType.HOLDER, true);
+    clientFinancialProfileService.upsert(
+        companyId,
+        clientId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        new BigDecimal("3000"),
+        null,
+        null,
+        null,
+        "BROKER",
+        "CONFIRMED",
+        null,
+        manager.user().id());
+    UUID documentId = createDocument(manager, caseId);
+    UUID versionId = uploadVersion(manager, documentId);
+
+    mockMvc
+        .perform(
+            post("/api/v1/documents/" + documentId + "/ai/document-extractions")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CreateDocumentExtractionApiRequest(versionId))))
+        .andExpect(status().isOk());
+
+    // NO_PROVIDER means nothing was ever really extracted here, so no inconsistency could exist
+    // to act on either way — the real assertion is that the stored, human-entered profile value
+    // is byte-for-byte the same as before the request. AI never writes to this table, period.
+    assertThat(
+            clientFinancialProfileRepository.findByClientId(clientId).orElseThrow().monthlyIncome())
+        .isEqualByComparingTo(new BigDecimal("3000"));
   }
 }

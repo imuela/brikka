@@ -46,13 +46,21 @@ public class HttpAiTaskDispatcher implements AiTaskDispatcher {
 
   @Override
   public void dispatchDocumentExtraction(
-      UUID extractionId, UUID documentVersionId, UUID companyId) {
+      UUID extractionId,
+      UUID documentVersionId,
+      UUID companyId,
+      DocumentDownloadContext downloadContext) {
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("documentVersionId", documentVersionId.toString());
     payload.put(
         "callbackUrl",
         callbackBaseUrl + "/internal/ai/document-extractions/" + extractionId + "/callback");
     payload.put("callbackSecret", sharedSecret);
+    if (downloadContext != null) {
+      payload.put("documentDownloadUrl", downloadContext.downloadUrl().toString());
+      payload.put("documentFilename", downloadContext.filename());
+      payload.put("documentMimeType", downloadContext.mimeType());
+    }
 
     Map<String, Object> envelope = new LinkedHashMap<>();
     envelope.put("eventId", UUID.randomUUID().toString());

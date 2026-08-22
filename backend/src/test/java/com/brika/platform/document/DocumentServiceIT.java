@@ -262,4 +262,33 @@ class DocumentServiceIT {
     assertThat(urlString).contains("X-Amz-Signature=");
     assertThat(urlString).contains("X-Amz-Expires=" + MINIO_PRESIGN_TTL_SECONDS);
   }
+
+  /**
+   * BUG-001 (Sprint 32 finding, fixed Sprint 33): the presigned-URL test above only asserts the
+   * URL's *shape* (bucket name, signature, expiry present) — a virtual-hosted-style URL contains
+   * the bucket name string too, so it would have passed even with the bug. This test performs the
+   * real HTTP GET a browser/API client would make, through the real Spring-managed {@code
+   * StorageConfig} beans against a real (Testcontainers) MinIO — the only way to actually catch a
+   * path-style-vs-virtual-hosted-style mismatch.
+   */
+  @Test
+  void presignedDownloadUrlIsActuallyFetchableAndReturnsTheUploadedBytes() throws Exception {
+    UUID companyId = newCompany("TC-DOC9");
+    User manager = newManager(companyId, "mgr-doc9");
+    Case theCase = caseService.createCase(companyId, manager.id(), "MORTGAGE");
+    Document document = documentService.createDocument(companyId, theCase.id(), dniTypeId());
+    byte[] content = "real fetch content".getBytes(StandardCharsets.UTF_8);
+    DocumentVersion version =
+        documentService.uploadVersion(document, content, "a.pdf", "application/pdf", manager.id());
+
+    URI url = documentService.presignedDownloadUrl(version);
+    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+    java.net.http.HttpResponse<byte[]> response =
+        client.send(
+            java.net.http.HttpRequest.newBuilder(url).GET().build(),
+            java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.body()).isEqualTo(content);
+  }
 }

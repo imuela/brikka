@@ -29,7 +29,10 @@ public class LocalAiTaskDispatcher implements AiTaskDispatcher {
 
   @Override
   public void dispatchDocumentExtraction(
-      UUID extractionId, UUID documentVersionId, UUID companyId) {
-    resultHandler.applyResult(extractionId, List.of(), Map.of());
+      UUID extractionId,
+      UUID documentVersionId,
+      UUID companyId,
+      DocumentDownloadContext downloadContext) {
+    resultHandler.applyResult(extractionId, List.of(), Map.of(), null, null, null, null);
   }
 }

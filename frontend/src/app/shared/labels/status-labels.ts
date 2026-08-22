@@ -238,3 +238,12 @@ export const FINANCIAL_PROFILE_STATUS_LABELS: Record<string, string> = {
   REJECTED: 'Rechazado',
   OUTDATED: 'Desactualizado',
 };
+
+/** Sprint 33. Mirrors backend document_extractions.status (free varchar, no CHECK — see
+ * DocumentExtractionResultHandler for the three honest outcomes this can be). */
+export const DOCUMENT_AI_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'En curso',
+  NO_PROVIDER: 'Sin proveedor de IA configurado',
+  FAILED: 'Error del proveedor de IA',
+  COMPLETED: 'Completado',
+};

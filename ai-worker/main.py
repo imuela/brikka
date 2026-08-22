@@ -1,4 +1,4 @@
-"""Brika AI Worker (Sprint 10, D10-4/D10-5).
+"""Brika AI Worker (Sprint 10, D10-4/D10-5; real provider call added Sprint 33).
 
 Stateless HTTP service that stands in for the RabbitMQ-based Worker described in
 ADR-AI-001 / 21_AI_V1_SCOPE.md §4, activated only when the Spring Boot Gateway is
@@ -9,25 +9,189 @@ Hard constraints (D10-4, disclosed and enforced structurally, not just by conven
   - No PostgreSQL access and no database credentials anywhere in this module.
   - Never writes to Brika's database directly — the only way a result reaches
     `document_extractions` is via the internal Spring Boot callback endpoint.
-  - Never fabricates an extraction result (D10-2): no AI provider is approved for V1,
-    so every request is answered honestly with an empty result and NO_PROVIDER intent,
-    mirroring NoOpAiProvider on the Java side.
+  - No storage (MinIO/S3) credentials either: the Gateway hands this worker a
+    short-lived presigned download URL per request (`payload.documentDownloadUrl`,
+    Sprint 33) instead — the worker fetches bytes over plain HTTPS, never touches a
+    storage SDK or secret key.
+  - Never fabricates an extraction result (D10-2): if no provider is configured
+    (`ANTHROPIC_API_KEY` unset), every request is answered honestly with an empty
+    result and no provider/model reported, mirroring NoOpAiProvider on the Java side.
+    This is the behavior in every environment that has not explicitly opted in.
 
-Uses only the Python standard library — no framework dependency to justify for a
-single-endpoint stub service.
+Sprint 33: when `ANTHROPIC_API_KEY` IS configured, this worker makes a real call to
+the Anthropic Messages API (https://api.anthropic.com/v1/messages) to extract
+structured fields from the document — the one genuinely new capability this sprint
+adds. The call is synchronous, single-turn, no tools/agents/streaming/RAG. On any
+failure (network, timeout, unparseable response) the worker still reports
+provider/model (so the Gateway can honestly record FAILED rather than NO_PROVIDER —
+"we tried and it broke" is a different, more useful fact than "nothing was
+configured") plus a warning describing what went wrong; it never crashes and never
+fabricates field values it doesn't actually have.
+
+Uses only the Python standard library — no framework, no SDK dependency to justify
+for a single-endpoint service (the Anthropic HTTP API needs nothing but a POST).
 """
 
+import base64
 import json
-import urllib.request
+import os
+import re
 import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DEFAULT_PORT = 8100
+ANTHROPIC_API_VERSION = "2023-06-01"
+DEFAULT_MODEL = "claude-3-5-sonnet-20241022"
+REQUEST_TIMEOUT_SECONDS = 30
+MAX_DOCUMENT_BYTES = 15 * 1024 * 1024  # matches brika.storage.max-file-size-bytes order of magnitude
+
+# 21_AI_V1_SCOPE.md §2.A: field/value/confidence/source/page shape. Only formats Claude's
+# Messages API actually accepts as a document/image/text content block — anything else is a
+# structured, honest "unsupported format" outcome, never a best-effort guess.
+SUPPORTED_MIME_TYPES = {"application/pdf", "image/jpeg", "image/png", "text/plain", "text/html"}
+
+EXTRACTION_SYSTEM_PROMPT = (
+    "You are a document-analysis assistant for a mortgage broker platform. Analyze the"
+    " attached document and respond with ONLY a single JSON object (no prose, no markdown"
+    " fences) with this exact shape:\n"
+    '{"summary": "<one or two sentence summary>",'
+    ' "fields": [{"name": "<snake_case field name>", "value": "<string value>",'
+    ' "confidence": <0.0-1.0>, "page": <int or null>}],'
+    ' "warnings": ["<any caveat about the extraction>"]}\n'
+    "If the document contains a monthly income figure, name that field exactly"
+    ' "monthly_income" with a plain numeric string value (no currency symbol, no thousands'
+    " separators). Never invent a field you cannot actually see in the document — omit it"
+    " instead. If you cannot read the document at all, return empty fields and explain why in"
+    " warnings."
+)
 
 
 def build_callback_body(payload):
-    """Never fabricates data — same disclosed "no provider" outcome as NoOpAiProvider."""
-    return {"extractedFields": [], "confidence": {}}
+    """Never fabricates data — same disclosed "no provider" outcome as NoOpAiProvider, unless a
+    real provider is configured, in which case it attempts a real call (see run_real_extraction).
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return {"extractedFields": [], "confidence": {}}
+    return run_real_extraction(payload, api_key)
+
+
+def run_real_extraction(payload, api_key):
+    model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    download_url = payload.get("documentDownloadUrl")
+    mime_type = payload.get("documentMimeType")
+    if not download_url:
+        return _failed_result(model, "No document download URL was provided by the Gateway.")
+    if mime_type not in SUPPORTED_MIME_TYPES:
+        return _failed_result(
+            model, f"Unsupported document type for AI analysis: {mime_type!r}."
+        )
+
+    try:
+        content_bytes = _fetch_document(download_url)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return _failed_result(model, f"Could not fetch document content: {exc}")
+
+    try:
+        response_text = _call_anthropic(api_key, model, content_bytes, mime_type)
+        parsed = _parse_extraction_response(response_text)
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        return _failed_result(model, f"AI provider call failed: {exc}")
+    except ValueError as exc:
+        return _failed_result(model, f"AI provider returned an unusable response: {exc}")
+
+    return {
+        "extractedFields": parsed.get("fields", []),
+        "confidence": {"overall": _average_confidence(parsed.get("fields", []))},
+        "provider": "anthropic",
+        "model": model,
+        "summary": parsed.get("summary"),
+        "warnings": parsed.get("warnings", []),
+    }
+
+
+def _failed_result(model, warning):
+    return {
+        "extractedFields": [],
+        "confidence": {},
+        "provider": "anthropic",
+        "model": model,
+        "summary": None,
+        "warnings": [warning],
+    }
+
+
+def _fetch_document(url):
+    request = urllib.request.Request(url, method="GET")
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        content = response.read(MAX_DOCUMENT_BYTES + 1)
+    if len(content) > MAX_DOCUMENT_BYTES:
+        raise ValueError("document exceeds the maximum size this worker will analyze")
+    return content
+
+
+def _content_block(content_bytes, mime_type):
+    if mime_type == "text/plain" or mime_type == "text/html":
+        return {"type": "text", "text": content_bytes.decode("utf-8", errors="replace")}
+    encoded = base64.b64encode(content_bytes).decode("ascii")
+    block_type = "document" if mime_type == "application/pdf" else "image"
+    return {"type": block_type, "source": {"type": "base64", "media_type": mime_type, "data": encoded}}
+
+
+def _call_anthropic(api_key, model, content_bytes, mime_type):
+    body = {
+        "model": model,
+        "max_tokens": 1024,
+        "system": EXTRACTION_SYSTEM_PROMPT,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    _content_block(content_bytes, mime_type),
+                    {"type": "text", "text": "Analyze this document as instructed."},
+                ],
+            }
+        ],
+    }
+    api_url = os.environ.get(
+        "ANTHROPIC_API_BASE_URL", "https://api.anthropic.com"
+    ).rstrip("/") + "/v1/messages"
+    request = urllib.request.Request(
+        api_url,
+        data=json.dumps(body).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_API_VERSION,
+        },
+    )
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        response_body = json.loads(response.read().decode("utf-8"))
+    blocks = response_body.get("content", [])
+    text_blocks = [b.get("text", "") for b in blocks if b.get("type") == "text"]
+    if not text_blocks:
+        raise ValueError("provider response contained no text content")
+    return "".join(text_blocks)
+
+
+def _parse_extraction_response(response_text):
+    # The prompt asks for bare JSON, but never trust a provider to obey formatting requests
+    # perfectly — strip a markdown fence if one shows up anyway, rather than failing outright.
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", response_text.strip())
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"response was not valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("response JSON was not an object")
+    return parsed
+
+
+def _average_confidence(fields):
+    scores = [f.get("confidence") for f in fields if isinstance(f.get("confidence"), (int, float))]
+    return round(sum(scores) / len(scores), 2) if scores else None
 
 
 def send_callback(callback_url, callback_secret, body):

@@ -41,7 +41,14 @@ public class AiExtractionCallbackController {
     if (configuredSecret.isBlank() || !secretMatches(providedSecret)) {
       throw new AccessDeniedException("Invalid or missing worker callback secret.");
     }
-    resultHandler.applyResult(id, request.extractedFields(), request.confidence());
+    resultHandler.applyResult(
+        id,
+        request.extractedFields(),
+        request.confidence(),
+        request.provider(),
+        request.model(),
+        request.summary(),
+        request.warnings());
   }
 
   /**
