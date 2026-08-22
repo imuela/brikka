@@ -229,7 +229,8 @@ class DocumentEndpointsIT {
     mockMvc
         .perform(get("/api/v1/document-types").header("Authorization", broker.bearer()))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(10)))
+        // 10 from V2 + 2 (Sprint 32, V26: ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER) = 12.
+        .andExpect(jsonPath("$", hasSize(12)))
         .andExpect(jsonPath("$[0].code").exists())
         .andExpect(jsonPath("$[0].name").exists());
   }

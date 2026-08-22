@@ -40,7 +40,11 @@ public class DocumentService {
           "application/msword",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           "application/vnd.ms-excel",
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          // Sprint 32: no PDF/template-engine dependency exists in this codebase (confirmed by
+          // inspection before implementing) — the dossier/contract generators produce a
+          // self-contained HTML document instead of pulling in a new library for V1.
+          "text/html");
 
   private final DocumentRepository documentRepository;
   private final DocumentVersionRepository documentVersionRepository;

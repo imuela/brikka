@@ -64,8 +64,9 @@ class FlywayMigrationIT {
     // 19 through V19 + V20 (Sprint 29: widen case_status_history.reason) + V21 (Sprint 29:
     // SUPERADMIN x NOTIFICATION_READ) + V22 (Sprint 30: client financial profile) = 22.
     // + V23 (Sprint 31: case_financial_analysis_results) + V24 (Sprint 31: FINANCIAL_ANALYSIS_RUN/
-    // READ permissions) = 24.
-    assertThat(appliedMigrations).isEqualTo(24);
+    // READ permissions) = 24. + V25 (Sprint 32: case_fees/case_fee_history) + V26 (Sprint 32:
+    // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26.
+    assertThat(appliedMigrations).isEqualTo(26);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -78,8 +79,10 @@ class FlywayMigrationIT {
     // portal_account_credentials, user_refresh_tokens, portal_refresh_tokens,
     // user_password_reset_tokens, portal_password_reset_tokens, login_attempts) = 58. V18-V21 add
     // no table. V22 (Sprint 30) adds client_financial_profiles + client_financial_profile_history
-    // = 60. V23 (Sprint 31) adds case_financial_analysis_results = 61. V24 adds no table.
-    assertThat(tableCount).isEqualTo(61);
+    // = 60. V23 (Sprint 31) adds case_financial_analysis_results = 61. V24 adds no table. V25
+    // (Sprint 32) adds case_fees + case_fee_history = 63. V26 adds no table (seeds document_types
+    // rows only).
+    assertThat(tableCount).isEqualTo(63);
 
     Boolean companyIdNullable =
         jdbc.queryForObject(
@@ -107,7 +110,8 @@ class FlywayMigrationIT {
 
     Integer documentTypeCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM document_types", Integer.class);
-    assertThat(documentTypeCount).isEqualTo(10);
+    // 10 from V2 + 2 (Sprint 32, V26: ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER) = 12.
+    assertThat(documentTypeCount).isEqualTo(12);
 
     Integer rolePermissionCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);

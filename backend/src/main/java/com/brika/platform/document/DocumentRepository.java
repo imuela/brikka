@@ -49,6 +49,21 @@ public class DocumentRepository {
     return jdbcTemplate.query(SELECT + " WHERE case_id = ?", ROW_MAPPER, caseId);
   }
 
+  /**
+   * Sprint 32: lets a generator (dossier/contract) find the single Document row it keeps adding
+   * versions to for a given case + type, instead of creating a new row on every generation.
+   */
+  public Optional<Document> findByCaseIdAndDocumentTypeId(UUID caseId, UUID documentTypeId) {
+    return jdbcTemplate
+        .query(
+            SELECT + " WHERE case_id = ? AND document_type_id = ?",
+            ROW_MAPPER,
+            caseId,
+            documentTypeId)
+        .stream()
+        .findFirst();
+  }
+
   public void setCurrentVersionAndStatus(UUID documentId, UUID versionId, ReviewStatus status) {
     jdbcTemplate.update(
         "UPDATE documents SET current_version_id = ?, status = ?, updated_at = now() WHERE id ="

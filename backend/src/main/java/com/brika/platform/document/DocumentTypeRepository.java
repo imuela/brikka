@@ -38,4 +38,12 @@ public class DocumentTypeRepository {
             "SELECT id, code, name, active FROM document_types WHERE id = ?", ROW_MAPPER, id);
     return types.stream().findFirst();
   }
+
+  /** Sprint 32: lets a generator (dossier/contract) resolve its fixed document type by code. */
+  public Optional<DocumentType> findByCode(String code) {
+    List<DocumentType> types =
+        jdbcTemplate.query(
+            "SELECT id, code, name, active FROM document_types WHERE code = ?", ROW_MAPPER, code);
+    return types.stream().findFirst();
+  }
 }

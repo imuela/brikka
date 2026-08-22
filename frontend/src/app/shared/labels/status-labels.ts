@@ -208,6 +208,19 @@ export const VIABILITY_CATEGORY_LABELS: Record<string, string> = {
   NO_VIABLE: 'No viable',
 };
 
+/** Sprint 32. Mirrors backend chk_case_fees_fee_type (V25 migration). */
+export const FEE_TYPE_LABELS: Record<string, string> = {
+  FIXED: 'Importe fijo',
+  PERCENTAGE: 'Porcentaje',
+};
+
+/** Sprint 32. Mirrors backend chk_case_fees_status (V25 migration). */
+export const FEE_STATUS_LABELS: Record<string, string> = {
+  PROPOSED: 'Propuesto',
+  AGREED: 'Acordado',
+  CANCELLED: 'Cancelado',
+};
+
 /** Sprint 30. Mirrors backend chk_client_financial_profiles_source (V22 migration) — a catalog
  * owned by this feature, not inherited from Legacy. */
 export const FINANCIAL_PROFILE_SOURCE_LABELS: Record<string, string> = {

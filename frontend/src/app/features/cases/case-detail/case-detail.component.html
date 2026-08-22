@@ -411,6 +411,32 @@
     }
   </div>
 
+  <div class="section" *appHasPermission="'CASE_READ'">
+    <div class="section-header">
+      <h2>Honorarios</h2>
+      <button *appHasPermission="'CASE_UPDATE'" mat-flat-button color="primary" (click)="openEditCaseFee()">
+        {{ caseFee() ? 'Editar honorarios' : 'Configurar honorarios' }}
+      </button>
+    </div>
+    @if (caseFeeError()) {
+      <p class="error-text">{{ caseFeeError() }}</p>
+    }
+    @if (caseFeeLoading()) {
+      <mat-spinner diameter="24" />
+    } @else if (!caseFee()) {
+      <p>Sin honorarios configurados todavía.</p>
+    } @else {
+      <p>
+        Tipo: {{ caseFee()!.feeType | statusLabel: feeTypeLabels }}<br />
+        @if (caseFee()!.feeType === 'PERCENTAGE') {
+          {{ caseFee()!.percentage }} % sobre {{ caseFee()!.calculationBase | currency: 'EUR' : 'symbol' : '1.0-2' }}<br />
+        }
+        Importe: <strong>{{ caseFee()!.calculatedAmount | currency: 'EUR' : 'symbol' : '1.0-2' }}</strong><br />
+        Estado: <app-status-badge [value]="caseFee()!.status" [labels]="feeStatusLabels" />
+      </p>
+    }
+  </div>
+
   <div class="section" *appHasPermission="'FINANCIAL_ANALYSIS_READ'">
     <div class="section-header">
       <h2>Análisis financiero</h2>
@@ -655,6 +681,86 @@
         <tr mat-row *matRowDef="let row; columns: offerColumns"></tr>
       </table>
       </div>
+    }
+  </div>
+
+  <div class="section" *appHasPermission="'DOCUMENT_READ'">
+    <div class="section-header">
+      <h2>Contrato de encargo</h2>
+      <button
+        *appHasPermission="'DOCUMENT_UPLOAD'"
+        mat-flat-button
+        color="primary"
+        [disabled]="contractGenerating()"
+        (click)="generateContract()">
+        @if (contractGenerating()) {
+          <mat-spinner diameter="20" />
+        } @else if (contractDocument()?.documentId) {
+          Regenerar contrato
+        } @else {
+          Generar contrato
+        }
+      </button>
+    </div>
+    <p style="color: rgba(0, 0, 0, 0.6); font-size: 0.85em;">
+      Documento técnico provisional generado por Brikka. No sustituye un clausulado legal aprobado.
+    </p>
+    @if (contractError()) {
+      <p class="error-text">{{ contractError() }}</p>
+    }
+    @if (contractDocument() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (contractDocument()!.versions.length === 0) {
+      <p>Sin contrato generado todavía.</p>
+    } @else {
+      <ul>
+        @for (version of contractDocument()!.versions; track version.id) {
+          <li>
+            Versión {{ version.versionNumber }} — {{ version.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}
+            <button mat-button color="primary" (click)="downloadContractVersion(version.id)">Descargar</button>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <div class="section" *appHasPermission="'DOCUMENT_READ'">
+    <div class="section-header">
+      <h2>Dossier de viabilidad</h2>
+      <button
+        *appHasPermission="'DOCUMENT_UPLOAD'"
+        mat-flat-button
+        color="primary"
+        [disabled]="dossierGenerating()"
+        (click)="generateDossier()">
+        @if (dossierGenerating()) {
+          <mat-spinner diameter="20" />
+        } @else if (dossierDocument()?.documentId) {
+          Regenerar dossier
+        } @else {
+          Generar dossier
+        }
+      </button>
+    </div>
+    <p style="color: rgba(0, 0, 0, 0.6); font-size: 0.85em;">
+      Snapshot generado con los datos actuales del caso. No se actualiza retroactivamente si los datos cambian después.
+    </p>
+    @if (dossierError()) {
+      <p class="error-text">{{ dossierError() }}</p>
+    }
+    @if (dossierDocument() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (dossierDocument()!.versions.length === 0) {
+      <p>Sin dossier generado todavía.</p>
+    } @else {
+      <ul>
+        @for (version of dossierDocument()!.versions; track version.id) {
+          <li>
+            Versión {{ version.versionNumber }} — {{ version.uploadedAt | date: 'dd/MM/yyyy HH:mm' }}
+            <button mat-button color="primary" (click)="downloadDossierVersion(version.id)">Descargar</button>
+          </li>
+        }
+      </ul>
     }
   </div>
 

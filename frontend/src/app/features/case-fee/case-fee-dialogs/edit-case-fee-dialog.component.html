@@ -1,0 +1,55 @@
+<h2 mat-dialog-title>Honorarios del caso</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="field-row">
+    <mat-form-field>
+      <mat-label>Tipo de honorario</mat-label>
+      <mat-select
+        formControlName="feeType"
+        required
+        (selectionChange)="onFeeTypeChange($event.value)">
+        <mat-option value="FIXED">{{ 'FIXED' | statusLabel: feeTypeLabels }}</mat-option>
+        <mat-option value="PERCENTAGE">{{ 'PERCENTAGE' | statusLabel: feeTypeLabels }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    @if (!isPercentage()) {
+      <mat-form-field>
+        <mat-label>Importe fijo (€)</mat-label>
+        <input matInput type="number" formControlName="fixedAmount" required />
+      </mat-form-field>
+    } @else {
+      <mat-form-field>
+        <mat-label>Porcentaje (%)</mat-label>
+        <input matInput type="number" formControlName="percentage" required />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Base de cálculo (€)</mat-label>
+        <input matInput type="number" formControlName="calculationBase" required />
+      </mat-form-field>
+    }
+
+    <mat-form-field>
+      <mat-label>Estado</mat-label>
+      <mat-select formControlName="status" required>
+        <mat-option value="PROPOSED">{{ 'PROPOSED' | statusLabel: feeStatusLabels }}</mat-option>
+        <mat-option value="AGREED">{{ 'AGREED' | statusLabel: feeStatusLabels }}</mat-option>
+        <mat-option value="CANCELLED">{{ 'CANCELLED' | statusLabel: feeStatusLabels }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    @if (error()) {
+      <p class="error-text">{{ error() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Guardar
+      }
+    </button>
+  </mat-dialog-actions>
+</form>

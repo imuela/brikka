@@ -20,6 +20,8 @@ import {
   CONVERSATION_STATUS_LABELS,
   CONVERSATION_TYPE_LABELS,
   DOCUMENT_REQUEST_STATUS_LABELS,
+  FEE_STATUS_LABELS,
+  FEE_TYPE_LABELS,
   FINANCING_REQUEST_STATUS_LABELS,
   MATCH_RESULT_LABELS,
   OPERATION_TYPE_LABELS,
@@ -34,6 +36,13 @@ import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { FinancialAnalysisResult } from '../../financial-analysis/financial-analysis.model';
 import { FinancialAnalysisService } from '../../financial-analysis/financial-analysis.service';
+import { CaseFee } from '../../case-fee/case-fee.model';
+import { CaseFeeService } from '../../case-fee/case-fee.service';
+import { EditCaseFeeDialogComponent } from '../../case-fee/case-fee-dialogs/edit-case-fee-dialog.component';
+import { GeneratedDocument as ContractDocument } from '../../engagement-contract/engagement-contract.model';
+import { EngagementContractService } from '../../engagement-contract/engagement-contract.service';
+import { GeneratedDocument as DossierDocument } from '../../viability-dossier/viability-dossier.model';
+import { ViabilityDossierService } from '../../viability-dossier/viability-dossier.service';
 import { Bank } from '../../banks/bank.model';
 import { BankService } from '../../banks/bank.service';
 import { RunMatchingDialogComponent } from '../../bank-matching/bank-matching-dialogs/run-matching-dialog.component';
@@ -127,6 +136,9 @@ export class CaseDetailComponent {
   private readonly taskService = inject(TaskService);
   private readonly communicationService = inject(CommunicationService);
   private readonly financialAnalysisService = inject(FinancialAnalysisService);
+  private readonly caseFeeService = inject(CaseFeeService);
+  private readonly engagementContractService = inject(EngagementContractService);
+  private readonly viabilityDossierService = inject(ViabilityDossierService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
@@ -187,6 +199,20 @@ export class CaseDetailComponent {
   ];
   readonly viabilityCategoryLabels = VIABILITY_CATEGORY_LABELS;
 
+  readonly caseFee = signal<CaseFee | null>(null);
+  readonly caseFeeLoading = signal(true);
+  readonly caseFeeError = signal<string | null>(null);
+  readonly feeTypeLabels = FEE_TYPE_LABELS;
+  readonly feeStatusLabels = FEE_STATUS_LABELS;
+
+  readonly contractDocument = signal<ContractDocument | null>(null);
+  readonly contractGenerating = signal(false);
+  readonly contractError = signal<string | null>(null);
+
+  readonly dossierDocument = signal<DossierDocument | null>(null);
+  readonly dossierGenerating = signal(false);
+  readonly dossierError = signal<string | null>(null);
+
   constructor() {
     this.loadCase();
     this.loadAssignments();
@@ -214,6 +240,9 @@ export class CaseDetailComponent {
     this.loadTasks();
     this.loadConversations();
     this.loadFinancialAnalysis();
+    this.loadCaseFee();
+    this.loadContract();
+    this.loadDossier();
   }
 
   private loadCase(): void {
@@ -736,5 +765,102 @@ export class CaseDetailComponent {
   financialAnalysisClientName(clientId: string): string {
     const client = this.clients()?.find((c) => c.clientId === clientId);
     return client ? `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() : clientId;
+  }
+
+  private loadCaseFee(): void {
+    this.caseFeeLoading.set(true);
+    this.caseFeeService.get(this.caseId).subscribe({
+      next: (fee) => {
+        this.caseFeeLoading.set(false);
+        this.caseFee.set(fee);
+      },
+      error: (err: ApiError) => {
+        this.caseFeeLoading.set(false);
+        if (err.status !== 404) {
+          this.caseFeeError.set(friendlyErrorMessage(err));
+        }
+      },
+    });
+  }
+
+  openEditCaseFee(): void {
+    this.dialog
+      .open(EditCaseFeeDialogComponent, {
+        data: { caseId: this.caseId, current: this.caseFee() },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((fee?: CaseFee) => {
+        if (fee) {
+          this.caseFee.set(fee);
+          this.caseFeeError.set(null);
+        }
+      });
+  }
+
+  private loadContract(): void {
+    this.engagementContractService.get(this.caseId).subscribe({
+      next: (document) => this.contractDocument.set(document),
+      error: (err: ApiError) => this.contractError.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  generateContract(): void {
+    this.contractGenerating.set(true);
+    this.contractError.set(null);
+    this.engagementContractService.generate(this.caseId).subscribe({
+      next: () => {
+        this.contractGenerating.set(false);
+        this.loadContract();
+      },
+      error: (err: ApiError) => {
+        this.contractGenerating.set(false);
+        this.contractError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  downloadContractVersion(versionId: string): void {
+    const documentId = this.contractDocument()?.documentId;
+    if (!documentId) {
+      return;
+    }
+    this.documentsService.downloadVersion(documentId, versionId).subscribe({
+      next: (download) => window.open(download.url, '_blank'),
+      error: (err: ApiError) => this.contractError.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  private loadDossier(): void {
+    this.viabilityDossierService.get(this.caseId).subscribe({
+      next: (document) => this.dossierDocument.set(document),
+      error: (err: ApiError) => this.dossierError.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  generateDossier(): void {
+    this.dossierGenerating.set(true);
+    this.dossierError.set(null);
+    this.viabilityDossierService.generate(this.caseId).subscribe({
+      next: () => {
+        this.dossierGenerating.set(false);
+        this.loadDossier();
+      },
+      error: (err: ApiError) => {
+        this.dossierGenerating.set(false);
+        this.dossierError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  downloadDossierVersion(versionId: string): void {
+    const documentId = this.dossierDocument()?.documentId;
+    if (!documentId) {
+      return;
+    }
+    this.documentsService.downloadVersion(documentId, versionId).subscribe({
+      next: (download) => window.open(download.url, '_blank'),
+      error: (err: ApiError) => this.dossierError.set(friendlyErrorMessage(err)),
+    });
   }
 }

@@ -29,7 +29,7 @@ export function statusTone(value: string | null | undefined): StatusTone {
     return 'warning';
   }
   if (
-    /(APPROVED|ACTIVE|COMPLETED|ACCEPTED|CLOSED_WON|WON|PAID|VERIFIED|CONFIRMED|ENABLED|FAVORABLE)/.test(
+    /(APPROVED|ACTIVE|COMPLETED|ACCEPTED|CLOSED_WON|WON|PAID|VERIFIED|CONFIRMED|ENABLED|FAVORABLE|AGREED)/.test(
       v,
     )
   ) {

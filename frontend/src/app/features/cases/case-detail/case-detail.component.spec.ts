@@ -67,6 +67,15 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
+      .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`)
+      .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
+      .flush({ documentId: null, versions: [] });
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -96,6 +105,15 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
+      .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`)
+      .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
+      .flush({ documentId: null, versions: [] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -128,6 +146,15 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
+      .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`)
+      .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
+      .flush({ documentId: null, versions: [] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
@@ -152,6 +179,9 @@ describe('CaseDetailComponent', () => {
       'Nueva solicitud a banco',
       'Nueva tarea',
       'Nueva conversación',
+      'Configurar honorarios',
+      'Generar contrato',
+      'Generar dossier',
     ];
     for (const label of gatedLabels) {
       expect(fixture.nativeElement.textContent).not.toContain(label);
@@ -166,6 +196,9 @@ describe('CaseDetailComponent', () => {
       'PROPERTY_UPDATE',
       'DOCUMENT_READ',
       'DOCUMENT_CREATE',
+      'DOCUMENT_UPLOAD',
+      'CASE_READ',
+      'CASE_UPDATE',
       'SIMULATION_READ',
       'SIMULATION_CREATE',
       'FINANCING_REQUEST_READ',
@@ -277,6 +310,15 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
+      .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`)
+      .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
+      .flush({ documentId: null, versions: [] });
 
     expect(fixture.componentInstance.bankName('b1')).toBe('Banco Demo Desarrollo');
     expect(fixture.componentInstance.bankName('unknown')).toBe('unknown');
@@ -978,6 +1020,150 @@ describe('CaseDetailComponent', () => {
 
     expect(fixture.componentInstance.financialAnalysisError()).toContain(
       'oferta bancaria seleccionada o una simulación',
+    );
+  });
+
+  it('the Honorarios section is gated by CASE_READ and shows the empty state', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Honorarios');
+
+    sessionStore.setPermissions(['CASE_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Honorarios');
+    expect(fixture.nativeElement.textContent).toContain('Sin honorarios configurados todavía');
+    expect(fixture.nativeElement.textContent).not.toContain('Configurar honorarios');
+  });
+
+  it('configuring a percentage fee renders the computed amount', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['CASE_READ', 'CASE_UPDATE']);
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () =>
+        of({
+          id: 'f1',
+          caseId: 'k1',
+          feeType: 'PERCENTAGE',
+          fixedAmount: null,
+          percentage: 2.5,
+          calculationBase: 200000,
+          calculatedAmount: 5000,
+          status: 'PROPOSED',
+          agreedAt: null,
+          updatedBy: 'u1',
+          createdAt: '2026-08-22T10:00:00Z',
+          updatedAt: '2026-08-22T10:00:00Z',
+        }),
+    } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.openEditCaseFee();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Porcentaje');
+    expect(text).toContain('Propuesto');
+  });
+
+  it('the Contrato de encargo and Dossier de viabilidad sections are gated by DOCUMENT_READ', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Contrato de encargo');
+    expect(fixture.nativeElement.textContent).not.toContain('Dossier de viabilidad');
+
+    sessionStore.setPermissions(['DOCUMENT_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Contrato de encargo');
+    expect(fixture.nativeElement.textContent).toContain('Sin contrato generado todavía');
+    expect(fixture.nativeElement.textContent).toContain('Dossier de viabilidad');
+    expect(fixture.nativeElement.textContent).toContain('Sin dossier generado todavía');
+    expect(fixture.nativeElement.textContent).not.toContain('Generar contrato');
+    expect(fixture.nativeElement.textContent).not.toContain('Generar dossier');
+  });
+
+  it('generating the dossier lists the new version and allows regenerating', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_UPLOAD']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.generateDossier();
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`);
+    expect(req.request.method).toBe('POST');
+    req.flush({
+      id: 'v1',
+      documentId: 'd1',
+      versionNumber: 1,
+      originalFilename: 'dossier-viabilidad.html',
+      mimeType: 'text/html',
+      sizeBytes: 100,
+      checksum: 'abc',
+      uploadedBy: 'u1',
+      uploadedAt: '2026-08-22T10:00:00Z',
+      reviewStatus: 'PENDING',
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewComment: null,
+    });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
+      .flush({
+        documentId: 'd1',
+        versions: [
+          {
+            id: 'v1',
+            documentId: 'd1',
+            versionNumber: 1,
+            originalFilename: 'dossier-viabilidad.html',
+            mimeType: 'text/html',
+            sizeBytes: 100,
+            checksum: 'abc',
+            uploadedBy: 'u1',
+            uploadedAt: '2026-08-22T10:00:00Z',
+            reviewStatus: 'PENDING',
+            reviewedBy: null,
+            reviewedAt: null,
+            reviewComment: null,
+          },
+        ],
+      });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Versión 1');
+    expect(fixture.nativeElement.textContent).toContain('Regenerar dossier');
+  });
+
+  it('shows the structured backend error when the contract cannot be generated', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_UPLOAD']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.generateContract();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`)
+      .flush(
+        { code: 'NO_CLIENTS_ON_CASE', message: 'no clients', requestId: 'r1' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.contractError()).toContain(
+      'no tiene ningún cliente asociado',
     );
   });
 });
