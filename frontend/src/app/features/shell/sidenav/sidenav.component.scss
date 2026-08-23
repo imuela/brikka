@@ -25,6 +25,16 @@
   --mat-list-list-item-label-text-weight: 500;
   border-radius: var(--radius-sm);
   margin: 2px var(--space-2);
+}
+
+// Sprint 34: Angular Material's own `.mat-mdc-list-item, .mat-mdc-list-option { width: 100% }`
+// rule ties in specificity with the `width` override above (both a single class selector) and
+// wins on source order, so every nav item rendered 8px wider than `.shell-sidenav` (its own
+// margin's worth) — the sidenav's inner container then needed a horizontal scrollbar to show
+// that extra 8px. Every list item carries both `.mdc-list-item` and `.mat-mdc-list-item`
+// (confirmed live via a matched-CSS-rules check), so combining both classes in one selector
+// raises specificity just enough to win deterministically, regardless of stylesheet order.
+::ng-deep .mdc-list-item.mat-mdc-list-item {
   width: calc(100% - var(--space-4));
 }
 

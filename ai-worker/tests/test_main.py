@@ -354,6 +354,219 @@ class RealProviderExtractionTests(unittest.TestCase):
         self.assertEqual({"extractedFields": [], "confidence": {}}, body)
 
 
+class FakeOllamaHandler(BaseHTTPRequestHandler):
+    """Stands in for a local http://localhost:11434/api/generate."""
+
+    response_text = json.dumps(
+        {
+            "summary": "Payslip for Javier Ruiz, March 2026.",
+            "fields": [
+                {"name": "monthly_income", "value": "1900", "confidence": 0.85, "page": None}
+            ],
+            "warnings": [],
+        }
+    )
+    status_code = 200
+    received_requests = []
+
+    def log_message(self, format, *args):
+        pass
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length) if length else b"{}")
+        FakeOllamaHandler.received_requests.append({"path": self.path, "body": body})
+        if FakeOllamaHandler.status_code != 200:
+            error_body = json.dumps({"error": "model 'missing-model' not found"}).encode("utf-8")
+            self.send_response(FakeOllamaHandler.status_code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(error_body)))
+            self.end_headers()
+            self.wfile.write(error_body)
+            return
+        response_body = json.dumps({"response": FakeOllamaHandler.response_text}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response_body)))
+        self.end_headers()
+        self.wfile.write(response_body)
+
+
+class OllamaProviderExtractionTests(unittest.TestCase):
+    """Sprint 34: the worker's real Ollama call, exercised against a fake local HTTP server —
+    never a real Ollama installation, so these run in CI with no local model pulled."""
+
+    def setUp(self):
+        self.worker_server, self.worker_thread = start_server(worker.Handler)
+        self.worker_port = self.worker_server.server_address[1]
+
+        CapturingCallbackHandler.received = []
+        self.callback_server, self.callback_thread = start_server(CapturingCallbackHandler)
+        self.callback_port = self.callback_server.server_address[1]
+
+        FakeOllamaHandler.received_requests = []
+        FakeOllamaHandler.status_code = 200
+        FakeOllamaHandler.response_text = json.dumps(
+            {
+                "summary": "Payslip for Javier Ruiz, March 2026.",
+                "fields": [
+                    {"name": "monthly_income", "value": "1900", "confidence": 0.85, "page": None}
+                ],
+                "warnings": [],
+            }
+        )
+        self.ollama_server, self.ollama_thread = start_server(FakeOllamaHandler)
+        self.ollama_port = self.ollama_server.server_address[1]
+
+        DocumentServingHandler.body = b"payslip content as plain text"
+        self.document_server, self.document_thread = start_server(DocumentServingHandler)
+        self.document_port = self.document_server.server_address[1]
+
+        self.env_patch = unittest.mock.patch.dict(
+            os.environ,
+            {
+                "AI_PROVIDER": "ollama",
+                "OLLAMA_BASE_URL": f"http://127.0.0.1:{self.ollama_port}",
+                "ANTHROPIC_API_KEY": "",
+            },
+        )
+        self.env_patch.start()
+
+    def tearDown(self):
+        self.env_patch.stop()
+        for server in (self.worker_server, self.callback_server, self.ollama_server, self.document_server):
+            server.shutdown()
+            server.server_close()
+
+    def worker_url(self, path):
+        return f"http://127.0.0.1:{self.worker_port}{path}"
+
+    def document_url(self):
+        return f"http://127.0.0.1:{self.document_port}/doc.txt"
+
+    def callback_url(self):
+        return f"http://127.0.0.1:{self.callback_port}/internal/ai/document-extractions/abc/callback"
+
+    def envelope(self, mime_type="text/plain", download_url=None):
+        return {
+            "eventId": "11111111-1111-1111-1111-111111111111",
+            "eventType": "ai.document.analysis.requested",
+            "occurredAt": "2026-08-22T00:00:00Z",
+            "companyId": "22222222-2222-2222-2222-222222222222",
+            "aggregateType": "DOCUMENT_EXTRACTION",
+            "aggregateId": "33333333-3333-3333-3333-333333333333",
+            "payload": {
+                "documentVersionId": "44444444-4444-4444-4444-444444444444",
+                "callbackUrl": self.callback_url(),
+                "callbackSecret": "s3cr3t",
+                "documentDownloadUrl": (
+                    download_url if download_url is not None else self.document_url()
+                ),
+                "documentFilename": "payslip.txt",
+                "documentMimeType": mime_type,
+            },
+        }
+
+    def test_real_call_reports_extracted_fields_provider_and_model(self):
+        status, _ = post(self.worker_url("/extract"), self.envelope())
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual("ollama", body["provider"])
+        self.assertEqual(worker.DEFAULT_OLLAMA_MODEL, body["model"])
+        self.assertEqual(
+            [{"name": "monthly_income", "value": "1900", "confidence": 0.85, "page": None}],
+            body["extractedFields"],
+        )
+        self.assertIn("Javier Ruiz", body["summary"])
+
+        sent = FakeOllamaHandler.received_requests[0]["body"]
+        self.assertEqual(worker.DEFAULT_OLLAMA_MODEL, sent["model"])
+        self.assertFalse(sent["stream"])
+        self.assertIn("payslip content as plain text", sent["prompt"])
+
+    def test_pdf_is_unsupported_for_the_local_text_only_provider(self):
+        status, _ = post(self.worker_url("/extract"), self.envelope(mime_type="application/pdf"))
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual([], body["extractedFields"])
+        self.assertEqual("ollama", body["provider"])
+        self.assertTrue(any("Unsupported" in w for w in body["warnings"]))
+
+    def test_ollama_not_running_is_reported_as_a_warning_not_a_crash(self):
+        with unittest.mock.patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://127.0.0.1:1"}):
+            status, _ = post(self.worker_url("/extract"), self.envelope())
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual([], body["extractedFields"])
+        self.assertEqual("ollama", body["provider"])
+        self.assertTrue(any("Ollama" in w for w in body["warnings"]))
+
+    def test_model_not_found_is_reported_as_a_warning_not_a_crash(self):
+        FakeOllamaHandler.status_code = 404
+
+        status, _ = post(self.worker_url("/extract"), self.envelope())
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual([], body["extractedFields"])
+        self.assertEqual("ollama", body["provider"])
+        self.assertTrue(any("404" in w for w in body["warnings"]))
+
+    def test_non_json_ollama_response_is_reported_as_a_warning_not_a_crash(self):
+        FakeOllamaHandler.response_text = "Sure, here are the fields: none really."
+
+        status, _ = post(self.worker_url("/extract"), self.envelope())
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual([], body["extractedFields"])
+        self.assertTrue(any("JSON" in w or "valid" in w for w in body["warnings"]))
+
+    def test_ai_provider_ollama_wins_over_a_configured_anthropic_key(self):
+        with unittest.mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "some-key-should-be-ignored"}):
+            status, _ = post(self.worker_url("/extract"), self.envelope())
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual("ollama", body["provider"])
+
+    def test_ai_provider_none_overrides_a_configured_anthropic_key(self):
+        with unittest.mock.patch.dict(
+            os.environ, {"AI_PROVIDER": "none", "ANTHROPIC_API_KEY": "some-key-should-be-ignored"}
+        ):
+            status, _ = post(self.worker_url("/extract"), self.envelope())
+
+        self.assertEqual(202, status)
+        body = CapturingCallbackHandler.received[0]["body"]
+        self.assertEqual({"extractedFields": [], "confidence": {}}, body)
+
+
+class ProviderResolutionTests(unittest.TestCase):
+    """Sprint 34: `_resolve_provider` precedence, unit-level (no HTTP needed)."""
+
+    def test_unset_everything_resolves_to_none(self):
+        with unittest.mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AI_PROVIDER", None)
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            self.assertEqual("none", worker._resolve_provider())
+
+    def test_legacy_anthropic_key_alone_still_activates_anthropic(self):
+        with unittest.mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "k"}):
+            os.environ.pop("AI_PROVIDER", None)
+            self.assertEqual("anthropic", worker._resolve_provider())
+
+    def test_explicit_ai_provider_wins_over_legacy_key(self):
+        with unittest.mock.patch.dict(os.environ, {"AI_PROVIDER": "ollama", "ANTHROPIC_API_KEY": "k"}):
+            self.assertEqual("ollama", worker._resolve_provider())
+
+    def test_unrecognized_ai_provider_value_falls_back_to_legacy_resolution(self):
+        with unittest.mock.patch.dict(os.environ, {"AI_PROVIDER": "bogus", "ANTHROPIC_API_KEY": "k"}):
+            self.assertEqual("anthropic", worker._resolve_provider())
+
+
 class WorkerIsolationTests(unittest.TestCase):
     """D10-4: the worker must be stateless and have no PostgreSQL access or credentials."""
 

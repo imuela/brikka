@@ -3,7 +3,9 @@
 }
 
 @if (theCase() === null) {
-  <mat-spinner diameter="32" />
+  @if (!error()) {
+    <mat-spinner diameter="32" />
+  }
 } @else {
   <h1>{{ theCase()!.reference }}</h1>
 

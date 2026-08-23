@@ -413,6 +413,64 @@ Resuelve, con decisión explícita del promotor del proyecto, los puntos que ADR
 
 **Documentos afectados por esta adenda:** este documento (tabla IA más abajo), `V15__ai_use_permissions.sql`.
 
+### Adenda Sprint 33 — D33-1: `get_client_financial_profile` deja de estar excluido
+
+D10-3/D10-6 excluían este caso de uso citando D9-1 ("no existe modelo de datos financieros de
+cliente"). Sprint 30 introdujo `ClientFinancialProfile`, por lo que el motivo de la exclusión ya
+no aplica — no se trata de reabrir D9-1 (Client Score sigue fuera de alcance), sino de reconocer
+que su premisa quedó obsoleta. Sprint 33 implementa, sobre esa base, detección de inconsistencias
+de renta mensual entre `DocumentExtraction` y `ClientFinancialProfile` (tolerancia ±50€,
+solo-lectura, la IA nunca decide cuál valor es correcto ni escribe en el perfil). No se reabre
+ningún otro punto de D10-3/D10-6.
+
+### Adenda Sprint 34 — D34-AI-1: generalización de proveedor + Ollama local
+
+**Contexto:** Sprint 33 dejó el Worker (`ai-worker/main.py`) con un único proveedor real
+hardcodeado (Anthropic, activado solo por la presencia de `ANTHROPIC_API_KEY`). El encargo de
+Sprint 34 pide poder ejecutar análisis de IA en local, gratis y sin API key, sin romper la
+abstracción existente ni obligar a ningún proveedor.
+
+**Decisión:** Se generaliza la selección de proveedor dentro del propio Worker Python mediante
+`_resolve_provider()` y la variable de entorno `AI_PROVIDER` (`none`/`anthropic`/`ollama`), con
+retrocompatibilidad total: sin `AI_PROVIDER` definida, `ANTHROPIC_API_KEY` sola sigue activando
+Anthropic exactamente como en Sprint 33 (ningún despliegue/test existente cambia de
+comportamiento). Se añade `ollama` como segundo proveedor real, llamando a un servidor Ollama
+local (`http://localhost:11434` por defecto, sin credenciales) — ver `docs/09_AI.md` §"IA local
+con Ollama" para instalación/configuración completas.
+
+Esta selección vive enteramente en el proceso Python — Spring Boot nunca conoce ni necesita
+conocer qué proveedor está activo; el Gateway (Java) sigue sin credenciales de ningún proveedor,
+tal como exige ADR-AI-001. No se introduce ninguna jerarquía Java `AiProvider`/`OllamaAiProvider`
+paralela: el `AiProvider` Java (síncrono, D10-2, solo `NoOpAiProvider`) es un caso de uso distinto
+(resumen/explicación/redacción de mensaje) que este sprint no toca — la propuesta conceptual del
+encargo ("AiProvider ├── NoOpAiProvider ├── OllamaAiProvider └── AnthropicAiProvider") se resuelve
+arquitectónicamente en el Worker, donde ya vivía la única selección real de proveedor de
+extracción documental desde Sprint 33, en vez de duplicar una jerarquía paralela en Java que no
+tendría ningún llamador.
+
+**D34-AI-1.1 — Ollama es solo texto.** Ningún modelo de visión Ollama viene instalado por defecto
+(los modelos multimodales ocupan varios GB, explícitamente descartado por el propio encargo). El
+proveedor `ollama` solo admite `text/plain`/`text/html`; PDF/imagen con `AI_PROVIDER=ollama`
+devuelve `FAILED` honesto ("Unsupported document type for this AI provider"), nunca una
+extracción inventada ni un 500. PDF/imagen siguen requiriendo `AI_PROVIDER=anthropic`.
+
+**D34-AI-1.2 — Modelo por defecto.** `llama3.2:1b` (~1.3GB), elegido por ser razonable para
+hardware de desarrollo (no el modelo más capaz que Ollama puede ejecutar, el más razonable para
+un portátil de desarrollo) — configurable vía `OLLAMA_MODEL`.
+
+**Alternativas consideradas:** una jerarquía Java `AiProvider` paralela con implementaciones
+Ollama/Anthropic — descartada porque el `AiProvider` Java existente no interviene en la extracción
+documental (ese flujo pasa por `AiTaskDispatcher`/Worker desde D10-4/D10-5) y duplicar la
+abstracción allí no tendría ningún efecto real, solo código muerto.
+
+**Consecuencias:** `ai-worker/main.py` reestructurado (`_resolve_provider`, `run_anthropic_extraction`,
+`run_ollama_extraction`, `_call_ollama`); 11 tests nuevos en `ai-worker/tests/test_main.py`; sin
+cambios en el backend Java, sin migraciones, sin permisos nuevos, sin endpoints nuevos.
+
+**Documentos afectados:** este documento, `docs/09_AI.md`, `.env.example`.
+
+**Estado:** APPROVED. Implementado y validado en Sprint 34.
+
 ---
 
 ## ADR-RBAC-001 — Role-Permission Assignment Matrix
@@ -1163,3 +1221,76 @@ empresa), con lo que todo endpoint scoped por tenant devolvía 403 y el rol qued
 **Consecuencias:** SUPERADMIN puede navegar y leer todas las pantallas y administrar usuarios/empresas a
 nivel global; la creación de registros operativos de tenant desde la UI de SUPERADMIN queda aplazada a
 SUPPORT_SESSION (Sprint 28+). ADR-RBAC-001 (SUPPORT_SESSION pendiente) sigue vigente para ese alcance.
+
+## Adenda Sprint 34 — Hardening, auditoría UI/UX y bugs encontrados
+
+**Contexto:** Sprint 34 pidió una auditoría integral (no una lista de funcionalidades nuevas) antes de
+tocar código, con foco explícito en un bug conocido de scroll horizontal en el sidebar y en una revisión
+completa de scrolls/cards/tablas/dialogs. Se documentan aquí los hallazgos reales (no supuestos) y sus
+correcciones, todas con causa raíz identificada y verificada en vivo con navegador real.
+
+**D34-1 — Sidebar: scroll horizontal (causa raíz: empate de especificidad CSS).**
+`sidenav.component.scss` fijaba `::ng-deep .mdc-list-item { width: calc(100% - var(--space-4)); margin:
+2px var(--space-2); }` — margen y ancho pensados para sumar exactamente el 100% del contenedor (8px + 224px
++ 8px = 240px). Pero Angular Material define su propia regla global `.mat-mdc-list-item, .mat-mdc-list-option
+{ width: 100% }`, con la MISMA especificidad (una clase) que la regla del proyecto — el empate se resuelve
+por orden de aparición en la hoja de estilos compilada, y la de Material aparecía después, ganando siempre.
+Resultado: cada elemento del menú medía 240px de ancho MÁS 16px de margen (256px) dentro de un contenedor de
+240px, desbordando 8px — de ahí el scroll horizontal. Verificado con `document.styleSheets` en el navegador
+real (las dos reglas, su especificidad y cuál ganaba) antes de tocar nada. **Corrección:** combinar ambas
+clases en un único selector (`.mdc-list-item.mat-mdc-list-item`), subiendo la especificidad del proyecto sin
+depender del orden de carga. Verificado en vivo: `scrollWidth === clientWidth` en escritorio, tablet y móvil
+(modo overlay incluido).
+
+**D34-2 — Spinners de carga que nunca desaparecen tras un error (patrón sistémico, no un caso aislado).**
+Encontrado al probar un caso inexistente: `case-detail.component.html` mostraba el mensaje de error
+correctamente pero también un `<mat-spinner>` que giraba para siempre, porque su condición
+(`@if (theCase() === null)`) era un bloque `@if` independiente del banner de error, sin ninguna relación
+entre ambos — si `loadCase()` fallaba, `theCase()` nunca dejaba de ser `null`, así que el spinner de esa
+condición no tenía forma de desaparecer. Se encontró el mismo patrón, ya corregido dentro de la propia base
+de código como referencia correcta, en `client-detail.component.html` (usa `@else if`, no dos `@if`
+separados) — lo que confirma que el patrón correcto ya existía en el proyecto y este era un caso de
+inconsistencia, no una decisión de diseño. Al revisar el resto de la aplicación, el mismo antipatrón (dos
+`@if` independientes en vez de `@if/@else if`) apareció también en `bank-detail.component.html`,
+`company-detail.component.html` y `portal-case-detail.component.html` — los 4 corregidos con la misma
+solución mínima (`@if (!error()) { spinner }` anidado). Además, dentro de `case-detail.component.ts` se
+encontró que **14 sub-paneles** (asignaciones, clientes, documentos, solicitudes de documentos,
+simulaciones, financiación, matching, solicitudes a banco, ofertas, tareas, conversaciones, análisis
+financiero, contrato, dossier) compartían la causa raíz más profunda: su `error` callback solo escribía en
+la señal de error global/local, sin resolver nunca la señal de datos (`assignments()`, `clients()`,
+`documents()`, etc.) a un valor no-nulo — dejando el spinner de esa sección concreta girando para siempre
+en cualquier fallo de red, no solo en un 404 del caso. **Corrección de raíz:** cada `error` callback ahora
+también resuelve su propia señal a un valor vacío seguro (`[]`, o `{ documentId: null, versions: [] }` para
+contrato/dossier) — el mismo patrón ya usado correctamente por `loadProperty`/`loadCaseFee` en el mismo
+archivo. Verificado en vivo (navegación a un caso inexistente: el spinner superior desaparece) y con test
+de regresión en `case-detail.component.spec.ts` y `portal-case-detail.component.spec.ts` (donde ya existía
+un test de "carga falla" que extender). No se ha añadido un test nuevo desde cero para `bank-detail`/
+`company-detail` por no tener un test de este escenario previo — queda documentado como limitación honesta,
+no como cobertura inventada.
+
+**D34-3 — Test de CI intermitente, no relacionado con los cambios de este sprint.**
+`conversation-detail-dialog.component.spec.ts` (sin tocar desde Sprint 17) fallaba por timeout de 5000ms
+al ejecutarse dentro de la suite completa de 449 tests, pero pasaba en ~10ms al ejecutarse en solitario —
+confirma contención del pool de workers de Vitest bajo carga, no un test colgado de verdad (es un test
+100% síncrono, sin temporizadores). Corrección mínima y de bajo riesgo: timeout explícito de 15000ms en
+ese único test.
+
+**D34-4 — IA local con Ollama: código completo y probado, instalación real no completada.**
+Ver `docs/09_AI.md` §"IA local con Ollama" para la arquitectura (generalización de `_resolve_provider` en
+`ai-worker/main.py`, `AI_PROVIDER=ollama`, 11 tests contra un servidor Ollama falso). El único intento de
+instalación real (`brew install ollama`) derivó en compilar LLVM desde código fuente como dependencia
+transitiva — un proceso de horas que llevó la carga de la máquina a más de 240 y causó fallos reales en
+`mvn verify` (Testcontainers sin recursos para arrancar Postgres) antes de que la máquina se reiniciara por
+sí sola. No se ha reintentado la instalación real sin que el usuario lo autorice explícitamente de nuevo,
+dado el impacto ya observado. El proveedor Ollama está completo, probado y documentado, pero **no
+validado contra una instalación real de Ollama en este sprint** — se documenta como limitación honesta, no
+como funcionalidad fingida (mismo criterio que Sprint 33 aplicó a `ANTHROPIC_API_KEY`).
+
+**Consecuencias:** `sidenav.component.scss`, `case-detail.component.{html,ts,spec.ts}`,
+`bank-detail.component.html`, `company-detail.component.html`, `portal-case-detail.component.{html,spec.ts}`,
+`conversation-detail-dialog.component.spec.ts` modificados. Sin migraciones, sin permisos nuevos, sin
+endpoints nuevos, sin cambios de arquitectura backend.
+
+**Documentos afectados:** este documento, `docs/09_AI.md`.
+
+**Estado:** APPROVED. Implementado y validado en Sprint 34.

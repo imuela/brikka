@@ -166,5 +166,8 @@ describe('PortalCaseDetailComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.error()).toBe('No se ha encontrado la operación solicitada.');
+    // Sprint 34: the top-level spinner was a second, independent `@if (theCase() === null)` block
+    // with no awareness of `error()`, so it kept spinning forever once the case load failed.
+    expect(fixture.nativeElement.querySelector('mat-spinner')).toBeNull();
   });
 });

@@ -3,7 +3,9 @@
 }
 
 @if (company() === null) {
-  <mat-spinner diameter="32" />
+  @if (!error()) {
+    <mat-spinner diameter="32" />
+  }
 } @else {
   <div class="page-header">
     <h1>{{ company()!.legalName }}</h1>

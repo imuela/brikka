@@ -101,7 +101,7 @@
                   <tr>
                     <td>{{ field.name }}</td>
                     <td>{{ field.value }}</td>
-                    <td>{{ field.confidence != null ? (field.confidence * 100 | number: '1.0-0') + '%' : '—' }}</td>
+                    <td>{{ field.confidence !== null && field.confidence !== undefined ? (field.confidence * 100 | number: '1.0-0') + '%' : '—' }}</td>
                   </tr>
                 }
               </table>

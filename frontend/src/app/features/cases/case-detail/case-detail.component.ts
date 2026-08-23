@@ -255,14 +255,20 @@ export class CaseDetailComponent {
   private loadAssignments(): void {
     this.casesService.listAssignments(this.caseId).subscribe({
       next: (assignments) => this.assignments.set(assignments),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.assignments.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
   private loadClients(): void {
     this.casesService.listClients(this.caseId).subscribe({
       next: (clients) => this.clients.set(clients),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.clients.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -378,7 +384,10 @@ export class CaseDetailComponent {
   private loadDocuments(): void {
     this.documentsService.list(this.caseId).subscribe({
       next: (documents) => this.documents.set(documents),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.documents.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -448,7 +457,10 @@ export class CaseDetailComponent {
   private loadDocumentRequests(): void {
     this.documentsService.listRequests(this.caseId).subscribe({
       next: (requests) => this.documentRequests.set(requests),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.documentRequests.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -489,7 +501,10 @@ export class CaseDetailComponent {
   private loadSimulations(): void {
     this.financingService.listSimulations(this.caseId).subscribe({
       next: (simulations) => this.simulations.set(simulations),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.simulations.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -507,7 +522,10 @@ export class CaseDetailComponent {
   private loadFinancingRequests(): void {
     this.financingService.listFinancingRequests(this.caseId).subscribe({
       next: (requests) => this.financingRequests.set(requests),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.financingRequests.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -555,7 +573,10 @@ export class CaseDetailComponent {
   private loadMatchResults(): void {
     this.bankMatchingService.list(this.caseId).subscribe({
       next: (results) => this.matchResults.set(results),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.matchResults.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -580,7 +601,10 @@ export class CaseDetailComponent {
   private loadBankRequests(): void {
     this.bankRequestService.list(this.caseId).subscribe({
       next: (requests) => this.bankRequests.set(requests),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.bankRequests.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -619,7 +643,10 @@ export class CaseDetailComponent {
   private loadOffers(): void {
     this.bankRequestService.listOffers(this.caseId).subscribe({
       next: (offers) => this.offers.set(offers),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.offers.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -653,7 +680,10 @@ export class CaseDetailComponent {
   private loadTasks(): void {
     this.taskService.list().subscribe({
       next: (tasks) => this.tasks.set(tasks.filter((t) => t.caseId === this.caseId)),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.tasks.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -711,7 +741,10 @@ export class CaseDetailComponent {
   private loadConversations(): void {
     this.communicationService.listConversations(this.caseId).subscribe({
       next: (conversations) => this.conversations.set(conversations),
-      error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.conversations.set([]);
+        this.error.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -743,7 +776,10 @@ export class CaseDetailComponent {
   private loadFinancialAnalysis(): void {
     this.financialAnalysisService.list(this.caseId).subscribe({
       next: (results) => this.financialAnalysisResults.set(results),
-      error: (err: ApiError) => this.financialAnalysisError.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.financialAnalysisResults.set([]);
+        this.financialAnalysisError.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -801,7 +837,10 @@ export class CaseDetailComponent {
   private loadContract(): void {
     this.engagementContractService.get(this.caseId).subscribe({
       next: (document) => this.contractDocument.set(document),
-      error: (err: ApiError) => this.contractError.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.contractDocument.set({ documentId: null, versions: [] });
+        this.contractError.set(friendlyErrorMessage(err));
+      },
     });
   }
 
@@ -834,7 +873,10 @@ export class CaseDetailComponent {
   private loadDossier(): void {
     this.viabilityDossierService.get(this.caseId).subscribe({
       next: (document) => this.dossierDocument.set(document),
-      error: (err: ApiError) => this.dossierError.set(friendlyErrorMessage(err)),
+      error: (err: ApiError) => {
+        this.dossierDocument.set({ documentId: null, versions: [] });
+        this.dossierError.set(friendlyErrorMessage(err));
+      },
     });
   }
 

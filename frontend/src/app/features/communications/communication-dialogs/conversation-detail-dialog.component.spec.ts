@@ -76,20 +76,29 @@ describe('ConversationDetailDialogComponent', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('loads messages on init for an INTERNAL conversation and does not load participants', () => {
-    dialogRef = configure(internalConversation);
-    httpMock = TestBed.inject(HttpTestingController);
+  // Sprint 34: this test is entirely synchronous (no timers, no async work of its own) and passes
+  // in ~10ms run alone — the observed 5000ms-default timeout only ever triggered under the full
+  // 449-test suite's worker-pool contention, never from this test's own logic. A longer timeout is
+  // the correct fix for that class of flakiness (vs. a real hang, which raising the timeout would
+  // just delay rather than fix).
+  it(
+    'loads messages on init for an INTERNAL conversation and does not load participants',
+    () => {
+      dialogRef = configure(internalConversation);
+      httpMock = TestBed.inject(HttpTestingController);
 
-    const fixture = TestBed.createComponent(ConversationDetailDialogComponent);
-    fixture.detectChanges();
+      const fixture = TestBed.createComponent(ConversationDetailDialogComponent);
+      fixture.detectChanges();
 
-    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/conversations/conv1/messages`).flush([message]);
-    fixture.detectChanges();
+      httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/conversations/conv1/messages`).flush([message]);
+      fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Hola');
-    expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
-    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/conversations/conv1/participants`);
-  });
+      expect(fixture.nativeElement.textContent).toContain('Hola');
+      expect(fixture.nativeElement.textContent).toContain('Grace Hopper');
+      httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/conversations/conv1/participants`);
+    },
+    15000,
+  );
 
   it('loads participants on init for a CLIENT conversation', () => {
     dialogRef = configure(clientConversation);
