@@ -197,6 +197,7 @@
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef></th>
           <td mat-cell *matCellDef="let document">
+            <div class="table-actions">
             <button
               *appHasPermission="'DOCUMENT_UPLOAD'"
               mat-button
@@ -232,6 +233,7 @@
               (click)="unpublish(document.id)">
               Despublicar
             </button>
+            </div>
           </td>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="documentColumns"></tr>
@@ -282,6 +284,7 @@
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef></th>
           <td mat-cell *matCellDef="let request">
+            <div class="table-actions">
             @if (request.status === 'PENDING') {
               <button mat-button (click)="updateDocumentRequestStatus(request.id, 'FULFILLED')">
                 Marcar cumplida
@@ -293,6 +296,7 @@
                 Cancelar
               </button>
             }
+            </div>
           </td>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="documentRequestColumns"></tr>
@@ -597,6 +601,7 @@
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef></th>
           <td mat-cell *matCellDef="let request">
+            <div class="table-actions">
             <button
               *appHasPermission="'BANK_RESPONSE_REGISTER'"
               mat-button
@@ -609,6 +614,7 @@
               (click)="openCreateBankOffer(request.id)">
               Nueva oferta
             </button>
+            </div>
           </td>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="bankRequestColumns"></tr>
@@ -813,6 +819,7 @@
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef></th>
           <td mat-cell *matCellDef="let task">
+            <div class="table-actions">
             <button *appHasPermission="'TASK_UPDATE'" mat-button (click)="openEditTask(task)">
               Editar
             </button>
@@ -832,6 +839,7 @@
               (click)="deleteTask(task)">
               Eliminar
             </button>
+            </div>
           </td>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="taskColumns"></tr>

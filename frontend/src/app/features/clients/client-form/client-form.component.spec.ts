@@ -94,6 +94,22 @@ describe('ClientFormComponent', () => {
     expect(fixture.componentInstance.form.invalid).toBe(true);
   });
 
+  it('shows a mat-error explaining why an invalid field is invalid (Sprint 36: D36-1b, a silently-blocked submit gave no visible reason)', () => {
+    configureWithRouteParam(null);
+    httpMock = TestBed.inject(HttpTestingController);
+
+    const fixture = TestBed.createComponent(ClientFormComponent);
+    fixture.detectChanges();
+
+    const email = fixture.componentInstance.form.controls.email;
+    email.markAsTouched();
+    email.setValue('not-an-email');
+    fixture.detectChanges();
+
+    const errorText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(errorText).toContain('Introduce un email válido.');
+  });
+
   it('shows the backend error message when the request fails', () => {
     configureWithRouteParam(null);
     httpMock = TestBed.inject(HttpTestingController);

@@ -1294,3 +1294,143 @@ endpoints nuevos, sin cambios de arquitectura backend.
 **Documentos afectados:** este documento, `docs/09_AI.md`.
 
 **Estado:** APPROVED. Implementado y validado en Sprint 34.
+
+## Adenda Sprint 36 — Validación funcional integral, UX final y consolidación
+
+**Contexto:** Sprint 36 pidió una validación integral de Brika como si fuera un producto real —
+auditoría funcional completa de todos los módulos, matriz RBAC y multi-tenant con evidencia HTTP real,
+auditoría UX/UI final, responsive en 4 breakpoints, flujo end-to-end completo, seguridad y regresión —
+sin asumir que nada funciona por haber funcionado en un sprint anterior. Se documentan aquí los hallazgos
+reales con causa raíz, no una lista de comprobaciones superficiales.
+
+**D36-1 — Tabla de documentos del caso: botones de acción apilados en 6 líneas en móvil (causa raíz:
+celda sin el wrapper `.table-actions` ya existente en el proyecto).**
+Encontrado al auditar `case-detail` a 375px: la celda de acciones de la tabla de documentos contiene 6
+botones (Subir versión, Versiones, Descargar, Revisar, Publicar, Despublicar) declarados como `inline-flex`
+sueltos dentro de un `<td>` de 137px de ancho, sin ningún contenedor que fuerce `white-space: nowrap` — cada
+botón se apilaba en su propia línea, convirtiendo cada fila de documento en un bloque de 6 líneas de alto,
+difícil de escanear en pantallas estrechas. `styles.scss` ya define `.table-actions` (creado en Sprint 14,
+comentario explícito: "evita que se apilen en varias líneas cuando la celda se estrecha... la tabla ya se
+desplaza horizontalmente vía `.table-scroll`") pero esa clase no se usaba en ningún punto de
+`case-detail.component.html` — el wrapper existe en el codebase pero nunca se aplicó en este componente.
+**Corrección:** se envuelve el contenido de las 4 celdas de acciones multi-botón de `case-detail.component.html`
+(documentos [6 botones], solicitudes de documentos [2], solicitudes a bancos [2], tareas [hasta 3]) en
+`<div class="table-actions">`, reutilizando el patrón ya establecido — ninguna clase ni comportamiento
+nuevo. Verificado en vivo a 375px: cada fila pasa a ocupar una sola línea, con las acciones alcanzables
+mediante el scroll horizontal contenido que la tabla ya tenía (`.table-scroll`, `overflow-x: auto`); no se
+oculta ni se recorta contenido, tal y como exige el sprint. Las celdas de acción de un solo botón (clientes,
+matching bancario, ofertas, conversaciones) no se tocan, por no presentar el problema.
+
+**D36-1b — Formularios sin mensaje de validación visible (causa raíz sistémica: `mat-error` casi
+nunca se usa en el proyecto; clasificado P1, corrección demostrada y aplicada al formulario probado,
+el resto documentado para un sprint dedicado).**
+Al auditar el formulario "Nuevo cliente" con un email inválido (`not-an-email`), Angular marca el
+campo correctamente como inválido (`ng-invalid mat-form-field-invalid ng-touched` presentes en el
+DOM — la validación **sí** se ejecuta: `Validators.required`/`Validators.email` en
+`client-form.component.ts`), pero no aparece ningún mensaje explicando el motivo: el formulario no
+contiene ni un solo `<mat-error>`. El usuario solo ve el campo en rojo y el botón "Guardar" sin
+efecto — el mismo síntoma de "envío silenciosamente bloqueado" que obligó a depurar por consola en
+repetidas ocasiones a lo largo de este mismo sprint (combobox de tipo de operación en creación de
+caso, 4º campo de simulación, campo de identificador de usuario). Comprobado el alcance real:
+36 ficheros del proyecto usan `mat-form-field`, y solo 2
+(`edit-financial-profile-dialog.component.html`, `case-dialogs/cancel-dialog.component.html`)
+contienen algún `<mat-error>` — 34 formularios, incluidos los de operaciones principales (creación/
+edición de caso, usuario, empresa, documento, tarea, inmueble, honorarios, conversaciones, bancos),
+no muestran ningún motivo de error de validación. **Corrección aplicada y verificada en vivo:**
+`client-form.component.html` (email, nombre, apellidos, teléfono) usando el patrón ya existente en
+el proyecto (`@if (form.controls.X.hasError('tipo')) { <mat-error>...</mat-error> }`, copiado de
+`edit-financial-profile-dialog.component.html`) — verificado con el navegador real: "Introduce un
+email válido." y "El nombre es obligatorio." aparecen correctamente al invalidar los campos; test de
+regresión añadido en `client-form.component.spec.ts`. **No se corrigen los 33 ficheros restantes en
+este sprint**: aunque el patrón es mecánico y de bajo riesgo, aplicarlo de forma consistente a 33
+formularios (con sus mensajes de error específicos por campo) es un cambio de alcance comparable a
+un rediseño transversal, expresamente restringido por este sprint salvo necesidad demostrada — la
+necesidad está demostrada (es P1: UX crítica que afecta a las operaciones principales de la
+aplicación), pero la corrección completa se recomienda como alcance íntegro de un sprint dedicado,
+no como añadido a este. Lista completa de ficheros pendientes disponible en el informe de cierre de
+Sprint 36.
+
+**D36-2 — Diálogos apilables en `case-detail` sin guarda anti-duplicado (hallazgo documentado, sin
+corregir — fuera del alcance proporcionado de este sprint).**
+Reproducido de forma concreta: al abrir "Nueva simulación" con el formulario inválido (falta un campo) y
+volver a invocar la apertura de un diálogo desde la misma pantalla, Angular Material apila una segunda
+instancia de `MatDialog` sobre la primera sin avisar. Causa raíz: ninguno de los ~15 métodos
+`open*()` de `case-detail.component.ts` (p. ej. `openCreateSimulation`, líneas 511-520) comprueba si ya
+hay un diálogo abierto antes de llamar a `this.dialog.open(...)` — es un patrón repetido de forma
+idéntica en todo el fichero, no un fallo aislado. Verificado con
+`document.querySelectorAll('mat-dialog-container')`: ambas instancias coexisten con `offsetParent` no nulo.
+Sin pérdida de datos (confirmado por `curl` directo: solo se persiste una fila de simulación correcta).
+Clasificado **P2**: visible pero de disparo poco frecuente (requiere reabrir un diálogo con uno ya
+abierto), recuperable cancelando el diálogo obsoleto, sin riesgo de integridad. No se corrige en este
+sprint por ser un cambio transversal a ~15 métodos en un único fichero — excede el alcance de "corrección
+puntual de un hallazgo real" y entra en terreno de refactor, expresamente prohibido salvo necesidad
+demostrada. **Recomendación para un sprint futuro:** guarda genérica basada en `MatDialog.openDialogs.length`
+o un flag de "diálogo en curso" compartido entre los métodos `open*()`.
+
+**D36-3 — Discrepancia entre capturas de pantalla del panel de vista previa y el DOM real a anchos
+emulados (limitación de herramienta, no un bug de Brika).**
+Durante la auditoría responsive a 768px, las capturas de pantalla mostraban el contenido de página
+completa (dashboard, clientes, detalle de caso) confinado a una columna de ~230px con una franja vacía a
+la derecha, en varias pantallas no relacionadas entre sí. Antes de documentar esto como un hallazgo de
+Brika, se contrastó con el DOM real: `window.innerWidth`/`visualViewport.width` reportaban 768 de forma
+consistente, `getBoundingClientRect()` de cada contenedor en la cadena de ancestros
+(`app-case-detail` → `mat-sidenav-content` → `mat-sidenav-container` → `body` → `html`) medía el ancho
+completo del viewport, y `overflow`/`overflow-x` era `visible` en todos los niveles salvo el contenedor de
+Material (`hidden`, esperado). El mismo patrón de columna estrecha se reprodujo de forma idéntica en
+páginas sin relación funcional entre sí (dashboard, clientes, detalle de caso), lo que descarta una causa
+específica de un componente. Con el preset `desktop` (tamaño nativo) la herramienta capturó una imagen
+mucho más pequeña (395×312) pero proporcionalmente correcta, sin el patrón de columna estrecha. Conclusión,
+con código y ejecución real como fuente de verdad (tal y como exige este sprint): es un artefacto de
+renderizado del panel de vista previa al emular anchos móviles/tablet, no un defecto de la aplicación. La
+validación responsive de este sprint se apoyó por tanto en aserciones JS
+(`document.body.scrollWidth > window.innerWidth`) como señal autoritativa en vez de en la inspección visual
+de las capturas a esos anchos — sin overflow horizontal detectado en dashboard, clientes ni detalle de caso
+a 375/768/1024/1440px.
+
+**D36-4 — Sin forma de reactivar un usuario deshabilitado, en ningún rol (funcionalidad pendiente,
+fuera de alcance de este sprint).**
+Al deshabilitar un usuario desde `/app/users` como MANAGER, la fila deja de mostrar cualquier acción de
+reactivación (el botón "Deshabilitar" desaparece y no aparece uno de "Habilitar"). Verificado a nivel de
+código, no solo de UI: `UserController.java` solo expone `GET` (lista/detalle), `POST` (crear), `PATCH`
+(editar) y `POST /{id}/disable` — **no existe ningún endpoint `enable`/`reactivate`** en todo el backend,
+para ningún rol, incluido SUPERADMIN. No es una omisión de la UI que oculte una capacidad real del
+backend: la capacidad de reactivar un usuario deshabilitado, una vez deshabilitado, **no existe en el
+producto**, solo sería posible con un `UPDATE` directo en base de datos. **Clasificación:** no es un bug
+(nada se comporta de forma incorrecta ni inconsistente) ni claramente "intencional" (no hay ADR ni
+comentario que lo declare como decisión de producto) — es funcionalidad pendiente. **Fuera de alcance de
+Sprint 36**: corregirlo requeriría añadir un endpoint nuevo (`POST /api/v1/users/{id}/enable` o
+equivalente) y su acción en la UI — funcionalidad nueva, expresamente prohibida en un sprint de
+validación. Documentado como recomendación para un sprint de producto futuro, no como hallazgo a
+corregir aquí.
+
+**Auditoría RBAC y multi-tenant — resultado real (Gates 5-7):** validado con los 4 roles reales
+(`superadmin@brika.local`, `manager@brika.local`, `broker@brika.local`, `client@brika.local`) autenticados
+por HTTP real contra `/api/v1/auth/login` y `/api/v1/portal/auth/login`. Confirmado: BROKER recibe 403 en
+`GET /api/v1/companies` (coherente con `V9__seed_role_permissions.sql`, que no concede `COMPANY_READ` a
+BROKER, y con el guard de navegación `nav-items.ts` que oculta el enlace "Empresas" bajo ese mismo
+permiso — backend y frontend alineados). CLIENT recibe 401 en todos los endpoints internos y 200 en
+`/api/v1/portal/cases` (separación física de cadenas de filtros por emisor de JWT, confirmada). SUPERADMIN
+ve las 3 empresas de ambos tenants (`GET /api/v1/companies`), consistente con ADR-RBAC-002 (administrador
+global, no un bypass accidental). Aislamiento multi-tenant confirmado con un segundo tenant real
+(`demo.manager@brika.test`, tenant "Demo Broker") contra clientes (lectura y escritura), casos, usuarios y
+documentos del tenant "Brikka Dev": en todos los casos, acceso cruzado devuelve `404` enmascarado (nunca
+`403`, que revelaría la existencia del recurso) — `CLIENT_NOT_FOUND`, `CASE_NOT_FOUND`, `USER_NOT_FOUND`.
+Sin token, `401` en endpoints protegidos.
+
+**Seguridad (Gate 17) — resultado real:** `.env` y `.secrets/` fuera de git (`git ls-files` verificado);
+CORS restringido a orígenes configurables, sin wildcard, `allowCredentials: false`, cabeceras limitadas a
+`Authorization`/`Content-Type` (`SecurityConfig.java`), y en `prod` el valor por defecto es vacío (falla
+cerrado si no se configura explícitamente) frente a `local`/`test` que sí traen `http://localhost:4200` por
+defecto. Callback de IA (`/internal/ai/document-extractions/{id}/callback`) protegido por secreto
+compartido fuera de `/api/v1`, rechaza sin él. URL de descarga presignada verificada con una llamada real:
+URL de MinIO con firma `AWS4-HMAC-SHA256` válida y `expiresInSeconds: 300`. Rotación/invalidación de
+refresh token verificada por HTTP real: tras `logout`, reutilizar el mismo `refreshToken` en `/auth/refresh`
+devuelve `401 UNAUTHENTICATED`.
+
+**Consecuencias:** `case-detail.component.html` modificado (D36-1); `client-form.component.html` y
+`client-form.component.spec.ts` modificados (D36-1b). Sin migraciones, sin permisos nuevos, sin
+endpoints nuevos, sin cambios de arquitectura backend ni frontend.
+
+**Documentos afectados:** este documento, `docs/09_AI.md`.
+
+**Estado:** APPROVED. Implementado y validado en Sprint 36.
