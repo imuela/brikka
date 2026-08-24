@@ -87,7 +87,7 @@ erDiagram
     SCORING_RULESET ||--o{ SCORING_RULE : contains
     SCORING_RULESET ||--o{ SCORING_RESULT : evaluates
 
-    DOCUMENT ||--o{ DOCUMENT_EXTRACTION : produces
+    DOCUMENT_VERSION ||--o{ DOCUMENT_EXTRACTION : produces
     CASE ||--o{ AI_USAGE : uses
 
     NOTIFICATION ||--o{ NOTIFICATION_DELIVERY : delivered_via
@@ -401,26 +401,18 @@ El resultado debe poder identificar el ruleset utilizado.
 # 14. AI
 
 ## DOCUMENT_EXTRACTION
-Resultado estructurado obtenido mediante OCR/IA/procesamiento documental.
+Resultado estructurado obtenido mediante IA/procesamiento documental (Sprint 33, `V1__initial_schema.sql`, tabla `document_extractions`).
 
-Es el único punto de persistencia de los resultados producidos por el Python Worker (`ADR-AI-001`): el worker nunca escribe directamente en PostgreSQL, solo entrega resultados a Spring Boot, que los valida y los persiste aquí.
+Es el único punto de persistencia de los resultados producidos por el Python Worker (`ADR-AI-001`): el worker nunca escribe directamente en PostgreSQL, solo entrega resultados al callback interno de Spring Boot, que los valida y los persiste aquí.
 
-Debe poder vincularse a:
-- documento;
-- versión;
-- fecha;
-- proceso;
-- estado de validación.
+**Vinculación deliberada a `DOCUMENT_VERSION`, nunca a `DOCUMENT`** (`document_version_id`, FK NOT NULL a `document_versions`): cada versión de un documento conserva su propio historial de análisis de forma independiente y append-only — subir una nueva versión nunca sobrescribe ni oculta el análisis de la versión anterior, ambos siguen siendo consultables. `company_id` (FK NOT NULL, tenant del análisis, no necesariamente el mismo que el creador de la sesión — ver ADR-RBAC-002 para `SUPERADMIN`) e índices por `company_id` y `document_version_id`.
+
+Columnas: `status` (texto libre, sin `CHECK` — valores usados en la práctica: `NO_PROVIDER`/`FAILED`/`COMPLETED`, Sprint 33/34/35; `PENDING` mientras el Worker aún no ha respondido), `provider`/`model` (NOT NULL; `"none"`/`"none"` cuando no hay proveedor configurado — nunca NULL, para que "sin intentar" y "se intentó y falló" queden siempre distinguibles), `extracted_data`/`confidence` (jsonb, forma libre — campos detectados, resumen, advertencias, inconsistencias contra `CLIENT_FINANCIAL_PROFILE` cuando aplica), `validated_by`/`validated_at` (FK a `USER` / timestamp, ambos nullable — reservados para un futuro flujo explícito de validación humana del resultado por IA, no implementado en ningún sprint hasta la fecha; hoy siempre `NULL`).
 
 ## AI_USAGE
-Registro de uso de capacidades de IA:
-- caso;
-- usuario/sistema;
-- proveedor;
-- modelo;
-- tokens/coste cuando proceda;
-- fecha;
-- operación realizada.
+Registro de uso de capacidades de IA (Sprint 10, `V1__initial_schema.sql`, tabla `ai_usage`), para trazabilidad y control de coste — no es la fuente de resultados (esa es `DOCUMENT_EXTRACTION` para extracción documental); cubre también los casos de uso síncronos (`AiProvider`: resumen/explicación/redacción de mensaje).
+
+Columnas: `company_id` (FK NOT NULL), `case_id`/`user_id` (FK nullable — no toda operación de IA está atada a un caso o a un usuario concreto), `provider`/`model`/`operation` (NOT NULL), `input_tokens`/`output_tokens` (enteros nullable), `estimated_cost` (`numeric(10,4)` nullable — solo se rellena cuando el proveedor activo lo reporta), `created_at`. Índice por `company_id`.
 
 La IA (proveedor externo y Python Worker) no obtiene acceso directo a la base de datos.
 

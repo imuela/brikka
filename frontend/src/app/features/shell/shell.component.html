@@ -3,8 +3,8 @@
   <mat-sidenav
     #drawer
     class="shell-sidenav"
-    [mode]="isHandset() ? 'over' : 'side'"
-    [opened]="!isHandset()">
+    [mode]="isCompact() ? 'over' : 'side'"
+    [opened]="!isCompact()">
     <app-sidenav />
   </mat-sidenav>
   <mat-sidenav-content class="shell-content">

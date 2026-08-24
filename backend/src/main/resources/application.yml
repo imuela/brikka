@@ -115,6 +115,11 @@ brika:
     # callback endpoint reject every request rather than silently accepting an
     # unauthenticated one.
     worker-callback-secret: ${AI_WORKER_CALLBACK_SECRET:}
+    # Sprint 35: the dispatch call blocks for as long as the Worker's own synchronous processing
+    # takes (fetch document → call AI provider → callback → respond) — 150s comfortably covers
+    # ai-worker/main.py's own 120s Ollama allowance plus overhead. Real cloud-only deployments may
+    # prefer a shorter value.
+    worker-dispatch-timeout-seconds: ${AI_WORKER_DISPATCH_TIMEOUT_SECONDS:150}
 
   storage:
     # MinIO (Sprint 0 infra), S3-compatible (18_STORAGE_SPECIFICATION.md §2). The

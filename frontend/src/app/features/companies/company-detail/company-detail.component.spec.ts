@@ -77,6 +77,29 @@ describe('CompanyDetailComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Plan Pro');
   });
 
+  // Sprint 35: Bloque C — case-detail/portal-case-detail already had this test; bank-detail and
+  // company-detail were fixed live in Sprint 34 (D34-2) but never got a dedicated regression test.
+  it('shows the backend error and clears the spinner when loading the company fails', () => {
+    configure();
+    httpMock = TestBed.inject(HttpTestingController);
+    sessionStore = TestBed.inject(SessionStore);
+    sessionStore.setPermissions(['COMPANY_READ']);
+
+    const fixture = TestBed.createComponent(CompanyDetailComponent);
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/companies/co1`)
+      .flush(
+        { code: 'COMPANY_NOT_FOUND', message: 'not found', requestId: 'r1' },
+        { status: 404, statusText: 'Not Found' },
+      );
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la empresa solicitada.');
+    expect(fixture.nativeElement.querySelector('mat-spinner')).toBeNull();
+  });
+
   it('shows the empty subscription state on a 404 without setting the page-level error', () => {
     configure();
     httpMock = TestBed.inject(HttpTestingController);

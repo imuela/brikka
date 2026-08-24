@@ -49,6 +49,23 @@ describe('BankDetailComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Sin criterios todavía.');
   });
 
+  // Sprint 35: Bloque C — case-detail/portal-case-detail already had this test; bank-detail and
+  // company-detail were fixed live in Sprint 34 (D34-2) but never got a dedicated regression test.
+  it('shows the backend error and clears the spinner when loading the bank fails', () => {
+    const fixture = TestBed.createComponent(BankDetailComponent);
+    fixture.detectChanges();
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/banks/b1`)
+      .flush({ code: 'BANK_NOT_FOUND', message: 'not found', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks/b1/products`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks/b1/criteria`).flush([]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('No se ha encontrado el recurso solicitado.');
+    expect(fixture.nativeElement.querySelector('mat-spinner')).toBeNull();
+  });
+
   it('gates product/criteria creation by BANK_UPDATE / BANK_CRITERIA_MANAGE', () => {
     const fixture = TestBed.createComponent(BankDetailComponent);
     fixture.detectChanges();

@@ -22,11 +22,20 @@ export class ShellComponent {
 
   private readonly breakpointObserver = inject(BreakpointObserver);
 
-  /** Diseño de sistema: por debajo de 768px el sidenav pasa a modo "over" (overlay, cerrado por
-   * defecto) en lugar del "side" fijo de escritorio — sin esto, un sidenav de 240px fijo se comía
-   * la mitad de la pantalla en móvil. */
-  protected readonly isHandset = toSignal(
-    this.breakpointObserver.observe(Breakpoints.Handset).pipe(map((result) => result.matches)),
+  /** Diseño de sistema: por debajo de 840px (móvil + tablet en vertical) el sidenav pasa a modo
+   * "over" (overlay, cerrado por defecto) en lugar del "side" fijo de escritorio — sin esto, un
+   * sidenav de 240px fijo se comía media pantalla en móvil y dejaba el contenido de tablet
+   * innecesariamente estrecho.
+   *
+   * <p>Sprint 35: el comentario original ya decía "por debajo de 768px", pero solo observaba
+   * {@code Breakpoints.Handset} (≤599.98px en vertical) — nunca cubrió tablet en vertical
+   * (600–839.98px), que es exactamente donde se reprodujo el problema. Corregido observando
+   * también {@code Breakpoints.TabletPortrait}, sin tocar el modo "side" fijo de tablet en
+   * horizontal ni de escritorio. */
+  protected readonly isCompact = toSignal(
+    this.breakpointObserver
+      .observe([Breakpoints.Handset, Breakpoints.TabletPortrait])
+      .pipe(map((result) => result.matches)),
     { initialValue: false },
   );
 

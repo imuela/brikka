@@ -61,8 +61,18 @@ MAX_DOCUMENT_BYTES = 15 * 1024 * 1024  # matches brika.storage.max-file-size-byt
 # Ollama can run, the most reasonable default for a local dev machine (docs/09_AI.md §Ollama).
 DEFAULT_OLLAMA_MODEL = "llama3.2:1b"
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
-# Local CPU inference is slower and more variable than a cloud API — generous but bounded.
-OLLAMA_REQUEST_TIMEOUT_SECONDS = 60
+# Sprint 35: raised from 60s during the first real (non-mocked) inference against this project's
+# dev hardware (a decade-old Intel CPU, no GPU: ~2.9 tokens/sec measured directly against Ollama).
+# The real root cause of that first timeout was `format: "json"` causing runaway generation (see
+# OLLAMA_MAX_RESPONSE_TOKENS below) — fixing that brought a real extraction down to ~64s on this
+# same hardware — but 120s stays as genuine headroom for slower machines or longer documents, not
+# a value chasing an unbounded generation. The Gateway's own brika.ai.worker-dispatch-timeout-
+# seconds must stay comfortably above this value.
+OLLAMA_REQUEST_TIMEOUT_SECONDS = 120
+# Bounds worst-case generation latency regardless of hardware/provider behavior — the honest
+# {"summary", "fields", "warnings"} answer for a short document fits well inside this on any
+# well-behaved model; this is a safety net, not a target length.
+OLLAMA_MAX_RESPONSE_TOKENS = 400
 
 # 21_AI_V1_SCOPE.md §2.A: field/value/confidence/source/page shape. Only formats Claude's
 # Messages API actually accepts as a document/image/text content block — anything else is a
@@ -258,7 +268,21 @@ def _call_ollama(model, content_bytes):
     # OLLAMA_SUPPORTED_MIME_TYPES text formats, so decoding as UTF-8 text is always correct.
     text = content_bytes.decode("utf-8", errors="replace")
     prompt = EXTRACTION_SYSTEM_PROMPT + "\n\nDocument content:\n" + text
-    body = {"model": model, "prompt": prompt, "stream": False, "format": "json"}
+    # Sprint 35: found via the first real (non-mocked) inference on this project's dev hardware.
+    # `format: "json"` (Ollama's grammar-constrained decoding) made llama3.2:1b generate 800+
+    # tokens with no natural stop instead of the few dozen a short document's honest answer needs —
+    # a known small-model/grammar-constraint interaction, reproduced directly against Ollama's API
+    # outside this codebase entirely. EXTRACTION_SYSTEM_PROMPT already instructs "ONLY a single
+    # JSON object" in plain language; dropping the grammar constraint and trusting that instruction
+    # produced a correct, complete JSON response in ~64s on this same hardware. OLLAMA_MAX_RESPONSE_
+    # TOKENS stays as a bounded-latency safety net regardless of provider/prompt behavior, not the
+    # primary fix.
+    body = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"num_predict": OLLAMA_MAX_RESPONSE_TOKENS},
+    }
     base_url = os.environ.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL).rstrip("/")
     request = urllib.request.Request(
         base_url + "/api/generate",
