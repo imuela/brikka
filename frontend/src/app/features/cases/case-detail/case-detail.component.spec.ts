@@ -649,6 +649,42 @@ describe('CaseDetailComponent', () => {
     expect(fixture.componentInstance.theCase()?.status).toBe('ANALYSIS');
   });
 
+  it('does not open a second dialog while one is already open (Sprint 37: D36-2)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+    vi.spyOn(dialog, 'openDialogs', 'get').mockReturnValue([
+      {} as MatDialogRef<unknown, unknown>,
+    ]);
+
+    fixture.componentInstance.openChangeStatus();
+
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('opens a new dialog normally once the previous one has closed (Sprint 37: D36-2)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+    vi.spyOn(dialog, 'openDialogs', 'get').mockReturnValue([]);
+
+    fixture.componentInstance.openChangeStatus();
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('openAssign reloads assignments after the dialog closes with a result', () => {
     const fixture = TestBed.createComponent(CaseDetailComponent);
     fixture.detectChanges();

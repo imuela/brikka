@@ -1434,3 +1434,76 @@ endpoints nuevos, sin cambios de arquitectura backend ni frontend.
 **Documentos afectados:** este documento, `docs/09_AI.md`.
 
 **Estado:** APPROVED. Implementado y validado en Sprint 36.
+
+## Adenda Sprint 37 — Consolidación de validaciones UX, diálogos y ciclo de vida de usuarios
+
+**Contexto:** Sprint 37 resuelve los tres pendientes reales identificados y documentados en Sprint 36
+(D36-1b, D36-2, D36-4), sin ampliar alcance a nada más.
+
+**D36-1b — resuelto en su totalidad.** El inventario real (no asumido) confirmó exactamente 33
+ficheros con `mat-form-field` sin ningún `<mat-error>`, los mismos 33 identificados en Sprint 36 —
+32 usan únicamente `Validators.required`, 2 combinan `required` + `email`
+(`portal-profile.component.ts`, `user-form.component.ts`); ningún fichero pendiente usa
+`min`/`minLength`/`maxLength`/`pattern` (esos validators solo aparecían ya en los 3 ficheros que
+Sprint 36 dejó correctamente cubiertos). Se aplicó el patrón ya validado
+(`@if (form.controls.X.hasError('tipo')) { <mat-error>...</mat-error> }`) a los 33 ficheros,
+reutilizando los `Validators` existentes sin modificarlos. Casos especiales resueltos sin aplicar el
+patrón mecánicamente: `mat-checkbox` (`isPrimary` en `add-client-dialog`) excluido por no soportar
+`mat-error` igual que un `mat-form-field`; el campo `clientIds` de `create-conversation-dialog`
+(selección múltiple sin `Validators` de Angular, validado manualmente en `submit()`) se dejó tal
+cual — ya tenía feedback visible vía el banner de error existente, añadir `mat-error` ahí habría sido
+mecánico sin sentido. 5 ficheros de test ampliados con un test de regresión cada uno, cubriendo los
+patrones distintos presentes en el proyecto (required simple, required+email, mat-select required).
+Verificado en navegador real tras el cambio: el combobox "Tipo de operación" de creación de caso —
+el mismo campo que bloqueaba silenciosamente el envío en sesiones anteriores — ahora muestra
+"Selecciona un tipo de operación." en rojo.
+
+**D36-2 — resuelto con una guarda mínima, sin refactor.** Se confirmó que `MatDialog` (Angular
+Material 22) expone `openDialogs: MatDialogRef<any>[]` como getter público — la API estándar del
+propio framework para esto, no una construcción propia. No existía ningún wrapper/guard reutilizable
+en el proyecto (`grep` verificado). Solución aplicada: un único método privado
+`hasOpenDialog(): boolean { return this.dialog.openDialogs.length > 0; }` en
+`case-detail.component.ts`, con `if (this.hasOpenDialog()) return;` como primera línea de los 24
+métodos `open*()` — ninguna llamada a `.dialog.open(...)` ni su `.afterClosed().subscribe(...)` se
+modificó, cero riesgo de alterar el resultado de cada diálogo. Verificado en vivo: abrir "Asignar" y
+disparar `openAddClient()` mientras estaba abierto deja exactamente 1 `mat-dialog-container` en el
+DOM (antes de la corrección habría dos); tras cerrar el primero, abrir "Añadir cliente" funciona con
+normalidad. 2 tests de regresión añadidos (`does not open a second dialog...`,
+`opens a new dialog normally once the previous one has closed...`), simulando `openDialogs` con
+`vi.spyOn(dialog, 'openDialogs', 'get')`.
+
+**D36-4 — resuelto: ciclo completo ACTIVO ⇄ DESHABILITADO.** Auditado el modelo real antes de tocar
+nada: `users.status` es un `varchar(30)` libre, sin `CHECK` constraint (`V1__initial_schema.sql`);
+`disable()` ya era idempotente sin validación de estado previo (mismo patrón que `enable()` sigue
+ahora); `UserAuthenticationService` ya exigía `status = 'ACTIVE'` en login/refresh (protección
+preexistente, no añadida ahora — verificada con un test nuevo,
+`loginForAReenabledUserSucceedsAgain`, simétrico al ya existente
+`loginForADisabledUserIsRejected`). **Decisión de permisos, documentada explícitamente en vez de
+tomada en silencio:** `14_DEFINITIVE_PERMISSION_CATALOG.md` solo define `USER_DISABLE` para este
+campo de estado — no existe `USER_ENABLE` en el catálogo aprobado. Crear un permiso nuevo no
+presente en el catálogo habría sido inventar superficie de RBAC para un campo que el propio catálogo
+ya trata como una única capacidad conmutable. Se reutiliza `USER_DISABLE` (ya concedido exactamente
+a SUPERADMIN y MANAGER, `V9__seed_role_permissions.sql`) para proteger también `POST
+/api/v1/users/{id}/enable` — mismos dos roles exigidos por el propio sprint, sin tocar
+`role_permissions`, sin migración. Endpoint simétrico a `disable()` en todo: mismo
+`resolveTenantForTargetUser` (SUPERADMIN global vía `requireUser`, tenant vía
+`requireUserInTenant`/`requireTenant`), mismo patrón de auditoría (`USER_ENABLED`), mismo 404
+enmascarado cross-tenant (nunca 403), mismo idempotente-sin-excepción sobre un usuario ya activo.
+Frontend: botón "Habilitar" (icono `check_circle`, color primario) simétrico al "Deshabilitar"
+existente (icono `block`, color warn) en `user-list.component.html`, mismo diálogo de confirmación
+reutilizado (`ConfirmDialogComponent`). Validado end-to-end con evidencia real: usuario de prueba
+creado → login 200 → deshabilitado → login 401 → reactivado → login 200 de nuevo, además del mismo
+ciclo repetido en la UI real del navegador sobre un usuario que había quedado deshabilitado
+literalmente en Sprint 36 (confirma que el fix cubre también el estado heredado, no solo usuarios
+nuevos). RBAC del nuevo endpoint verificado por HTTP real: BROKER 403, sin token 401, otro tenant
+404 enmascarado, usuario inexistente 404, SUPERADMIN 200 global, Portal CLIENT 401.
+
+**Consecuencias:** `case-detail.component.{ts,spec.ts}` (D36-2); 33 ficheros `*.component.html` +
+5 `*.component.spec.ts` (D36-1b, lista completa en el informe de cierre); `UserRepository.java`,
+`UserController.java`, `IdentityEndpointsIT.java`, `UserAuthEndpointsIT.java`, `user.service.ts`,
+`user-list.component.{html,ts,spec.ts}` (D36-4). Sin migraciones, sin permisos nuevos (reutiliza
+`USER_DISABLE`), sin cambios de arquitectura.
+
+**Documentos afectados:** este documento.
+
+**Estado:** APPROVED. Implementado y validado en Sprint 37.

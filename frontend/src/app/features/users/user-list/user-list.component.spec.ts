@@ -128,4 +128,49 @@ describe('UserListComponent', () => {
 
     httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/users/u1/disable`);
   });
+
+  it('shows "Habilitar" instead of "Deshabilitar" for a disabled user (Sprint 37: D36-4)', () => {
+    sessionStore.setPermissions(['USER_READ', 'USER_DISABLE']);
+    const fixture = TestBed.createComponent(UserListComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([{ ...user, status: 'DISABLED' }]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[aria-label="Deshabilitar usuario"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[aria-label="Habilitar usuario"]')).not.toBeNull();
+  });
+
+  it('enable() opens a confirmation dialog and reloads the list when confirmed (Sprint 37: D36-4)', () => {
+    const disabledUser: User = { ...user, status: 'DISABLED' };
+    const fixture = TestBed.createComponent(UserListComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([disabledUser]);
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(true) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.enable(disabledUser);
+
+    expect(openSpy).toHaveBeenCalledWith(ConfirmDialogComponent, expect.objectContaining({ width: '400px' }));
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users/u1/enable`).flush({ ...user, status: 'ACTIVE' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([{ ...user, status: 'ACTIVE' }]);
+  });
+
+  it('enable() does nothing when the confirmation is cancelled (Sprint 37: D36-4)', () => {
+    const disabledUser: User = { ...user, status: 'DISABLED' };
+    const fixture = TestBed.createComponent(UserListComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([disabledUser]);
+    fixture.detectChanges();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, unknown>);
+
+    fixture.componentInstance.enable(disabledUser);
+
+    httpMock.expectNone(`${environment.apiBaseUrl}/api/v1/users/u1/enable`);
+  });
 });

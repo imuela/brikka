@@ -355,4 +355,121 @@ class IdentityEndpointsIT {
     assertThat(disabled.actorUserId()).isEqualTo(manager.user().id());
     assertThat(disabled.resourceType()).isEqualTo("USER");
   }
+
+  @Test
+  void managerDisablesThenReenablesAUserWithinOwnTenant() throws Exception {
+    UUID companyId = companyRepository.insert("Co ENA1", "Co ENA1", "TC-ENA1");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-ena1");
+    TestPrincipal target = createUser(UserRole.BROKER, companyId, "broker-ena1");
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + target.user().id() + "/disable")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("DISABLED"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + target.user().id() + "/enable")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    List<AuditEvent> events = auditEventRepository.findAll();
+    AuditEvent enabled =
+        events.stream()
+            .filter(
+                e -> "USER_ENABLED".equals(e.action()) && target.user().id().equals(e.resourceId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(enabled.companyId()).isEqualTo(companyId);
+    assertThat(enabled.actorUserId()).isEqualTo(manager.user().id());
+    assertThat(enabled.resourceType()).isEqualTo("USER");
+  }
+
+  @Test
+  void enablingAnAlreadyActiveUserIsIdempotent() throws Exception {
+    // No explicit state-machine validation exists for users.status (same convention disable()
+    // already follows) — re-enabling an already-active user is a no-op 200, not an error.
+    UUID companyId = companyRepository.insert("Co ENA2", "Co ENA2", "TC-ENA2");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-ena2");
+    TestPrincipal target = createUser(UserRole.BROKER, companyId, "broker-ena2");
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + target.user().id() + "/enable")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+  }
+
+  @Test
+  void enableWithoutTokenIsUnauthorized() throws Exception {
+    UUID companyId = companyRepository.insert("Co ENA3", "Co ENA3", "TC-ENA3");
+    TestPrincipal target = createUser(UserRole.BROKER, companyId, "broker-ena3");
+
+    mockMvc
+        .perform(post("/api/v1/users/" + target.user().id() + "/enable"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void brokerCannotEnableAUser() throws Exception {
+    UUID companyId = companyRepository.insert("Co ENA4", "Co ENA4", "TC-ENA4");
+    TestPrincipal broker = createUser(UserRole.BROKER, companyId, "broker-ena4");
+    TestPrincipal target = createUser(UserRole.BROKER, companyId, "broker-ena4-target");
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + target.user().id() + "/enable")
+                .header("Authorization", broker.bearer()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void managerCannotEnableAUserFromAnotherCompany() throws Exception {
+    UUID companyA = companyRepository.insert("Co ENA5A", "Co ENA5A", "TC-ENA5A");
+    UUID companyB = companyRepository.insert("Co ENA5B", "Co ENA5B", "TC-ENA5B");
+    TestPrincipal managerA = createUser(UserRole.MANAGER, companyA, "manager-ena5");
+    TestPrincipal userB = createUser(UserRole.BROKER, companyB, "broker-ena5b");
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + userB.user().id() + "/enable")
+                .header("Authorization", managerA.bearer()))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void enablingAnUnknownUserIsNotFound() throws Exception {
+    UUID companyId = companyRepository.insert("Co ENA6", "Co ENA6", "TC-ENA6");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-ena6");
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + UUID.randomUUID() + "/enable")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void superadminEnablesAUserInAnyCompany() throws Exception {
+    TestPrincipal superadmin = createUser(UserRole.SUPERADMIN, null, "superadmin-ena7");
+    UUID companyId = companyRepository.insert("Co ENA7", "Co ENA7", "TC-ENA7");
+    TestPrincipal target = createUser(UserRole.BROKER, companyId, "broker-ena7");
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + target.user().id() + "/disable")
+                .header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/api/v1/users/" + target.user().id() + "/enable")
+                .header("Authorization", superadmin.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+  }
 }

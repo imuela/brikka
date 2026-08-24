@@ -4,16 +4,25 @@
   <mat-form-field>
     <mat-label>Razón social</mat-label>
     <input matInput formControlName="legalName" required />
+    @if (form.controls.legalName.hasError('required')) {
+      <mat-error>La razón social es obligatoria.</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>Nombre comercial</mat-label>
     <input matInput formControlName="tradeName" required />
+    @if (form.controls.tradeName.hasError('required')) {
+      <mat-error>El nombre comercial es obligatorio.</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>NIF/CIF</mat-label>
     <input matInput formControlName="taxId" required />
+    @if (form.controls.taxId.hasError('required')) {
+      <mat-error>El NIF/CIF es obligatorio.</mat-error>
+    }
   </mat-form-field>
 
   @if (error()) {

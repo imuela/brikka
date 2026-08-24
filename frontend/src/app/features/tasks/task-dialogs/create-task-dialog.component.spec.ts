@@ -129,6 +129,25 @@ describe('CreateTaskDialogComponent', () => {
     expect(fixture.componentInstance.form.invalid).toBe(true);
   });
 
+  it('shows a mat-error explaining why an invalid field is invalid (Sprint 36: D36-1b, a silently-blocked submit gave no visible reason)', () => {
+    configure('k1');
+    httpMock = TestBed.inject(HttpTestingController);
+
+    const fixture = TestBed.createComponent(CreateTaskDialogComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([user]);
+
+    const type = fixture.componentInstance.form.controls.type;
+    type.markAsTouched();
+    const title = fixture.componentInstance.form.controls.title;
+    title.markAsTouched();
+    fixture.detectChanges();
+
+    const errorText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(errorText).toContain('Selecciona un tipo.');
+    expect(errorText).toContain('El título es obligatorio.');
+  });
+
   it('cancel() closes the dialog without a result', () => {
     const dialogRef = configure('k1');
     httpMock = TestBed.inject(HttpTestingController);

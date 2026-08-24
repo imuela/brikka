@@ -10,6 +10,9 @@
         <mat-option value="FIXED">{{ 'FIXED' | statusLabel: feeTypeLabels }}</mat-option>
         <mat-option value="PERCENTAGE">{{ 'PERCENTAGE' | statusLabel: feeTypeLabels }}</mat-option>
       </mat-select>
+      @if (form.controls.feeType.hasError('required')) {
+        <mat-error>Selecciona un tipo de honorario.</mat-error>
+      }
     </mat-form-field>
 
     @if (!isPercentage()) {
@@ -35,6 +38,9 @@
         <mat-option value="AGREED">{{ 'AGREED' | statusLabel: feeStatusLabels }}</mat-option>
         <mat-option value="CANCELLED">{{ 'CANCELLED' | statusLabel: feeStatusLabels }}</mat-option>
       </mat-select>
+      @if (form.controls.status.hasError('required')) {
+        <mat-error>Selecciona un estado.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

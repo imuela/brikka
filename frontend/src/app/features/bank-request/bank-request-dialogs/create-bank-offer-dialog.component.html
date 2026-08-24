@@ -4,21 +4,33 @@
     <mat-form-field>
       <mat-label>Importe (€)</mat-label>
       <input matInput type="number" formControlName="amount" required />
+      @if (form.controls.amount.hasError('required')) {
+        <mat-error>El importe es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Tipo de interés (%)</mat-label>
       <input matInput type="number" formControlName="interestRate" required />
+      @if (form.controls.interestRate.hasError('required')) {
+        <mat-error>El tipo de interés es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Plazo (meses)</mat-label>
       <input matInput type="number" formControlName="termMonths" required />
+      @if (form.controls.termMonths.hasError('required')) {
+        <mat-error>El plazo es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Cuota (€)</mat-label>
       <input matInput type="number" formControlName="payment" required />
+      @if (form.controls.payment.hasError('required')) {
+        <mat-error>La cuota es obligatoria.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

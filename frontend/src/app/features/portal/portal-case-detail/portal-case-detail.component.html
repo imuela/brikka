@@ -156,6 +156,9 @@
       <mat-form-field>
         <mat-label>Nuevo mensaje</mat-label>
         <textarea matInput formControlName="body" rows="2" required></textarea>
+        @if (messageForm.controls.body.hasError('required')) {
+          <mat-error>El mensaje es obligatorio.</mat-error>
+        }
       </mat-form-field>
       <button mat-flat-button color="primary" type="submit" [disabled]="sending()">
         @if (sending()) {

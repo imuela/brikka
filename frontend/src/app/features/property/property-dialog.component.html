@@ -8,6 +8,9 @@
           <mat-option [value]="type">{{ type | statusLabel: propertyTypeLabels }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.propertyType.hasError('required')) {
+        <mat-error>Selecciona un tipo de inmueble.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>

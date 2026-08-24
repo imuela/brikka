@@ -8,6 +8,9 @@
         <mat-option [value]="type">{{ type | statusLabel: operationTypeLabels }}</mat-option>
       }
     </mat-select>
+    @if (form.controls.operationType.hasError('required')) {
+      <mat-error>Selecciona un tipo de operación.</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field>

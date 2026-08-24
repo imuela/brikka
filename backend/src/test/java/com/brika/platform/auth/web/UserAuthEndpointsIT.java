@@ -140,6 +140,22 @@ class UserAuthEndpointsIT {
   }
 
   @Test
+  void loginForAReenabledUserSucceedsAgain() throws Exception {
+    // Sprint 37 (D36-4): the symmetric case of loginForADisabledUserIsRejected — a disabled user
+    // reactivated via UserController.enable() must be able to authenticate again, exercising the
+    // real login path against the real users.status column, not just the repository state.
+    Fixture fixture = seedUser("login-reenabled", "Correct-Horse-3b");
+    userRepository.disable(fixture.user().id());
+    userRepository.enable(fixture.user().id());
+    String body =
+        objectMapper.writeValueAsString(new LoginApiRequest(fixture.email(), "Correct-Horse-3b"));
+
+    mockMvc
+        .perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+        .andExpect(status().isOk());
+  }
+
+  @Test
   void refreshRotatesTheTokenAndInvalidatesThePreviousOne() throws Exception {
     Fixture fixture = seedUser("refresh-ok", "Correct-Horse-4");
     JsonNode loginResult = login(fixture.email(), "Correct-Horse-4");

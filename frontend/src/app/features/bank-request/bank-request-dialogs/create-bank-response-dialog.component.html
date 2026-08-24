@@ -4,6 +4,9 @@
     <mat-form-field>
       <mat-label>Resumen</mat-label>
       <textarea matInput formControlName="summary" required></textarea>
+      @if (form.controls.summary.hasError('required')) {
+        <mat-error>El resumen es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

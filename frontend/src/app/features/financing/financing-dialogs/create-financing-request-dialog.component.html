@@ -4,11 +4,17 @@
     <mat-form-field>
       <mat-label>Importe solicitado (€)</mat-label>
       <input matInput type="number" formControlName="requestedAmount" required />
+      @if (form.controls.requestedAmount.hasError('required')) {
+        <mat-error>El importe solicitado es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Plazo (meses)</mat-label>
       <input matInput type="number" formControlName="termMonths" required />
+      @if (form.controls.termMonths.hasError('required')) {
+        <mat-error>El plazo es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

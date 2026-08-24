@@ -102,6 +102,10 @@ public class UserRepository {
         "UPDATE users SET status = 'DISABLED', updated_at = now() WHERE id = ?", id);
   }
 
+  public void enable(UUID id) {
+    jdbcTemplate.update("UPDATE users SET status = 'ACTIVE', updated_at = now() WHERE id = ?", id);
+  }
+
   private static User mapUser(ResultSet rs, int rowNum) throws SQLException {
     return new User(
         (UUID) rs.getObject("id"),

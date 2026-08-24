@@ -8,6 +8,9 @@
           <mat-option [value]="status">{{ status | statusLabel: caseStatusLabels }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.targetStatus.hasError('required')) {
+        <mat-error>Selecciona un estado.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>

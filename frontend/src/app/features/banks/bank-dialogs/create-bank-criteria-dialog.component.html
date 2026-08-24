@@ -4,16 +4,25 @@
     <mat-form-field>
       <mat-label>Versión</mat-label>
       <input matInput formControlName="version" required />
+      @if (form.controls.version.hasError('required')) {
+        <mat-error>La versión es obligatoria.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Vigente desde</mat-label>
       <input matInput type="date" formControlName="effectiveFrom" required />
+      @if (form.controls.effectiveFrom.hasError('required')) {
+        <mat-error>La fecha de vigencia es obligatoria.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Reglas (JSON)</mat-label>
       <textarea matInput rows="10" formControlName="rules" required></textarea>
+      @if (form.controls.rules.hasError('required')) {
+        <mat-error>Las reglas son obligatorias.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

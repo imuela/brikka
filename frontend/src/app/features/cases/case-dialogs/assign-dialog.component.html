@@ -11,6 +11,9 @@
           </mat-option>
         }
       </mat-select>
+      @if (form.controls.userId.hasError('required')) {
+        <mat-error>Selecciona un usuario.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
@@ -20,6 +23,9 @@
           <mat-option [value]="type">{{ type | statusLabel: assignmentTypeLabels }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.assignmentType.hasError('required')) {
+        <mat-error>Selecciona un tipo de asignación.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

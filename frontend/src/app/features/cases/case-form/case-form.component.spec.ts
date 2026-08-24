@@ -98,6 +98,21 @@ describe('CaseFormComponent', () => {
     expect(fixture.componentInstance.form.invalid).toBe(true);
   });
 
+  it('shows a mat-error explaining why an invalid field is invalid (Sprint 36: D36-1b, a silently-blocked submit gave no visible reason)', () => {
+    configureWithRouteParam(null);
+    httpMock = TestBed.inject(HttpTestingController);
+
+    const fixture = TestBed.createComponent(CaseFormComponent);
+    fixture.detectChanges();
+
+    const operationType = fixture.componentInstance.form.controls.operationType;
+    operationType.markAsTouched();
+    fixture.detectChanges();
+
+    const errorText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(errorText).toContain('Selecciona un tipo de operación.');
+  });
+
   it('shows the backend error message when the request fails', () => {
     configureWithRouteParam(null);
     httpMock = TestBed.inject(HttpTestingController);

@@ -10,6 +10,9 @@
         <mat-option value="INTERNAL">{{ 'INTERNAL' | statusLabel: conversationTypeLabels }}</mat-option>
         <mat-option value="CLIENT">{{ 'CLIENT' | statusLabel: conversationTypeLabels }}</mat-option>
       </mat-select>
+      @if (form.controls.type.hasError('required')) {
+        <mat-error>Selecciona un tipo.</mat-error>
+      }
     </mat-form-field>
 
     @if (isClientType()) {

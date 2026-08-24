@@ -8,6 +8,9 @@
           <mat-option [value]="type.id">{{ type.name }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.documentTypeId.hasError('required')) {
+        <mat-error>Selecciona un tipo de documento.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

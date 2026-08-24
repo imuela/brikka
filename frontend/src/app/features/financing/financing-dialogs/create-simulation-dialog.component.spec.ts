@@ -80,6 +80,21 @@ describe('CreateSimulationDialogComponent', () => {
     expect(fixture.componentInstance.form.invalid).toBe(true);
   });
 
+  it('shows a mat-error explaining why an invalid field is invalid (Sprint 36: D36-1b, a silently-blocked submit gave no visible reason)', () => {
+    configure();
+    httpMock = TestBed.inject(HttpTestingController);
+
+    const fixture = TestBed.createComponent(CreateSimulationDialogComponent);
+    fixture.detectChanges();
+
+    const principal = fixture.componentInstance.form.controls.principal;
+    principal.markAsTouched();
+    fixture.detectChanges();
+
+    const errorText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(errorText).toContain('El importe es obligatorio.');
+  });
+
   it('shows the backend error when the request fails', () => {
     configure();
     httpMock = TestBed.inject(HttpTestingController);

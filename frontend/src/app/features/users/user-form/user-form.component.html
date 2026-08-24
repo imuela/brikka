@@ -4,16 +4,27 @@
   <mat-form-field>
     <mat-label>Email</mat-label>
     <input matInput type="email" formControlName="email" required />
+    @if (form.controls.email.hasError('required')) {
+      <mat-error>El email es obligatorio.</mat-error>
+    } @else if (form.controls.email.hasError('email')) {
+      <mat-error>Introduce un email válido.</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>Nombre</mat-label>
     <input matInput formControlName="firstName" required />
+    @if (form.controls.firstName.hasError('required')) {
+      <mat-error>El nombre es obligatorio.</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>Apellidos</mat-label>
     <input matInput formControlName="lastName" required />
+    @if (form.controls.lastName.hasError('required')) {
+      <mat-error>Los apellidos son obligatorios.</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field>
@@ -22,6 +33,9 @@
       <mat-option value="MANAGER">Manager</mat-option>
       <mat-option value="BROKER">Broker</mat-option>
     </mat-select>
+    @if (form.controls.role.hasError('required')) {
+      <mat-error>Selecciona un rol.</mat-error>
+    }
   </mat-form-field>
 
   @if (!isEditMode) {
@@ -32,6 +46,9 @@
         Identificador único de inicio de sesión para este usuario. La contraseña se establece por
         separado (recuperación de contraseña o alta gestionada por un SUPERADMIN).
       </mat-hint>
+      @if (form.controls.externalIdentityId.hasError('required')) {
+        <mat-error>El identificador es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     @if (isSuperadmin) {
@@ -43,6 +60,9 @@
           }
         </mat-select>
         <mat-hint>Como SUPERADMIN, elige a qué empresa pertenece este usuario.</mat-hint>
+        @if (form.controls.companyId.hasError('required')) {
+          <mat-error>Selecciona una empresa.</mat-error>
+        }
       </mat-form-field>
     }
   }

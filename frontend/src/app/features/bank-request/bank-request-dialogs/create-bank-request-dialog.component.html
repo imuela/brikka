@@ -8,6 +8,9 @@
           <mat-option [value]="bank.id">{{ bank.name }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.bankId.hasError('required')) {
+        <mat-error>Selecciona un banco.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

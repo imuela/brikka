@@ -142,6 +142,22 @@ describe('UserFormComponent', () => {
     expect(fixture.componentInstance.error()).toBe('No es posible asignar ese rol en esta operación.');
   });
 
+  it('shows a mat-error explaining why an invalid field is invalid (Sprint 36: D36-1b, a silently-blocked submit gave no visible reason)', () => {
+    configureWithRouteParam(null);
+    httpMock = TestBed.inject(HttpTestingController);
+
+    const fixture = TestBed.createComponent(UserFormComponent);
+    fixture.detectChanges();
+
+    const email = fixture.componentInstance.form.controls.email;
+    email.markAsTouched();
+    email.setValue('not-an-email');
+    fixture.detectChanges();
+
+    const errorText = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(errorText).toContain('Introduce un email válido.');
+  });
+
   it('SUPERADMIN sees a required company picker and companyId reaches the request body', () => {
     configureWithRouteParam(null, 'SUPERADMIN');
     httpMock = TestBed.inject(HttpTestingController);

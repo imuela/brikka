@@ -60,6 +60,16 @@
               aria-label="Deshabilitar usuario">
               <mat-icon>block</mat-icon>
             </button>
+          } @else {
+            <button
+              *appHasPermission="'USER_DISABLE'"
+              mat-icon-button
+              color="primary"
+              (click)="enable(user)"
+              matTooltip="Habilitar"
+              aria-label="Habilitar usuario">
+              <mat-icon>check_circle</mat-icon>
+            </button>
           }
         </div>
       </td>

@@ -142,6 +142,15 @@ export class CaseDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
+  /** Sprint 37 (D36-2): guards every open*() below against a second dialog opening while one is
+   * already up — a double click, or a different action button, could otherwise stack two
+   * mat-dialog-container instances (reproduced in Sprint 36). Checking MatDialog's own
+   * openDialogs is the minimal fix: no new state to keep in sync, no change to any dialog's
+   * result handling. */
+  private hasOpenDialog(): boolean {
+    return this.dialog.openDialogs.length > 0;
+  }
+
   readonly caseId = this.route.snapshot.paramMap.get('id')!;
   readonly theCase = signal<Case | null>(null);
   readonly assignments = signal<CaseAssignment[] | null>(null);
@@ -273,6 +282,7 @@ export class CaseDetailComponent {
   }
 
   openChangeStatus(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(ChangeStatusDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -284,6 +294,7 @@ export class CaseDetailComponent {
   }
 
   openCancel(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CancelDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -295,6 +306,7 @@ export class CaseDetailComponent {
   }
 
   openReopen(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(ReopenDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -306,6 +318,7 @@ export class CaseDetailComponent {
   }
 
   openAssign(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(AssignDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -317,6 +330,7 @@ export class CaseDetailComponent {
   }
 
   openAddClient(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(AddClientDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -368,6 +382,7 @@ export class CaseDetailComponent {
   }
 
   openProperty(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(PropertyDialogComponent, {
         data: { caseId: this.caseId, property: this.property() },
@@ -396,6 +411,7 @@ export class CaseDetailComponent {
   }
 
   openCreateDocument(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateDocumentDialogComponent, {
         data: { caseId: this.caseId, documentTypes: this.documentTypes() },
@@ -410,6 +426,7 @@ export class CaseDetailComponent {
   }
 
   openUploadVersion(documentId: string): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(UploadVersionDialogComponent, { data: { documentId }, width: '400px' })
       .afterClosed()
@@ -421,6 +438,7 @@ export class CaseDetailComponent {
   }
 
   openReviewDocument(documentId: string): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(ReviewDocumentDialogComponent, { data: { documentId }, width: '400px' })
       .afterClosed()
@@ -432,6 +450,7 @@ export class CaseDetailComponent {
   }
 
   openVersions(documentId: string): void {
+    if (this.hasOpenDialog()) return;
     this.dialog.open(VersionsDialogComponent, { data: { documentId }, width: '600px' });
   }
 
@@ -465,6 +484,7 @@ export class CaseDetailComponent {
   }
 
   openCreateDocumentRequest(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateDocumentRequestDialogComponent, {
         data: { caseId: this.caseId, documentTypes: this.documentTypes() },
@@ -509,6 +529,7 @@ export class CaseDetailComponent {
   }
 
   openCreateSimulation(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateSimulationDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -530,6 +551,7 @@ export class CaseDetailComponent {
   }
 
   openCreateFinancingRequest(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateFinancingRequestDialogComponent, {
         data: { caseId: this.caseId },
@@ -544,6 +566,7 @@ export class CaseDetailComponent {
   }
 
   openUpdateFinancingRequest(financingRequest: FinancingRequest): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(UpdateFinancingRequestDialogComponent, {
         data: { financingRequest },
@@ -581,6 +604,7 @@ export class CaseDetailComponent {
   }
 
   openRunMatching(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(RunMatchingDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -592,6 +616,7 @@ export class CaseDetailComponent {
   }
 
   openMatchingResultDetail(result: BankMatchResult): void {
+    if (this.hasOpenDialog()) return;
     this.dialog.open(MatchingResultDetailDialogComponent, {
       data: { caseId: this.caseId, result },
       width: '700px',
@@ -609,6 +634,7 @@ export class CaseDetailComponent {
   }
 
   openCreateBankRequest(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateBankRequestDialogComponent, { data: { caseId: this.caseId }, width: '400px' })
       .afterClosed()
@@ -620,6 +646,7 @@ export class CaseDetailComponent {
   }
 
   openCreateBankResponse(bankRequestId: string): void {
+    if (this.hasOpenDialog()) return;
     // No list endpoint exists for bank_responses (create-only, see BankRequestService) — the
     // dialog closing on success is the only and sufficient feedback, same as every other
     // create-only dialog in this app.
@@ -630,6 +657,7 @@ export class CaseDetailComponent {
   }
 
   openCreateBankOffer(bankRequestId: string): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateBankOfferDialogComponent, { data: { bankRequestId }, width: '400px' })
       .afterClosed()
@@ -688,6 +716,7 @@ export class CaseDetailComponent {
   }
 
   openCreateTask(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateTaskDialogComponent, { data: { caseId: this.caseId }, width: '420px' })
       .afterClosed()
@@ -699,6 +728,7 @@ export class CaseDetailComponent {
   }
 
   openEditTask(task: Task): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(EditTaskDialogComponent, { data: { task }, width: '420px' })
       .afterClosed()
@@ -749,6 +779,7 @@ export class CaseDetailComponent {
   }
 
   openCreateConversation(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateConversationDialogComponent, {
         data: { caseId: this.caseId, clients: this.clients() ?? [] },
@@ -763,6 +794,7 @@ export class CaseDetailComponent {
   }
 
   openConversationDetail(conversation: Conversation): void {
+    if (this.hasOpenDialog()) return;
     this.dialog.open(ConversationDetailDialogComponent, {
       data: {
         conversation,
@@ -820,6 +852,7 @@ export class CaseDetailComponent {
   }
 
   openEditCaseFee(): void {
+    if (this.hasOpenDialog()) return;
     this.dialog
       .open(EditCaseFeeDialogComponent, {
         data: { caseId: this.caseId, current: this.caseFee() },

@@ -10,11 +10,17 @@
           <mat-option [value]="result">{{ result | statusLabel: matchResultLabels }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.newResult.hasError('required')) {
+        <mat-error>Selecciona un resultado.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Motivo</mat-label>
       <textarea matInput formControlName="reason" required></textarea>
+      @if (form.controls.reason.hasError('required')) {
+        <mat-error>El motivo es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

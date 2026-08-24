@@ -4,11 +4,17 @@
     <mat-form-field>
       <mat-label>Nombre</mat-label>
       <input matInput formControlName="name" required />
+      @if (form.controls.name.hasError('required')) {
+        <mat-error>El nombre es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Estado</mat-label>
       <input matInput formControlName="status" required />
+      @if (form.controls.status.hasError('required')) {
+        <mat-error>El estado es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

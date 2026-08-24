@@ -31,4 +31,8 @@ export class UserService {
   disable(id: string): Observable<User> {
     return this.apiClient.post<User>(`/api/v1/users/${id}/disable`, {});
   }
+
+  enable(id: string): Observable<User> {
+    return this.apiClient.post<User>(`/api/v1/users/${id}/enable`, {});
+  }
 }

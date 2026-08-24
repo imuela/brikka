@@ -8,11 +8,17 @@
           <mat-option [value]="type">{{ type | statusLabel: taskTypeLabels }}</mat-option>
         }
       </mat-select>
+      @if (form.controls.type.hasError('required')) {
+        <mat-error>Selecciona un tipo.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
       <mat-label>Título</mat-label>
       <input matInput formControlName="title" required />
+      @if (form.controls.title.hasError('required')) {
+        <mat-error>El título es obligatorio.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>

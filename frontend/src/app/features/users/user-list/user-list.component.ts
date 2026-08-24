@@ -80,4 +80,26 @@ export class UserListComponent {
         });
       });
   }
+
+  enable(user: User): void {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Habilitar usuario',
+          message: `¿Seguro que quieres habilitar a "${user.firstName} ${user.lastName}"? Podrá volver a acceder a la aplicación.`,
+          confirmLabel: 'Habilitar',
+        },
+        width: '400px',
+      })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+        this.userService.enable(user.id).subscribe({
+          next: () => this.load(),
+          error: (err: ApiError) => this.error.set(friendlyErrorMessage(err)),
+        });
+      });
+  }
 }

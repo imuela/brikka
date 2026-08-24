@@ -142,6 +142,32 @@ public class UserController {
   }
 
   /**
+   * Sprint 37 (D36-4): reactivates a disabled user. Gated by USER_DISABLE rather than a new
+   * USER_ENABLE permission — 14_DEFINITIVE_PERMISSION_CATALOG.md only defines USER_DISABLE for this
+   * status field, already granted to exactly SUPERADMIN and MANAGER (V9__seed_role_
+   * permissions.sql), the same two roles this action must be restricted to; adding a new permission
+   * not present in the approved catalog would be inventing RBAC surface for a status field the
+   * catalog already treats as a single togglable capability. Idempotent like disable(): enabling an
+   * already-active user just re-sets the same status, no special-cased exception — the same
+   * convention the existing disable() endpoint already follows for this field.
+   */
+  @PostMapping("/{id}/enable")
+  public UserResponse enable(Authentication authentication, @PathVariable UUID id) {
+    authorizationService.requirePermission(authentication, "USER_DISABLE");
+    UUID tenantId = resolveTenantForTargetUser(authentication, id);
+    userRepository.enable(id);
+    auditEventWriter.write(
+        tenantId,
+        authorizationService.currentUser(authentication).id(),
+        null,
+        "USER_ENABLED",
+        "USER",
+        id,
+        toJson(Map.of("userId", id.toString())));
+    return UserResponse.from(requireUserInTenant(id, tenantId));
+  }
+
+  /**
    * GLOBAL SUPERADMIN (ADR-RBAC-002) resolves the tenant from the target user's company; tenant
    * users resolve it from their own active session. Either way the target must exist and, for a
    * tenant user, must belong to the caller's tenant.

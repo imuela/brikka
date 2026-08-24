@@ -10,6 +10,9 @@
           </mat-option>
         }
       </mat-select>
+      @if (form.controls.clientId.hasError('required')) {
+        <mat-error>Selecciona un cliente.</mat-error>
+      }
     </mat-form-field>
 
     @if (error()) {

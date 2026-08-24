@@ -7,6 +7,9 @@
         <mat-option value="APPROVED">Aprobar</mat-option>
         <mat-option value="REJECTED">Rechazar / solicitar nueva versión</mat-option>
       </mat-select>
+      @if (form.controls.decision.hasError('required')) {
+        <mat-error>Selecciona una decisión.</mat-error>
+      }
     </mat-form-field>
 
     <mat-form-field>
