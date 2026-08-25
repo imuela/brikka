@@ -1507,3 +1507,141 @@ nuevos). RBAC del nuevo endpoint verificado por HTTP real: BROKER 403, sin token
 **Documentos afectados:** este documento.
 
 **Estado:** APPROVED. Implementado y validado en Sprint 37.
+
+## Adenda Sprint 38 — Auditoría técnica, seguridad y preparación de producción
+
+**Contexto:** Sprint 38 es una auditoría técnica (no funcional) del estado real de Brikka V1:
+dependencias, seguridad, tests, Docker, configuración de producción, código muerto y documentación.
+
+**D38-1 — CI llevaba roto desde al menos el cierre de Sprint 35, dando una señal verde falsa
+(P1, encontrado y corregido con causa raíz).**
+`gh run list` mostró que los últimos 5 workflows de CI en GitHub Actions habían fallado, incluido
+el del propio commit de cierre de Sprint 37 (`d98764d`) — mientras que `mvn verify` en local
+reportaba 514/514 limpio. Investigado en vez de asumido: el job de CI fallaba con
+`Tests run: 408, Failures: 6` — siempre las mismas 6 pruebas, en
+`EngagementContractEndpointsIT` y `ViabilityDossierEndpointsIT`, con
+`SdkClientException: ... Connect to localhost:19000 ... Connection refused`. Confirmado que el
+mismo fallo, con idéntica firma, ya existía en el run de CI del commit de cierre de Sprint 35
+(`e9d444d`) — no es una regresión de Sprint 36 ni 37, es un defecto preexistente de aislamiento de
+tests. **Causa raíz:** generar un contrato de encargo o un dossier de viabilidad sube el HTML
+generado a objectstorage (`DocumentService`/`ViabilityDossierService` → `StorageClient.upload()`,
+una llamada S3 real, no simulada) — pero, a diferencia de sus hermanos `DocumentServiceIT` y
+`DocumentEndpointsIT` (que sí declaran su propio `@Container MinIOContainer` con
+`@DynamicPropertySource` apuntando `brika.storage.*` a él, exactamente el mismo patrón que ya usan
+para Postgres), `EngagementContractEndpointsIT` y `ViabilityDossierEndpointsIT` solo declaraban un
+`PostgreSQLContainer` — sin ningún MinIO propio, caían al valor por defecto
+`brika.storage.endpoint=http://localhost:19000`. En este equipo de desarrollo esas pruebas pasaban
+por pura coincidencia (el MinIO de `docker-compose.yml` suele estar levantado durante el desarrollo
+local), pero fallan en cualquier máquina o entorno de CI donde no lo esté — exactamente lo que
+ocurre en GitHub Actions, que nunca ha tenido un servicio MinIO configurado. **Corrección:**
+replicado el patrón exacto ya establecido en `DocumentServiceIT`/`DocumentEndpointsIT` — un
+`MinIOContainer` propio por clase, `@DynamicPropertySource` con `brika.storage.endpoint/access-key/
+secret-key/bucket` apuntando a él, y creación del bucket de test en un bloque estático. Verificado
+en local con el entorno completamente detenido (sin `docker-compose` levantado, comprobado con
+`docker ps`) para forzar una prueba real de que ya no dependen de nada externo: ambas clases pasan
+limpias de forma aislada (`EngagementContractEndpointsIT` 7/7, `ViabilityDossierEndpointsIT` 8/8).
+No ha hecho falta ningún cambio en `.github/workflows/ci.yml` — Testcontainers provisiona su propio
+MinIO dentro del propio runner de GitHub Actions, exactamente igual que ya hace con Postgres para
+las demás 60+ clases de integración de la suite.
+
+**Impacto real:** durante como mínimo los cierres de Sprint 35, 36 y 37, el pipeline de CI de
+GitHub Actions ha estado marcando el job de backend como fallido en cada push a `main` — una señal
+que, de haberse revisado, habría exigido investigar en cada uno de esos cierres. El hecho de que
+`mvn verify` en local siempre reportara verde ocultaba el problema: los informes de cierre de esos
+sprints citaron el resultado de la ejecución local (correcto en sí mismo) sin cruzarlo con el
+estado real de CI. Consecuencia adicional: el job `backend-docker` (que incluye el escaneo de
+seguridad Trivy en la imagen) tiene `needs: backend` — con el job `backend` en rojo, `backend-docker`
+se ha estado saltando (`skipped`) en cada uno de esos runs, así que el escaneo Trivy de la imagen
+tampoco se ha ejecutado realmente en ninguno de ellos.
+
+**D38-2 — Dependencias con CVE MEDIUM, verificadas una por una, ninguna explotable en el uso real
+de la aplicación (P3, documentado, sin actualización forzada).**
+Escaneo real con Trivy v0.74.0 (binario oficial descargado de GitHub releases, no compilado —
+evitando la contención de recursos que la compilación de Go desde código fuente causó al intentar
+`brew install trivy`) contra `backend/pom.xml` y `frontend/package-lock.json`. **Frontend: 0
+vulnerabilidades** (confirmado también por `npm audit`, coincide). **Backend: 0 CRITICAL/HIGH, 6
+MEDIUM**, las 4 en dependencias transitivas del BOM de Spring Boot, no declaradas directamente:
+
+| Librería | Versión | CVE | Vía | ¿Explotable aquí? |
+|---|---|---|---|---|
+| `jackson-databind` | 2.21.4 | CVE-2026-54515, CVE-2026-59889, GHSA-mhm7-754m-9p8w | `compile`, directa (Spring Web) | No — los 3 CVE son sobre bypass de `@JsonView`/`@JsonUnwrapped`; `grep` confirma que ninguna de las dos anotaciones se usa en `src/main/java/` |
+| `io.netty:netty-codec-http` | 4.1.136.Final | CVE-2026-59903 | `runtime`, transitiva de `software.amazon.awssdk:netty-nio-client` (AWS SDK) | No — `StorageConfig.java` construye `S3Client`/`S3Presigner` sin `httpClient(NettyNioAsyncHttpClient...)`; el SDK v2 usa su cliente síncrono por defecto, Netty queda en el classpath sin instanciarse nunca |
+| `org.apache.logging.log4j:log4j-api` | 2.24.3 | CVE-2026-49844 | `compile`, transitiva de `log4j-to-slf4j` (puente estándar de Spring Boot) | No — solo la API/puente está presente; `log4j-core` no está en el árbol de dependencias, el backend real de logging es Logback (SLF4J), el CVE es sobre codificación JSON de `log4j-core` |
+| `org.bouncycastle:bcprov-jdk18on` | 1.80.2 | CVE-2026-0636 | `compile`, directa (claves RSA JWT) | No — el CVE es una inyección LDAP en `LDAPStoreHelper` (validación de certificados vía LDAP); `grep` confirma que el proyecto no tiene código LDAP en ningún punto, BouncyCastle se usa aquí solo para parsear claves PKCS8 |
+
+**Spring Boot 3.5.16 ya es la última versión estable de la serie 3.5.x** (`versions:display-parent-
+updates` solo ofrece `4.2.0-M1`, un milestone de una major nueva — no una opción razonable para
+este sprint). No existe todavía un parche de Spring Boot que actualice estas 4 dependencias
+transitivas. **Decisión:** no forzar overrides manuales de versión en `pom.xml` para estas 4
+librerías — cada CVE, verificado uno por uno contra el uso real del código, no tiene ruta de
+explotación en esta aplicación; forzar versiones fuera de la matriz de compatibilidad probada por
+el propio BOM de Spring Boot sería un riesgo de regresión real a cambio de ningún beneficio de
+seguridad real, exactamente lo que este sprint prohíbe ("no actualizar dependencias a ciegas").
+Documentado como deuda técnica a revisar cuando Spring Boot publique un parche 3.5.x que las
+incluya.
+
+**D38-3 — Las claves JWT persistentes documentadas (`SELF_AUTH_INTERNAL_SIGNING_KEY_PEM`/
+`SELF_AUTH_PORTAL_SIGNING_KEY_PEM`) nunca llegaban a la propiedad Spring real que el código
+consume (P1, encontrado, corregido y verificado empíricamente de extremo a extremo).**
+`SelfIssuedTokenKeys` lee `brika.security.self-auth.{internal,portal}-signing-key-pem` vía
+`@Value`, y `ProdEnvironmentValidator` exige esas mismas dos propiedades como obligatorias en
+PROD — pero, a diferencia de cada una de las demás propiedades del mismo bloque `self-auth:` en
+`application.yml` (todas con su `${VARIABLE_ENTORNO:default}`), estas dos no tenían ningún
+placeholder que las conectara con la variable de entorno documentada en `GETTING_STARTED.md`,
+`10_DEVOPS.md` y `23_CLOUD_DEPLOYMENT_SPECIFICATION.md`. El binding relajado de Spring Boot solo
+mapea automáticamente el *literal* de la ruta de la propiedad (`BRIKA_SECURITY_SELF_AUTH_INTERNAL_
+SIGNING_KEY_PEM`), nunca un alias más corto como `SELF_AUTH_INTERNAL_SIGNING_KEY_PEM` — sin el
+placeholder explícito, esa variable, por bien fijada que estuviera, era invisible para el código.
+**Verificado empíricamente, no solo razonado:** con claves reales generadas y la variable
+documentada exportada, el backend seguía registrando "generating an ephemeral RSA key" en cada
+arranque, antes de tocar nada. **Corrección:** añadidas las dos líneas que faltaban al bloque
+`self-auth:` de `application.yml`, con el mismo patrón `${SELF_AUTH_INTERNAL_SIGNING_KEY_PEM:}` /
+`${SELF_AUTH_PORTAL_SIGNING_KEY_PEM:}` que ya usa cada propiedad vecina.
+
+Validar el fix reveló un segundo problema, independiente, en las propias claves de prueba
+generadas para probarlo — ver D38-4. Con ambos corregidos, la validación de extremo a extremo
+(arranque en limpio, sin backgrounding ni Maven de por medio — `java -jar` directo con timeout
+acotado) confirma: (1) el backend arranca sin ningún warning de clave efímera; (2) login real
+(`POST /api/v1/auth/login`) emite un token válido; (3) tras **reiniciar** el backend con la misma
+configuración, un JWT **emitido antes del reinicio** sigue siendo válido después
+(`GET /api/v1/me` → 200) — la prueba real de que la clave es persistente entre reinicios, no solo
+de que el arranque no muestra un warning.
+
+**D38-4 — `scripts/generate-jwt-keys.sh` producía claves PKCS1, no PKCS8, en macOS (P2,
+encontrado y corregido durante la verificación de D38-3).**
+Causa raíz aislada con `jshell` reproduciendo exactamente la lógica de
+`SelfIssuedTokenKeys.decode()`: `openssl version` en esta máquina resuelve a **LibreSSL 2.8.3**
+(la que trae macOS de fábrica como `/usr/bin/openssl`, no OpenSSL real). `openssl genpkey
+-algorithm RSA -outform DER` bajo LibreSSL escribe un `RSAPrivateKey` PKCS1 crudo en vez de un
+`PrivateKeyInfo` PKCS8 — confirmado con `openssl asn1parse` (el PKCS8 correcto anida un
+`AlgorithmIdentifier` con el OID `rsaEncryption`; el resultado real solo tenía el `INTEGER` del
+módulo en esa posición). `openssl pkey`/`asn1parse` autodetectan y aceptan ambos formatos sin
+quejarse, por lo que cualquier comprobación manual con el propio CLI de `openssl` parecía
+correcta; `KeyFactory("RSA").generatePrivate(new PKCS8EncodedKeySpec(...))` en Java no autodetecta
+y rechaza PKCS1 sin ambigüedad ("algid parse error, not a sequence") — exactamente el error que
+bloqueaba la primera verificación de D38-3, y que en un primer momento parecía un problema de
+transmisión de variables de entorno hasta aislar la causa real con `jshell`. **Corrección:** la
+clave generada se re-envuelve siempre explícitamente en PKCS8 real con
+`openssl pkcs8 -topk8 -nocrypt`, sea cual sea el formato que `genpkey` haya producido — funciona
+igual en LibreSSL y en OpenSSL real. Regeneradas las claves de prueba con el script corregido y
+reverificadas: decodifican correctamente en Java, y la cadena completa de D38-3 quedó confirmada
+con ellas.
+
+**D38-5 — Ambos Dockerfile corrían como root (P2, corregido el del backend, el de frontend
+documentado como riesgo aceptado).**
+Escaneo real (`trivy config .`, no supuesto): `backend/Dockerfile` y `frontend/Dockerfile`
+marcados por DS-0002 ("Specify at least 1 USER command... running as root can lead to a container
+escape situation"). **Backend corregido**: añadido `addgroup`/`adduser` + `USER brika` antes del
+`ENTRYPOINT` — el proceso no necesita root para nada (puerto 8081/8080, sin operación
+privilegiada). Verificado con la imagen real construida y ejecutada: `docker exec ... whoami` →
+`brika` (`uid=100`), y `/actuator/health` → `{"status":"UP"}` arrancando contra Postgres real, sin
+ningún error de permisos. **Frontend (`nginx:1.27-alpine`) no se ha tocado**: la imagen oficial de
+nginx ya hace su propio drop de privilegios internamente (el proceso maestro arranca como root
+únicamente para poder enlazar el puerto 80 y gestionar los procesos worker, que sí corren como el
+usuario `nginx` no-root vía la directiva `user nginx;` de su `nginx.conf` por defecto) — es el
+patrón estándar y ampliamente aceptado de la imagen oficial, no una omisión. Forzar `USER nginx`
+en el `Dockerfile` rompería el bind al puerto 80 sin cambios adicionales (capacidades Linux o
+puerto no privilegiado) que no se pueden validar con el mismo rigor en esta sesión (sin bucle de
+build+run+comprobación de la ruta HTTP real del frontend en contenedor). Documentado como deuda
+técnica de bajo riesgo — el propio proceso maestro root de nginx es una superficie de ataque
+mucho más pequeña y bien auditada que un JAR de aplicación propio corriendo como root.

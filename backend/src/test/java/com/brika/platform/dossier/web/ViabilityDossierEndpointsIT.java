@@ -15,6 +15,7 @@ import com.brika.platform.identity.User;
 import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
+import java.net.URI;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,16 +25,31 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
-/** Sprint 32. End-to-end tests for the viability dossier generation. */
+/**
+ * Sprint 32. End-to-end tests for the viability dossier generation.
+ *
+ * <p>Sprint 38 audit (D38-1): generating a dossier really uploads its HTML to object storage
+ * (ViabilityDossierService -&gt; StorageClient.upload), so this class needs its own MinIO the same
+ * way DocumentServiceIT/DocumentEndpointsIT already do — see EngagementContractEndpointsIT's class
+ * Javadoc for the full root-cause writeup (identical bug, identical fix).
+ */
 @Testcontainers
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(StubJwtDecoderConfig.class)
 class ViabilityDossierEndpointsIT {
+
+  private static final String BUCKET = "brika-documents-test";
 
   @Container
   static final PostgreSQLContainer<?> POSTGRES =
@@ -42,11 +58,34 @@ class ViabilityDossierEndpointsIT {
           .withUsername("brika_test")
           .withPassword("brika_test");
 
+  @Container
+  static final MinIOContainer MINIO =
+      new MinIOContainer("minio/minio:RELEASE.2024-01-16T16-07-38Z");
+
   @DynamicPropertySource
   static void datasourceProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
+    registry.add("brika.storage.endpoint", MINIO::getS3URL);
+    registry.add("brika.storage.access-key", MINIO::getUserName);
+    registry.add("brika.storage.secret-key", MINIO::getPassword);
+    registry.add("brika.storage.bucket", () -> BUCKET);
+    createBucket();
+  }
+
+  private static void createBucket() {
+    try (S3Client client =
+        S3Client.builder()
+            .endpointOverride(URI.create(MINIO.getS3URL()))
+            .region(Region.US_EAST_1)
+            .credentialsProvider(
+                StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(MINIO.getUserName(), MINIO.getPassword())))
+            .forcePathStyle(true)
+            .build()) {
+      client.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+    }
   }
 
   @Autowired private MockMvc mockMvc;

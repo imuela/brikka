@@ -89,6 +89,19 @@ brika:
     # no longer has a toggle between issuers; these values feed the credentials/token
     # infrastructure directly.
     self-auth:
+      # Sprint 38 audit (D38-3): unlike every other self-auth.* property below, these two were
+      # never bridged from their documented env var names (GETTING_STARTED.md, 10_DEVOPS.md,
+      # 23_CLOUD_DEPLOYMENT_SPECIFICATION.md all instruct setting SELF_AUTH_INTERNAL_SIGNING_KEY_
+      # PEM / SELF_AUTH_PORTAL_SIGNING_KEY_PEM) — SelfIssuedTokenKeys read the property directly
+      # via @Value with no placeholder here, so Spring's relaxed binding only ever matched the env
+      # var BRIKA_SECURITY_SELF_AUTH_INTERNAL_SIGNING_KEY_PEM (the literal property path), never
+      # the documented short name. Verified empirically: starting the app with the documented env
+      # var set still logged "generating an ephemeral RSA key" every time. In PROD this made
+      # ProdEnvironmentValidator's mandatory-secret check impossible to satisfy by following the
+      # project's own deployment docs — a real, fail-closed but still blocking bug, not just a
+      # local convenience gap.
+      internal-signing-key-pem: ${SELF_AUTH_INTERNAL_SIGNING_KEY_PEM:}
+      portal-signing-key-pem: ${SELF_AUTH_PORTAL_SIGNING_KEY_PEM:}
       access-token-ttl-seconds: ${SELF_AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
       refresh-token-ttl-seconds: ${SELF_AUTH_REFRESH_TOKEN_TTL_SECONDS:2592000}
       password-reset-ttl-seconds: ${SELF_AUTH_PASSWORD_RESET_TTL_SECONDS:3600}
