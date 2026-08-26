@@ -1957,3 +1957,49 @@ ejecución completa desde limpio** (no se acepta el resultado del intento fallid
 - **AI Worker**: `python3 -m unittest tests.test_main` → **24/24 OK** (22.7s), ejecución fresca.
 
 Ningún número reutilizado de gates anteriores; todos re-ejecutados tras el cierre de D39-1 a D39-5.
+
+**Gate 19 — Git, commit y CI final.** Auditoría de `git diff`/`git status --porcelain` antes de
+`add`: exactamente los 16 ficheros esperados (D39-1 a D39-5 más la propia adenda del decision log),
+sin secretos, sin ficheros accidentales, sin untracked sorpresa. `mvn spotless:apply` aplicado antes
+del commit para que el hand-written Javadoc de D39-5 pasase el formateador (mismo patrón que
+Sprints 37/38).
+
+Commit único `c18ddec` — `chore(v1): finalize release readiness and deployment validation`.
+Confirmación explícita del usuario obtenida antes de `git push origin main` (mismo patrón de todo
+el sprint). Push real: `4491a09..c18ddec main -> main`, `git status` tras el push → working tree
+limpio, `main` y `origin/main` sincronizados en `c18ddec`.
+
+CI real del commit final comprobada con `gh run watch 32955416199 --exit-status` (espera acotada,
+no polling manual, mismo patrón del Gate 2) →
+**`gh run view 32955416199 --json conclusion,status,headSha` → `{"conclusion":"success",
+"headSha":"c18ddec...","status":"completed"}`** — verde real, no asumido:
+- `Backend (build, format check, tests)`: ✓ 6m25s.
+- `Frontend (lint, build, tests)`: ✓ 1m9s.
+- `Backend Docker (build, healthcheck, security scan)`: ✓ 1m55s, incluyendo el paso "Trivy
+  vulnerability scan" verde.
+
+No se cierra el sprint con ningún workflow pendiente.
+
+**Gate 17 — Decisión de readiness de Brikka V1.**
+Evidencia acumulada, basada en ejecución real, no en optimismo:
+- CI real verde del commit final (`c18ddec`, Gate 19): sí, los 3 jobs, incluido Trivy.
+- CRITICAL=0, HIGH=0 en ambas imágenes Docker reales (Gate 7): sí, verificado con dos iteraciones
+  de corrección + rescan hasta confirmarlo.
+- Builds correctos desde limpio: sí (Gate 4/18, backend 514/514, frontend 462/462, ai-worker
+  24/24, todo en fresco).
+- Imágenes Docker validadas en ejecución real (no solo build): sí (Gate 6 — non-root backend y
+  frontend, `/actuator/health` real, `HTTP 200` real).
+- JWT persistente demostrado con un token real a través de un reinicio real: sí (Gate 8).
+- Arranque reproducible desde parado: sí (Gate 11).
+- Smoke tests de negocio correctos, sin mocks: sí (Gate 12/14 — login, clientes, empresas, casos,
+  tareas, documentos, descarga presignada real, logout, protegido-sin-token).
+- RBAC/multi-tenant sin regresión: sí (Gate 13).
+- Sin P0/P1 bloqueante pendiente: los 5 hallazgos reales del sprint (D39-1 a D39-5) están todos
+  corregidos y validados con evidencia empírica. Único pendiente es un hallazgo P3 documentado (el
+  `HttpMessageNotReadableException` → 500 en vez de 400), explícitamente no bloqueante y fuera del
+  alcance de este sprint por tocar el manejador de excepciones compartido de toda la API.
+
+**Decisión: READY.** Brikka V1, en el commit `c18ddec`, cumple los criterios de readiness definidos
+por este sprint con evidencia real en cada punto — no hay ningún P0, ningún P1 bloqueante, ningún
+CRITICAL/HIGH sin resolver, ninguna inconsistencia de configuración de producción sin corregir, y
+la CI real del commit final está verde.
