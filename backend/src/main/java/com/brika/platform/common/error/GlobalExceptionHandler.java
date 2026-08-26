@@ -10,6 +10,7 @@ import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -76,6 +77,22 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ErrorResponse> handleValidation(ValidationException exception) {
     String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
     ErrorResponse body = new ErrorResponse(exception.code(), exception.getMessage(), requestId);
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+  }
+
+  // Sprint 40 audit: a missing or malformed @RequestBody (any of the 32 endpoints that declare
+  // one) fell through to handleUnexpected below, answering a client-input problem with the same
+  // generic 500 as a real server bug. Same reasoning as the DataIntegrityViolationException
+  // handler above — a caller mistake, not a server failure, gets the status that matches the
+  // cause. No @Valid/Bean Validation exists in this codebase yet, so this covers the actual gap
+  // without inventing a broader validation-error contract that nothing currently needs.
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ErrorResponse> handleMessageNotReadable(
+      HttpMessageNotReadableException exception) {
+    String requestId = MDC.get(CorrelationIdFilter.MDC_KEY);
+    ErrorResponse body =
+        new ErrorResponse(
+            "INVALID_REQUEST", "The request body is missing or malformed.", requestId);
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
   }
 

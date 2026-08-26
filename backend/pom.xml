@@ -13,9 +13,9 @@
 
     <groupId>com.brika</groupId>
     <artifactId>brika-backend</artifactId>
-    <version>0.0.1-SPRINT1</version>
+    <version>1.0.0</version>
     <name>brika-backend</name>
-    <description>Brika V1 backend — Sprint 1 foundation (Flyway/persistence config, no business logic)</description>
+    <description>Brika V1 backend — mortgage-broker platform (multi-tenant RBAC, cases, financing, documents, portal)</description>
 
     <properties>
         <java.version>21</java.version>

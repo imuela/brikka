@@ -1,0 +1,13 @@
+# Sprint 40 audit: EnvironmentPostProcessor implementations are discovered via the classic
+# META-INF/spring.factories mechanism (SpringFactoriesLoader), not via
+# META-INF/spring/<FQN>.imports — that newer mechanism is specific to @AutoConfiguration classes.
+# The prior registration file (META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor,
+# missing the .imports suffix, and later renamed to add it) was never actually read by Spring Boot
+# under either name: ProdEnvironmentValidator has never been wired into any real Spring context
+# since it was introduced in Sprint 24 — only its unit tests (which construct it directly,
+# bypassing Spring's discovery entirely) ever exercised it. Verified empirically: a real
+# `-Dspring.profiles.active=prod` boot with no secrets configured booted successfully (and logged
+# the ephemeral-key warnings) both before this fix and with the .imports file alone; only this
+# spring.factories registration makes the real boot abort as documented.
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.brika.platform.config.ProdEnvironmentValidator

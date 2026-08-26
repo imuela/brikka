@@ -1,6 +1,7 @@
 package com.brika.platform.auth.web;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.brika.platform.auth.UserCredentialService;
@@ -217,6 +218,25 @@ class UserAuthEndpointsIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new RefreshApiRequest(refreshToken))))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void logoutWithMissingBodyReturnsBadRequestNotInternalError() throws Exception {
+    // Sprint 40: reproduces the documented bug — a missing @RequestBody used to fall through
+    // GlobalExceptionHandler's generic catch-all as a 500 INTERNAL_ERROR. Real endpoint, no mock.
+    // logout is permitAll (see class Javadoc), so no Authorization header is needed here either.
+    mockMvc
+        .perform(post("/api/v1/auth/logout"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
+  void loginWithMalformedJsonReturnsBadRequestNotInternalError() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("{not"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
   }
 
   @Test

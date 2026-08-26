@@ -2003,3 +2003,225 @@ Evidencia acumulada, basada en ejecución real, no en optimismo:
 por este sprint con evidencia real en cada punto — no hay ningún P0, ningún P1 bloqueante, ningún
 CRITICAL/HIGH sin resolver, ninguna inconsistencia de configuración de producción sin corregir, y
 la CI real del commit final está verde.
+
+## Adenda Sprint 40 — Cierre oficial de Brikka V1.0.0 y preparación reproducible de despliegue
+
+**Contexto:** Sprint de cierre formal, partiendo de `c18ddec`. Objetivos: corregir el único bug
+HTTP documentado pendiente, formalizar la release 1.0.0, preparar (sin desplegar) la configuración
+de servidor, y validar el procedimiento reproducible completo desde un estado detenido.
+
+**Discrepancia encontrada al reanudar (Regla 0):** el prompt de este sprint llegó truncado en el
+primer mensaje; se procesó la Regla 1 con lo disponible y se encontró que `docs/12_DECISION_LOG.md`
+tenía cambios sin commitear (las secciones "Gate 19"/"Gate 17" del propio cierre de Sprint 39,
+escritas después del `git add`+`commit` de aquel sprint). Causa raíz: orden de ejecución, no un
+error de contenido — texto fiel a lo ya reportado, sin cambios de código. Commiteado por separado
+(`c1b135b`) antes de tocar nada del Sprint 40, dejando el árbol limpio.
+
+**Bloque A — Bug HTTP (`HttpMessageNotReadableException` → 500).**
+- **Gate 1/2 — Reproducción y alcance real.** Backend real arrancado (jar limpio, perfil `local`,
+  seed activo) contra Postgres real. Reproducido con HTTP real en **3 endpoints distintos**, no
+  solo logout: `POST /api/v1/auth/logout` sin body, `POST /api/v1/auth/login` con JSON malformado,
+  `POST /api/v1/users` sin body — los tres devolvían `HTTP 500 {"code":"INTERNAL_ERROR",...}`, con
+  la misma excepción real en el log del servidor:
+  `org.springframework.http.converter.HttpMessageNotReadableException`. Auditoría de impacto: 32
+  endpoints declaran `@RequestBody` en todo el backend; **0 usos de `@Valid`** en el código (Bean
+  Validation no existe en este proyecto, así que `MethodArgumentNotValidException` no es un riesgo
+  real aquí). `GlobalExceptionHandler` ya tenía un patrón establecido y reutilizable
+  (`ErrorResponse(code, message, requestId)`) para exactamente este tipo de "error de entrada del
+  cliente, no fallo del servidor" (ver el handler de `DataIntegrityViolationException`).
+- **Gate 3 — Corrección mínima.** Añadido `@ExceptionHandler(HttpMessageNotReadableException.class)`
+  a `GlobalExceptionHandler`, devolviendo `400 BAD_REQUEST` con
+  `ErrorResponse("INVALID_REQUEST", "The request body is missing or malformed.", requestId)` —
+  reutiliza el contrato existente, no crea un formato nuevo. Ningún controlador modificado.
+  **Validado con las mismas 3 reproducciones reales**: los tres → `400` con el body esperado. Un
+  payload válido de logout sigue devolviendo `204`. Un error interno real no relacionado
+  (`GET /api/v1/users/me`, conversión de tipo de UUID) sigue devolviendo `500` sin cambios — la
+  corrección no ensancha el catch-all ni oculta fallos reales.
+- **Gate 4 — Tests de regresión reales.** `UserAuthEndpointsIT` (Testcontainers, HTTP real vía
+  MockMvc, sin mocks del contrato): 2 tests nuevos (`logoutWithMissingBodyReturnsBadRequestNotInternalError`,
+  `loginWithMalformedJsonReturnsBadRequestNotInternalError`) — el caso "payload válido sigue
+  funcionando" ya estaba cubierto por el test preexistente `logoutInvalidatesTheRefreshToken`, no
+  duplicado. Además, `GlobalExceptionHandlerTest` (unitario, nuevo): confirma que el catch-all
+  genérico (`handleUnexpected`) sigue devolviendo `500`/`INTERNAL_ERROR` para una excepción no
+  relacionada, sin ningún cambio de comportamiento fuera del caso corregido. Ejecutado
+  aisladamente antes de la regresión completa: `UserAuthEndpointsIT` 11/11,
+  `GlobalExceptionHandlerTest` 2/2, 0 fallos.
+
+**Bloque B — Regresión completa (Gates 5-7), números frescos, no reutilizados.**
+Primer intento de `mvn clean verify` falló en `spotless:check` (Javadoc de
+`GlobalExceptionHandlerTest` sin el formato exacto del auto-formateador — mismo patrón recurrente
+de Sprints 37/38/39); corregido con `spotless:apply`, reconfirmado limpio, y **repetida la
+ejecución completa desde limpio**, no se acepta el resultado del intento fallido.
+- Backend (`mvn clean verify`): **108/108 tests unitarios, 410/410 tests de integración, 0
+  failures, 0 errors** (518/518 total — 516 de Sprint 39 + 4 nuevos de este bloque), jar generado,
+  `spotless:check` verde.
+- Frontend: `npm ci` limpio (0 vulnerabilidades); `ng lint` limpio; `ng test --watch=false` →
+  **462/462, 95/95 ficheros** (sin cambios de código frontend este sprint, número idéntico al de
+  Sprint 39 porque es una ejecución fresca del mismo código, no un número reutilizado sin
+  ejecutar); `ng build` → OK.
+- AI Worker: `python3 -m unittest tests.test_main` → **24/24 OK**, ejecución fresca.
+
+**Bloque C — Formalización de release.**
+- **Gate 8 — Auditoría de versión.** Único mecanismo de versión real y ya conectado:
+  `backend/pom.xml` `<version>` (se propaga al manifest del jar y aparece en el banner real de
+  arranque de Spring Boot — visible en todos los logs de este sprint como
+  "Started BrikaApplication v0.0.1-SPRINT1", una versión de marcador de Sprint 1 nunca actualizada
+  en ~39 sprints) y `frontend/package.json` `"version"` (convención npm estándar, no consumida por
+  la UI). Sin `management.info`/build-info de Actuator, sin otro fichero de versión. No se ha
+  introducido un mecanismo nuevo — se han actualizado los dos existentes a `1.0.0`. Aprovechando
+  que se tocaba `pom.xml`, se ha corregido también su `<description>`, que seguía describiendo el
+  proyecto como "Sprint 1 foundation (Flyway/persistence config, no business logic)" — una
+  contradicción documental evidente encontrada de paso, corregida junto con la versión por estar
+  en el mismo fichero y el mismo cambio mínimo.
+- **Gate 9/10 — Documentación de release.** Creados `docs/30_RELEASE_V1.0.0.md` (definición formal:
+  qué incluye/no incluye, estado de CI/seguridad, remite al decision log para no duplicar deuda
+  técnica) y `CHANGELOG.md` en la raíz (producto y técnico, derivados del inventario real de
+  módulos backend/frontend, no de una lista aspiracional — verificados con `ls` sobre
+  `backend/src/main/java/com/brika/platform/` y `frontend/src/app/features/`).
+
+**Bloque D — Gate 11: inventario explícito de deuda técnica (solo pendientes reales y ya
+demostrados, ninguna hipótesis).**
+
+| ID | Prioridad | Descripción | Evidencia | Impacto | Motivo por el que no bloquea V1 | Acción futura |
+|---|---|---|---|---|---|---|
+| DT-1 | P3 | 6 CVE MEDIUM en dependencias Java transitivas (`jackson-databind`, `netty-codec-http`, `log4j-api`, `bouncycastle`) | Trivy, Sprints 38/39, cada CVE verificada individualmente contra el código real | Ninguno demostrado — ninguna ruta de código ejercita las funciones vulnerables (sin `@JsonView`, sin Netty async, sin `log4j-core`, sin LDAP) | No explotable en el uso real de la aplicación; Spring Boot 3.5.16 ya es el último parche estable | Revisar cuando Spring Boot publique un parche que actualice las versiones ancladas |
+| DT-2 | P3 | Ningún job de CI construye ni escanea la imagen Docker `frontend` (solo `backend`) | `.github/workflows/ci.yml` auditado en Sprint 39, sin discrepancia respecto a lo que declara — es una ausencia de cobertura, no un fallo | La imagen `frontend` solo se escanea manualmente (última vez: Sprint 39, D39-4, 0 CRITICAL/HIGH) | No bloqueante; el escaneo manual ya demostró 0 CRITICAL/HIGH en la imagen actual | Añadir un job `frontend-docker` en `ci.yml` simétrico al de `backend-docker`, en un sprint de infraestructura dedicado (ampliar el pipeline no es corrección mínima) |
+
+Ningún hallazgo nuevo de deuda técnica ha surgido en este sprint más allá de los dos ya conocidos
+de Sprints 38/39 — el bug HTTP documentado (Bloque A) queda corregido, no pasa a esta tabla.
+
+**Bloque E — Gate 14 (fail-closed): hallazgo crítico real, tratado con el protocolo de la Regla 0.**
+
+**Qué esperábamos:** que `ProdEnvironmentValidator`, ya documentado como "fail-closed" desde
+Sprint 24 y con 7 tests unitarios verdes (ampliados a 7 en Sprint 39, D39-5), abortase el arranque
+real de un backend en perfil `prod` sin secretos configurados.
+
+**Qué ocurre realmente:** un backend real arrancado con `-Dspring.profiles.active=prod` y ningún
+secreto configurado **arrancó con éxito** — generó pares de claves JWT efímeras (el aviso que el
+propio validador existe para prevenir en PROD) y expuso `/actuator/health` con normalidad. Repetido
+tres veces con variaciones para descartar causas alternativas.
+
+**Evidencia:** `java -Dspring.profiles.active=prod -jar target/brika-backend-*.jar` real, tres
+builds distintas:
+1. Jar original (registro en `META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor`,
+   sin sufijo `.imports`) → arranca, sin abortar.
+2. Jar reconstruida tras renombrar el fichero a `...EnvironmentPostProcessor.imports` (hipótesis
+   inicial: solo faltaba el sufijo moderno) → **con build limpia** (`mvn clean package`, para
+   descartar el fichero antiguo residual de una build previa) → **sigue arrancando, sin abortar**.
+   Hipótesis descartada con evidencia, no con suposición.
+3. Jar reconstruida con `META-INF/spring.factories` (mecanismo clásico) → **aborta correctamente**,
+   `exit code 1`, con el mensaje completo de fail-closed listando las 10 variables obligatorias
+   (incluidas las 6 de D39-5).
+
+**Causa raíz demostrada:** las implementaciones de `EnvironmentPostProcessor` se descubren vía el
+mecanismo clásico `META-INF/spring.factories` (`SpringFactoriesLoader`), no vía
+`META-INF/spring/<FQN>.imports` — ese mecanismo más nuevo es específico de clases
+`@AutoConfiguration`. El fichero de registro original tenía además el nombre equivocado (sin el
+sufijo `.imports` que ese otro mecanismo sí habría exigido), pero **incluso corrigiendo el
+nombre**, el mecanismo en sí era el incorrecto para este tipo de componente. Nunca ha existido un
+`META-INF/spring.factories` en este proyecto. Resultado: **`ProdEnvironmentValidator` no ha estado
+realmente conectado a ningún contexto Spring real desde su introducción en Sprint 24** — todos los
+tests que lo daban por probado (`ProdEnvironmentValidatorTest`, incluida su ampliación de Sprint 39)
+lo instancian directamente (`new ProdEnvironmentValidator()`), evitando por completo el mecanismo
+de descubrimiento de Spring, así que nunca detectaron que el registro real estaba roto.
+
+**Impacto:** crítico. Cualquier despliegue real en `prod` de cualquier sprint desde el 24 hasta
+`c18ddec` habría arrancado con éxito aunque faltasen TODAS las claves JWT, las credenciales de
+MinIO/RabbitMQ/base de datos, el SMTP, o con CORS abierto — exactamente el escenario que el
+validador se diseñó para impedir, sin ninguna protección real. No consta que esto haya ocurrido en
+un entorno real (el proyecto nunca se ha desplegado fuera de local), pero la protección documentada
+y validada por tests era una ilusión.
+
+**Corrección aplicada** (evidencia clara, corrección mínima — Gate 14 lo autoriza explícitamente):
+eliminado el fichero de registro incorrecto; creado
+`backend/src/main/resources/META-INF/spring.factories` con la entrada correcta. **Validado tres
+veces en ejecución real**: (a) sin secretos → aborta con los 10 mensajes esperados; (b) con
+secretos de relleno no-PKCS8 → pasa el fail-closed y falla más tarde, correctamente, al decodificar
+la clave (capa distinta, error distinto, prueba de que el fail-closed ya no bloquea antes de
+tiempo); (c) con claves JWT reales generadas por `scripts/generate-jwt-keys.sh` y las 10 variables
+correctas → arranque limpio, `HTTP 200` en `/actuator/health`, **0 avisos de clave efímera**.
+
+Clasificado **P0** — el hallazgo más significativo de todo este ciclo de sprints de cierre. Se
+añade a la tabla de deuda técnica como DT-3, ya cerrado (no es deuda pendiente, pero se documenta
+por su severidad):
+
+| ID | Prioridad | Descripción | Evidencia | Impacto | Estado |
+|---|---|---|---|---|---|
+| DT-3 | P0 (corregido) | `ProdEnvironmentValidator` nunca estuvo registrado en Spring vía un mecanismo real desde Sprint 24 | 3 arranques reales `-Dspring.profiles.active=prod`, antes/después | El fail-closed de PROD nunca fue real en ningún despliegue anterior | Corregido y validado en este sprint (`META-INF/spring.factories`) |
+
+**Gate 12 — Auditoría del procedimiento documentado.** `GETTING_STARTED.md`/`10_DEVOPS.md`/
+`23_CLOUD_DEPLOYMENT_SPECIFICATION.md`/`.env.example`/`docker-compose.yml`/Dockerfiles/
+`scripts/generate-jwt-keys.sh` leídos de extremo a extremo contra el flujo real (repo limpio →
+config → secretos → claves JWT → compose → infra → backend → frontend → healthchecks → smoke
+test). Única discrepancia real encontrada: la sección "Estado del proyecto" al final de
+`GETTING_STARTED.md` seguía describiendo el proyecto como "en auditoría final tras el cierre de
+Sprint 22" — corregida para reflejar el cierre real de V1.0.0 en Sprint 40, remitiendo al nuevo
+`30_RELEASE_V1.0.0.md` en vez de duplicar contenido. `SEED_ENABLED`/`INTERNAL_AUTH_BOOTSTRAP_SECRET`
+verificados: sí están correctamente conectados a sus propiedades Spring (a diferencia del patrón
+D38-3), sin discrepancia.
+
+**Gate 13 — Clasificación real de variables (`.env.example`, 33 variables reales).**
+- **Obligatorias en PROD** (las 10 que `ProdEnvironmentValidator` exige tras el fix de este
+  sprint): `SELF_AUTH_INTERNAL_SIGNING_KEY_PEM`, `SELF_AUTH_PORTAL_SIGNING_KEY_PEM`, `SMTP_HOST`,
+  `CORS_ALLOWED_ORIGINS`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_USER`,
+  `RABBITMQ_PASSWORD`, `DB_USER`, `DB_PASSWORD` (más `SPRING_PROFILES_ACTIVE=prod` para activar el
+  perfil). Ninguna tiene un valor de desarrollo aceptable en PROD.
+- **Generadas automáticamente**: ninguna variable de entorno se genera sola — las claves JWT se
+  generan con `scripts/generate-jwt-keys.sh` (acción explícita del operador, no automática); el
+  bucket de MinIO lo crea el contenedor de un solo uso `storage-init` al arrancar, no es una
+  variable de entorno.
+- **Solo desarrollo, nunca en PROD**: `SEED_ENABLED`, `EMAIL_TRANSPORT=smtp` hacia Mailpit (en PROD
+  el perfil fija `smtp` real, no Mailpit), `MAILPIT_SMTP_PORT`/`MAILPIT_HTTP_PORT`,
+  `SPRING_PROFILES_ACTIVE=local`/`test`, cualquier valor `localhost` en `CORS_ALLOWED_ORIGINS`,
+  `POSTGRES_PORT`/`RABBITMQ_PORT`/`MINIO_API_PORT` con los puertos no estándar elegidos para evitar
+  colisiones locales (en PROD normalmente no expuestos al host en absoluto).
+
+**Gate 15 — Procedimiento reproducible.** `GETTING_STARTED.md` ya documenta, paso a paso y sin
+comandos ocultos, el camino completo de servidor limpio a Brikka funcionando (secciones 1-6, ver
+Gate 12). No se ha creado ninguna automatización nueva: los pasos ya son claros, secuenciales y
+verificables, y el Bloque F de este mismo sprint (Gates 16-20) ejecuta exactamente ese
+procedimiento sin ningún paso manual no documentado, demostrando que es suficiente tal cual está.
+Introducir un script adicional sin una necesidad demostrada iría contra la Regla de "no inventar
+infraestructura que no sea necesaria".
+
+**Nota de proceso:** durante el Gate 17 sobrescribí `.env` con `cp .env.example .env` sin comprobar
+antes su contenido — un error real, no una acción deliberada. El usuario confirmó que sí había un
+valor distinto en el `.env` original (no se ha determinado cuál); no hay copia de seguridad ni
+forma de recuperarlo. Instrucción explícita del usuario tras el incidente: no volver a sobrescribir
+`.env`, no reconstruir ni inventar el secreto perdido, y si durante el Bloque F falta una variable
+imprescindible, detenerse e indicar solo el nombre de la variable, nunca su valor. Ninguna de las
+comprobaciones de este bloque ha necesitado detenerse por esta causa.
+
+**Bloque F — Gates 16-20: simulación real desde parado, siguiendo exclusivamente el procedimiento
+documentado.**
+- **Gate 16**: `docker compose down` real (4 contenedores + red eliminados); verificado
+  empíricamente (`docker compose ps`/`docker ps`/`lsof` en 4200/8080/8081) — todo vacío/libre antes
+  de continuar.
+- **Gate 17**: `docker compose up -d` real; los 4 servicios alcanzan `healthy`.
+- **Gate 18 — hallazgo real encontrado y corregido.** `./mvnw spring-boot:run`, ejecutado
+  literalmente como lo documentaba `GETTING_STARTED.md` (sin exportar `.env` al shell primero),
+  arrancó con el perfil Spring **`default`**, no `local` — confirmado en el log
+  (`"The following 1 profile is active: default"` en el primer intento) y con el **seed reproducible
+  sin ejecutarse** (`DevSeedRunner` nunca corre porque `brika.seed.enabled` no llega a resolverse a
+  `true` sin el perfil `local`). Causa raíz: ningún mecanismo de la aplicación ni de `mvnw` lee
+  `.env` automáticamente — solo `docker compose` lo hace — y la documentación nunca indicaba
+  exportarlo antes del backend. **Corrección**: añadida una instrucción explícita en
+  `GETTING_STARTED.md` §1 (`set -a && source .env && set +a` antes de `./mvnw spring-boot:run`).
+  **Revalidado con el procedimiento corregido**: perfil `local` activo, 26 migraciones al día, seed
+  aplicado, **0 avisos de clave efímera** (claves JWT generadas con `scripts/generate-jwt-keys.sh`,
+  nunca en `.env`, exportadas solo para el proceso).
+- **Gate 19**: `npm start` real, `http://localhost:4200/` → `HTTP 200`; página de login real
+  confirmada por navegador.
+- **Gate 20 — smoke test de negocio, 11 puntos, todos con HTTP/navegador real, sin mocks:**
+  1. `GET /actuator/health` → `200`. 2. Login real (`superadmin@brika.local`) → `accessToken` real.
+  3. `GET /api/v1/companies` autenticado → `200`. 4. `POST /api/v1/auth/refresh` → `200`, nuevo par
+  de tokens. 5. `POST /api/v1/auth/logout` → `204`. 6. `GET /api/v1/cases` → `200`, 13 casos reales.
+  7. Documento real del caso → URL presignada real de MinIO → descarga real →
+  `<html><body><h1>DNI de prueba Sprint 36</h1></body></html>` (contenido real recuperado). 8/9.
+  **Reinicio real del backend** (proceso detenido, puerto 8080 confirmado libre, reiniciado por el
+  mismo procedimiento documentado) — el `accessToken` obtenido **antes** del reinicio, usado
+  **después**, contra `GET /api/v1/companies` → `HTTP 200` con los mismos datos reales. 10. RBAC:
+  MANAGER ve **1 sola empresa** (la suya). 11. Cross-tenant: MANAGER accediendo a un caso de otro
+  tenant → `HTTP 404` (enmascarado). Adicionalmente, login real a través del navegador
+  (`superadmin@brika.local`) → dashboard real con datos reales (10 operaciones activas, actividad
+  reciente real) — confirmación visual de la integración completa frontend↔backend.

@@ -19,6 +19,17 @@ cp .env.example .env
 
 Edita `.env` si necesitas cambiar puertos o credenciales locales. Nunca commitees `.env`.
 
+`docker compose` lee `.env` automáticamente (misma carpeta que `docs/docker-compose.yml` — en
+realidad la raíz del repo, ver paso 2), pero **el backend y el frontend no lo leen solos**: para
+que `./mvnw spring-boot:run` (paso 4) arranque con el perfil `local` (seed de usuarios de
+desarrollo incluido) en vez del perfil `default` de Spring, exporta `.env` a tu shell antes de
+arrancarlo (Sprint 40 audit: verificado empíricamente — sin este paso, `SPRING_PROFILES_ACTIVE`
+nunca llega al proceso y el seed reproducible de §5 no se ejecuta):
+
+```bash
+set -a && source .env && set +a
+```
+
 ## 2. Levantar la infraestructura
 
 El `docker-compose.yml` vive en `docs/` (`docs/docker-compose.yml`) desde el cierre de Sprint 22.
@@ -230,7 +241,7 @@ docker compose -f docs/docker-compose.yml down -v
 
 ## Estado del proyecto
 
-Brika V1 se encuentra en la auditoría final tras el cierre de Sprint 22 (autenticación propia,
-Keycloak retirado). La aplicación — backend, frontend y Portal Cliente — es funcional de extremo a
-extremo en local. Para el estado documental, de tests y de despliegue, ver `10_DOCUMENTATION_STATUS.md`,
-`11_TESTING.md`, `28_SPRINT_22_IMPLEMENTATION_REPORT.md` y el roadmap `09_ROADMAP.md`.
+Brika V1.0.0 — cierre oficial en Sprint 40. La aplicación — backend, frontend y Portal Cliente —
+es funcional de extremo a extremo en local, con CI real verde, imágenes Docker non-root, y
+validación fail-closed de producción. Ver `30_RELEASE_V1.0.0.md` para la definición formal de la
+release y `12_DECISION_LOG.md` para el detalle sprint a sprint.
