@@ -1645,3 +1645,315 @@ puerto no privilegiado) que no se pueden validar con el mismo rigor en esta sesi
 build+run+comprobación de la ruta HTTP real del frontend en contenedor). Documentado como deuda
 técnica de bajo riesgo — el propio proceso maestro root de nginx es una superficie de ataque
 mucho más pequeña y bien auditada que un JAR de aplicación propio corriendo como root.
+
+## Adenda Sprint 39 — Cierre de release y validación reproducible
+
+**Contexto:** Sprint 39 demuestra, con evidencia real y reproducible, que `main` está preparado
+como release: CI real verde, build reproducible desde limpio, imágenes Docker válidas, JWT
+persistente de extremo a extremo, y una decisión de readiness basada en evidencia.
+
+**Gate 2 — CI real de `4491a09` (commit de cierre de Sprint 38), resultado confirmado.**
+El propio informe de Sprint 38 se cerró con el workflow todavía `in_progress`. Comprobado ahora
+con `gh run watch 32899319495 --exit-status` (espera controlada y acotada, no polling manual): el
+run terminó con `conclusion: "success"` — **verde completo, los 3 jobs**:
+- `Backend (build, format check, tests)`: ✓ en 6m40s (incluye `mvn verify` con Testcontainers y el
+  format check de spotless).
+- `Frontend (lint, build, tests)`: ✓ en 49s.
+- `Backend Docker (build, healthcheck, security scan)`: ✓ en 2m19s — **incluye el paso "Trivy
+  vulnerability scan", verde** — la prueba definitiva de que D38-1 (Sprint 38) está resuelto en CI
+  real, no solo verificado en local: antes de ese fix, este job se saltaba (`needs: backend`, y
+  `backend` fallaba) en cada uno de los últimos 5 pushes a `main`.
+
+Única anotación: aviso de GitHub Actions sobre Node.js 20 deprecado en `actions/checkout@v4`/
+`actions/setup-node@v4` (el runner los fuerza a Node.js 24 automáticamente) — advertencia de la
+plataforma sobre las propias actions de terceros, no un fallo del pipeline ni algo bajo control de
+este proyecto; no bloquea nada. Documentado como observación P3.
+
+**Gate 3 — Auditoría del pipeline (`ci.yml`), sin discrepancias reales que corregir.**
+Revisado línea por línea contra el comportamiento real: triggers (`push main` + `pull_request`),
+`needs: backend` en `backend-docker` (correcto y ahora demostrado no-silencioso), servicios
+declarados (`rabbitmq` en el job `backend` — necesario porque `NotificationAsyncIntegrationIT` usa
+un broker real, no Testcontainers, por la propia limitación de RAM ya documentada en el comentario
+del workflow; `postgres` en `backend-docker` — para el smoke-test de arranque de la imagen, no
+relacionado con Testcontainers), caché de Maven/npm, propagación de fallos (`exit-code: "1"` en
+Trivy). Ninguna discrepancia real encontrada entre lo que el YAML declara y lo que efectivamente
+se ejecutó en el run verde de `4491a09`. **Único gap real observado (no una discrepancia, una
+ausencia de cobertura):** no existe ningún job que construya y escanee la imagen `frontend`
+(nginx) en CI — solo se construye y escanea `backend`. Añadir ese job sería ampliar el pipeline,
+no corregir un defecto demostrado; documentado como mejora futura, no corregido en este sprint
+(coherente con "no ampliar alcance").
+
+**Gate 4 — Build reproducible desde limpio.** Entorno detenido y reiniciado desde cero
+(`docker compose -f docs/docker-compose.yml up -d` con los 4 servicios sanos) antes de lanzar,
+en paralelo, `mvn clean verify` (backend) y `npm ci && ng lint && ng test -- --watch=false`
+(frontend), más `python3 -m unittest` (ai-worker). Resultados reales, frescos, no reutilizados:
+- **ai-worker**: `Ran 24 tests in 22.322s` — **24/24 OK**.
+- **Frontend**: `ng lint` limpio ("All files pass linting"); `npm ci` limpio (487 paquetes, 0
+  vulnerabilidades); `ng test --watch=false` — **462/462 tests, 95/95 ficheros, exit code 0**
+  (67.52s).
+- **Backend**: `mvn clean verify` lanzado desde limpio contra Testcontainers reales (Postgres +
+  MinIO, ya con el tag corregido de D39-1 — la ejecución incluye por tanto la validación de esa
+  corrección) más el RabbitMQ real de docker-compose para `NotificationAsyncIntegrationIT`.
+  Resultado real (`target/surefire-reports` + `target/failsafe-reports`, exit code 0): **105/105
+  tests unitarios, 408/408 tests de integración, 0 failures, 0 errors, 0 skipped** (513/513
+  total). Al final del log aparece una traza `PSQLException: Connection to localhost:... refused`
+  y `[ERROR] Surefire is going to kill self fork JVM` — ambas ocurren **después** de que todos los
+  tests ya hubieran pasado, durante el apagado del último fork/contenedor; es el mismo patrón de
+  Ryuk-desactivado ya documentado en Sprint 36 (contenedores reciclados mientras Hikari intenta una
+  validación de conexión de cierre), no una regresión nueva ni un test fallido.
+
+**Gate 5 — Consistencia de versiones y dependencias.**
+Comparado código real, Dockerfiles, CI y `docs/docker-compose.yml`:
+- Java: `21` idéntico en `backend/pom.xml` (`<java.version>`), `.github/workflows/ci.yml`
+  (`java-version: "21"`) y `backend/Dockerfile` (`maven:3.9-eclipse-temurin-21` /
+  `eclipse-temurin:21-jre-alpine`). Sin discrepancia.
+- Node: `22` idéntico en `frontend/Dockerfile` (`node:22-alpine`) y CI (`node-version: "22"`). El
+  Node v24.19.0 de este shell local es del entorno interactivo del operador, no una versión
+  declarada por el proyecto — no es una inconsistencia del repositorio.
+- Angular: `@angular/core` `^22.1.0` vs `@angular/cli` `^22.1.4` — versiones compatibles dentro del
+  mismo major/minor, sin contradicción.
+- PostgreSQL (`postgres:16-alpine`) y RabbitMQ (`rabbitmq:3.13-management-alpine`): tags idénticos
+  byte a byte entre `docs/docker-compose.yml` y los dos jobs de CI que los declaran. Sin
+  discrepancia.
+- **D39-1 (P2, corregido): MinIO — versión de test desincronizada de la versión real.**
+  `docs/docker-compose.yml` fija el servicio `brika-minio` en
+  `minio/minio:RELEASE.2025-09-07T16-13-09Z` (la versión que developers y prod usan realmente),
+  pero los 10 ficheros de test que usan `MinIOContainer` (Testcontainers) estaban fijados en
+  `minio/minio:RELEASE.2024-01-16T16-07-38Z` — una etiqueta ~20 meses más antigua. Esto significa
+  que ninguna de las 10 IT que ejercitan almacenamiento (`DocumentServiceIT`, `DocumentEndpointsIT`,
+  `EngagementContractEndpointsIT`, `ViabilityDossierEndpointsIT`,
+  `AiDocumentExtractionEndpointsIT`, `AiExtractionCallbackEndpointsIT`,
+  `HttpDispatchTransactionRaceIT`, `NotificationDocumentEventIT`, `PortalEndpointsIT`,
+  `CrossModuleE2EIT`) valida realmente contra la versión de MinIO que corre en desarrollo/CI/prod.
+  **Corrección** (proporcionada, mecánica, de bajo riesgo): las 10 referencias se han actualizado a
+  `minio/minio:RELEASE.2025-09-07T16-13-09Z`, con un comentario explicativo añadido en
+  `DocumentServiceIT.java` (fichero canónico del patrón `MinIOContainer`, referenciado por los
+  demás). **Validación**: pendiente de confirmar con la ejecución completa de `mvn clean verify`
+  del Gate 18 (tras esta corrección) — no se lanza una segunda ejecución completa de Testcontainers
+  en paralelo con la del Gate 4 para no competir por los recursos limitados de la misma VM de
+  colima (mismo criterio de precaución ya aplicado en Sprint 38 con Ollama/Trivy).
+- `frontend/package.json` no declara `"engines"` y no hay una versión de Python documentada para
+  `ai-worker` en `GETTING_STARTED.md`. Evaluado y descartado como hallazgo: ninguna de las dos
+  ausencias produce una contradicción demostrable (no hay un sitio que afirme una versión distinta
+  a la que realmente se usa) — solo la ausencia de un guardarraíl adicional, fuera del alcance de
+  "corregir inconsistencias demostradas" (Regla 2, no ampliar alcance).
+
+**Gate 6 — Build real de imágenes Docker (backend + frontend), desde limpio (`--no-cache`).**
+- **Backend** (`brika-backend:sprint39`, 395MB): build limpio correcto. Contenedor real
+  levantado contra el `brika-postgres` real de `docs/docker-compose.yml` (misma red
+  `brika_default`, sin variables de self-auth — no es el objetivo de este gate, ver Gate 8):
+  `id` dentro del contenedor → `uid=100(brika) gid=101(brika)` (mantiene el fix D38-5, non-root,
+  re-verificado sobre la imagen recién construida, no reutilizada). `/actuator/health` → real
+  `{"status":"UP","groups":["liveness","readiness"]}` tras arrancar y aplicar Flyway (26
+  migraciones, "up to date"). Arranque real: **154s** hasta "Started BrikaApplication" — lento
+  pero consistente con las limitaciones de esta VM de colima (1961 MB RAM) ya documentadas en
+  sprints anteriores; no es un defecto del código ni de la imagen, solo del entorno local.
+- **D39-2 (P2, corregido y re-verificado): frontend Docker corría como root sin justificación
+  suficiente.** Sprint 38 dejó la imagen `frontend` sin `USER`, razonando que nginx "baja
+  privilegios internamente" — cierto solo para los *worker processes*, no para el proceso maestro,
+  que en la imagen oficial se queda en root únicamente para poder enlazar el puerto 80. Investigado
+  empíricamente este sprint (no reaceptado a ciegas): concediendo la capability
+  `cap_net_bind_service` al binario `nginx` (vía `setcap`, paquete `libcap`) y ajustando la
+  propiedad de `/usr/share/nginx/html`, `/var/cache/nginx`, `/run` y `/etc/nginx/conf.d` a
+  `nginx:nginx`, el proceso maestro puede enlazar el puerto 80 sin ser root. Aplicado a
+  `frontend/Dockerfile` (ver comentario D39-2 en el propio fichero) y **validado sobre la imagen
+  real recién construida** (`brika-frontend:sprint39`, 81.3MB, build limpio `--no-cache`): `id`
+  dentro del contenedor → `uid=101(nginx)`; `ps aux` → **tanto el proceso maestro (PID 1) como los
+  dos worker processes** se ejecutan como `nginx`, ninguno como root; `curl` real al puerto 80 →
+  `HTTP 200`, contenido servido correctamente (37573 bytes). No fue necesario remapear el puerto ni
+  tocar `docs/docker-compose.yml` ni la documentación — corrección pequeña, autocontenida y
+  totalmente validada, tal como exige el gate.
+
+**Gate 7 — Escaneo final de imágenes con Trivy (backend + frontend).**
+*Nota de proceso: el sprint se pausó a mitad de este gate. Al reanudar se recuperó el estado real
+con `git status`/`git diff`/`git diff --check` (limpio, sin sorpresas: exactamente los ficheros de
+D39-1/D39-2 más los Dockerfiles) antes de aceptar nada como cerrado, tal como exige la regla de
+preservación del trabajo.*
+
+- **Backend — D39-3 (P1, corregido y re-verificado con dos iteraciones).** Primer escaneo del
+  `brika-backend:sprint39` construido antes de la pausa: **CRITICAL 0, HIGH 3, MEDIUM 20** —
+  `libexpat`/`p11-kit`/`p11-kit-trust` (HIGH) y `sqlite-libs` (MEDIUM) por detrás de las versiones
+  ya publicadas en el mismo repo `v3.23` que la imagen base ya usa (`apk policy` lo confirma).
+  Ninguno de los cuatro paquetes es invocado por el código de la aplicación (sin parseo XML vía
+  expat, sin PKCS#11, sin SQLite — el único almacén es Postgres); se actualizaron igualmente porque
+  el fix estaba trivialmente disponible. Corrección inicial: `apk upgrade --no-cache libexpat
+  p11-kit p11-kit-trust sqlite-libs`. Reconstruida la imagen y re-escaneada: los cuatro paquetes
+  desaparecieron del informe, pero apareció un **nuevo HIGH no relacionado**:
+  `libssl3`/`libcrypto3`/`openssl` `CVE-2026-14456` (DoS por crecimiento de memoria no acotado en
+  servidor QUIC). Causa raíz investigada explícitamente (regla del gate: "no cerrar sin analizar
+  causa"): la base de datos de vulnerabilidades de Trivy se auto-actualizó entre el primer y el
+  segundo escaneo (log: `[vulndb] Need to update DB` / descarga de 109 MiB) — el CVE es de
+  divulgación reciente y no tiene relación con los paquetes tocados por la corrección; no es una
+  regresión introducida por D39-3. No explotable en este contexto: esta app Java usa su propio
+  stack TLS (JSSE), no llama a OpenSSL nativo, y no hay ningún servidor QUIC en esta imagen. Con
+  fix ya disponible en el mismo repo confiable, se sustituyó la lista explícita por
+  `apk upgrade --no-cache` sin argumentos (mismo criterio de riesgo mínimo, evita perseguir un
+  objetivo móvil paquete a paquete). Reconstruida de nuevo y escaneada por tercera vez:
+  **resultado final: capa Alpine 0 vulnerabilidades (CRITICAL 0, HIGH 0, MEDIUM 0, LOW 0); capa
+  Java 6 MEDIUM, 0 HIGH, 0 CRITICAL** — los mismos 6 hallazgos jar (`jackson-databind`,
+  `netty-codec-http`, `log4j-api`, `bouncycastle`) ya triados como no explotables en Sprint 38
+  (D38-2), mismas librerías, mismas versiones ancladas en `pom.xml`. **Validación de ejecución real
+  sobre la imagen final**: contenedor levantado contra `brika-postgres` real (red `brika_default`);
+  `id` → `uid=100(brika)` (non-root mantenido); tras ~60s, `/actuator/health` real →
+  `{"status":"UP","groups":["liveness","readiness"]}`; sin errores/excepciones nuevos en los logs
+  atribuibles a la actualización de paquetes del sistema.
+
+- **Frontend — D39-4 (P0, corregido y re-verificado).** Baseline real (imagen construida antes de
+  aplicar el fix, con el mismo Trivy/misma base de datos): **CRITICAL 2, HIGH 33, MEDIUM 46, LOW
+  26 (107 total)** — `libcrypto3`/`libssl3` (`CVE-2026-31789`, heap overflow en certificados X.509
+  de 32-bit), más HIGH en `openssl`, `libxml2`, `musl`, `nghttp2-libs`, `libpng`, `libexpat`,
+  `zlib`, `c-ares`, `curl`, todos ellos por detrás de versiones ya publicadas en el mismo repo
+  `v3.21` que `nginx:1.27-alpine` ya usa (confirmado con `apk policy` paquete a paquete). Corregido
+  con `apk update && apk upgrade --no-cache` antes de bajar privilegios (ver comentario D39-4 en
+  `frontend/Dockerfile`). Reconstruida la imagen (`--no-cache`) y re-escaneada:
+  **resultado: 0 vulnerabilidades de cualquier severidad (CRITICAL 0, HIGH 0, MEDIUM 0, LOW 0)** —
+  de 107 hallazgos a 0. **Validación de ejecución real sobre la imagen final**: `id` →
+  `uid=101(nginx)`; `ps aux` → proceso maestro (PID 1) y ambos worker processes como `nginx`, no
+  root (el fix D39-2 se mantiene tras la actualización de paquetes); entrypoint de nginx completa
+  limpio, incluyendo el paso IPv6 que en la validación de D39-2 quedaba con un aviso de
+  "read-only filesystem" (ya no aparece); `curl` real → `HTTP 200`, 37573 bytes servidos
+  correctamente. Ningún problema de permisos ni de directorios temporales introducido por la
+  actualización de paquetes.
+
+**Gate 7 — conclusión: CRITICAL 0, HIGH 0 en ambas imágenes reales, con evidencia empírica de
+ejecución tras cada corrección.** MEDIUM restante (6, solo en el jar del backend) ya estaba
+documentado y triado en Sprint 38; no se fuerza ninguna actualización de dependencias de aplicación
+sin evidencia de mejora real, conforme a la Regla 2.
+
+**Gate 8 — JWT persistente de extremo a extremo, re-validado desde limpio con el script
+corregido.** Claves regeneradas con `scripts/generate-jwt-keys.sh` (con el fix D38-4 ya aplicado)
+en un directorio temporal fuera del repo; verificación real de formato antes de usarlas —
+reproducida la lógica exacta de `SelfIssuedTokenKeys.decode()` en `jshell`
+(`Base64.getDecoder().decode(...)` → `KeyFactory("RSA").generatePrivate(new
+PKCS8EncodedKeySpec(...))`) → `OK: RSA PKCS#8`, sin asumir que el CLI de `openssl` (que
+autodetecta PKCS1/PKCS8) fuera suficiente prueba. Backend arrancado en real (jar de la build limpia
+de este sprint, `java -jar`, perfil `local`, `brika.seed.enabled=true`) contra el Postgres real de
+`docs/docker-compose.yml`, con `SELF_AUTH_INTERNAL_SIGNING_KEY_PEM`/`SELF_AUTH_PORTAL_SIGNING_KEY_PEM`
+exportadas: **0 apariciones de "ephemeral" en el log de arranque** (antes de D38-3 aparecía
+siempre). Login real (`POST /api/v1/auth/login`, `superadmin@brika.local`) → `accessToken` real
+emitido; probado contra `GET /api/v1/companies` → `HTTP 200` con datos reales. **Reinicio completo
+del proceso** (`kill` + nuevo `java -jar` desde cero, no un reload): arranque limpio, de nuevo 0
+avisos de clave efímera. **Prueba definitiva**: el mismo `accessToken` emitido ANTES del reinicio,
+usado DESPUÉS del reinicio contra `GET /api/v1/companies` → **`HTTP 200`, mismos datos reales** —
+no solo "el aviso desapareció", sino persistencia de validación demostrada con un token real a
+través de un reinicio real. Proceso detenido inmediatamente tras obtener la evidencia; ficheros de
+claves temporales borrados de `/tmp`, nunca estuvieron en el repo (`git status` confirma ausencia
+de cualquier rastro de `.secrets/` o claves).
+
+**Gate 9 — Configuración de producción, auditada desde código real.**
+`ProdEnvironmentValidator` (`EnvironmentPostProcessor`, fail-closed) revisado línea a línea contra
+`application.yml`/`application-prod.yml` reales, buscando exactamente el patrón de D38-3
+(documentación/variable/YAML/código desalineados).
+
+- **D39-5 (P1, corregido y validado con tests reales): el validador fail-closed de PROD no cubría
+  las credenciales de MinIO ni de RabbitMQ, y tampoco las de la base de datos.** A diferencia de
+  las claves JWT/CORS/SMTP (que si faltan, `application.yml` las deja vacías y el validador las
+  detecta), `brika.storage.access-key`/`secret-key` (`MINIO_ROOT_USER`/`PASSWORD`),
+  `spring.rabbitmq.username`/`password` (`RABBITMQ_USER`/`PASSWORD`) y
+  `spring.datasource.username`/`password` (`DB_USER`/`PASSWORD`) tienen en `application.yml` un
+  valor por defecto **no vacío** (`brika`/`brika_dev_password`, el mismo par que usa
+  `docs/docker-compose.yml` en local) — si un despliegue PROD real olvidase fijar esas seis
+  variables de entorno, el backend arrancaría en silencio contra el object storage y el broker (y
+  potencialmente la base de datos) con credenciales de desarrollo conocidas, sin que
+  `ProdEnvironmentValidator` lo detectara, exactamente el tipo de riesgo fail-open que este
+  validador existe para prevenir. **Corrección**: añadidas las 6 variables de entorno en crudo
+  (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `DB_USER`,
+  `DB_PASSWORD`) a la lista de comprobaciones obligatorias — comprobando la variable de entorno en
+  crudo, no la propiedad Spring resuelta (mismo patrón ya usado para `SMTP_HOST`, por la misma
+  razón: la propiedad resuelta nunca está vacía). **Validación real**:
+  `ProdEnvironmentValidatorTest` ampliado con un test dedicado
+  (`prodWithoutStorageBrokerOrDbCredentialsFailsEvenIfEverythingElseIsSet`) y actualizados los
+  tests existentes que antes no configuraban estas variables; `mvn -Dtest=ProdEnvironmentValidatorTest
+  test` → **7/7 tests, 0 failures, 0 errors** (ejecución real, no asumida).
+- Resto de `application-prod.yml` revisado sin más discrepancias reales: `email-transport` fijado
+  a `smtp` a nivel de perfil (no puede quedar en `noop` en PROD, ya cubierto); `seed.enabled: false`
+  fijo; CORS exige valor no vacío sin comodín/localhost (ya cubierto). No se ha forzado ningún
+  cambio adicional sin evidencia de un problema real, conforme a la Regla 2.
+
+**Gate 10 — Sin secretos accidentales.** `git ls-files | grep -iE ".env$|.pem$|.key$|secret|
+credential|.p12$|.pfx$"` → solo coincide con clases legítimas de aplicación cuyo nombre contiene
+"Credential" (`PortalAccountCredentialRepository`, `UserCredentialService`, etc.), ningún fichero
+de secreto real. `git diff --check` limpio. Búsqueda dirigida en el diff actual de patrones de
+clave privada/AKIA/contraseña con valor real → sin hallazgos (solo los valores de prueba
+`s3-password`/`db-password`/`broker-password` del test de D39-5). `.secrets/` confirmado en
+`.gitignore`. Las claves JWT generadas para validar el Gate 8 se generaron fuera del repo
+(`/tmp/jwt-sprint39-test`) y se borraron tras usarlas — nunca estuvieron en el árbol de trabajo.
+
+**Gate 11 — Arranque reproducible del stack, desde parada real.** `docker compose down` real
+(4 contenedores + red eliminados, confirmado por el log) seguido de `docker compose up -d` desde
+cero: los 4 servicios (`brika-postgres`, `brika-rabbitmq`, `brika-mailpit`, `brika-storage`)
+alcanzan `healthy` con comprobación acotada (RabbitMQ, el más lento, en ~8s adicionales, dentro de
+un bucle acotado, no una espera indefinida).
+
+**Gate 12/14 — Smoke test de negocio y generación documental, con HTTP real (sin mocks) contra un
+backend real levantado desde la imagen `brika-backend:sprint39`.**
+- Sin token → `401`. Login real (`superadmin@brika.local`) → `accessToken` real. Clientes → `200`.
+  Empresas → `200`. Casos/expedientes → `200` (13 casos reales, datos de sprints anteriores
+  persistidos en el volumen de Postgres — el `down`/`up` recicla contenedores, no borra datos).
+  Tareas (`GET /api/v1/tasks`, tras corregir mi primer intento de ruta equivocada) → `200`, 4
+  tareas reales. Documentos del caso → `200`, 3 documentos reales. Descarga: `GET
+  /api/v1/documents/{id}/download` → URL presignada real de MinIO; descargada desde un contenedor
+  en la misma red Docker que el backend (la firma SigV4 ata la URL al host `brika-storage:9000`
+  original, así que la descarga se hizo desde dentro de la red, no reescribiendo el host) →
+  contenido real recuperado (`<html><body><h1>DNI de prueba Sprint 36</h1></body></html>`),
+  coincide con el fichero `dni-sprint36.html` esperado. Generación → almacenamiento → descarga
+  demostrado con un flujo real de extremo a extremo. Logout con el payload correcto
+  (`{"refreshToken":...}`) → `204`; el refresh token queda invalidado tras logout → intento
+  posterior de refrescar con él → `401` (confirmado, no asumido).
+- **Hallazgo menor (P3, documentado, no corregido — fuera de alcance de este sprint):** un primer
+  intento de logout sin body (`POST /api/v1/auth/logout` sin JSON) devolvió `HTTP 500` en vez de
+  `400` — `GlobalExceptionHandler` no tiene un `@ExceptionHandler` dedicado para
+  `HttpMessageNotReadableException` (body ausente/malformado), así que cae en el catch-all
+  genérico. Es un gap de contrato API preexistente en todos los endpoints con body obligatorio, no
+  algo introducido por Sprint 39, y corregirlo tocaría el manejador de excepciones compartido de
+  toda la API — más allá del alcance de "corrección mínima demostrada" de este sprint. Documentado
+  como deuda técnica, no oculto.
+
+**Gate 13 — RBAC y multi-tenant de regresión, con HTTP real.**
+SUPERADMIN ve todas las empresas (comprobado en Gate 8); MANAGER autenticado ve **1 sola empresa**
+(la suya) vía `GET /api/v1/companies` → `200`; MANAGER accediendo a un caso de **otro** tenant →
+`404` (enmascarado, no `403`, patrón ya establecido); MANAGER accediendo a **su propio** caso →
+`200`. BROKER intentando `POST /api/v1/users` (crear usuario, fuera de sus permisos) → `403`.
+Sin token, cualquier endpoint protegido → `401`. Ningún resultado inesperado — sin regresión.
+
+**Gate 15 — IA/Worker sin regresión.** `ai-worker` ya se ejecutó en fresco en el Gate 4
+(`python3 -m unittest`, **24/24 OK**). Código de `_resolve_provider`/`AI_PROVIDER` revisado:
+comportamiento `NO_PROVIDER` por defecto se mantiene (sin proveedor aprobado, no se intenta
+inferencia real). Ningún fichero de `ai-worker/` aparece en el diff de este sprint — no se ha
+tocado código de IA, así que no aplica repetir inferencia real de Ollama (>100s), conforme al
+propio gate.
+
+**Gate 16 — Documentación de despliegue vs. código real.** Revisados `docs/10_DEVOPS.md`,
+`docs/GETTING_STARTED.md`, `docs/23_CLOUD_DEPLOYMENT_SPECIFICATION.md`, `.env.example`,
+`scripts/generate-jwt-keys.sh` y los Dockerfiles contra el comportamiento real verificado en los
+gates anteriores.
+- **Contradicción real encontrada (introducida por la propia corrección D39-5 de este sprint, no
+  preexistente):** `docs/10_DEVOPS.md` documentaba el conjunto fail-closed de PROD sin mencionar
+  las nuevas variables `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`/`RABBITMQ_USER`/`RABBITMQ_PASSWORD`/
+  `DB_USER`/`DB_PASSWORD`. **Corregido**: línea actualizada en `10_DEVOPS.md` para reflejar
+  exactamente lo que `ProdEnvironmentValidator` valida ahora — exactamente el tipo de deriva
+  documentación/código que este gate existe para cazar, en este caso generada por el propio sprint
+  y cerrada en el mismo sprint.
+- Ninguna referencia obsoleta encontrada sobre usuario root/no-root de las imágenes Docker ni sobre
+  el puerto del frontend (`docs/10_DEVOPS.md`/`GETTING_STARTED.md`/`23_CLOUD_DEPLOYMENT_SPECIFICATION.md`
+  no hacían ninguna afirmación al respecto que D39-2/D39-3/D39-4 pudieran haber dejado desfasada).
+- `.env.example` ya documentaba `RABBITMQ_USER`/`PASSWORD`/`MINIO_ROOT_USER`/`PASSWORD` como
+  valores de ejemplo de desarrollo (coherente); no se ha reescrito nada más sin evidencia de un
+  problema real, conforme a la Regla 2.
+
+**Gate 18 — Tests finales, números reales tras todos los cambios del sprint.**
+Primer intento de `mvn clean verify` con el código final de D39-5 falló en `spotless:check` (mi
+Javadoc no respetaba el formato exacto del auto-formateador — mismo patrón ya visto en Sprints 37 y
+38); corregido con `mvn spotless:apply`, reconfirmado con `spotless:check` limpio, y **repetida la
+ejecución completa desde limpio** (no se acepta el resultado del intento fallido):
+- **Backend** (`mvn clean verify`, Testcontainers reales + RabbitMQ real de docker-compose):
+  **106/106 tests unitarios, 408/408 tests de integración, 0 failures, 0 errors, 0 skipped**
+  (514/514 total — 513 del Gate 4 + 1 nuevo test de D39-5), jar generado, `spotless:check` verde.
+  Mismo ruido de apagado ya documentado (conexión Postgres cerrada durante el teardown del último
+  fork, Ryuk desactivado) — no afecta al resultado.
+- **Frontend**: `ng lint` → limpio. `ng test --watch=false` → **462/462 tests, 95/95 ficheros**,
+  ejecución fresca (41.44s). `ng build` → compilación completa sin errores,
+  `dist/frontend` generado.
+- **AI Worker**: `python3 -m unittest tests.test_main` → **24/24 OK** (22.7s), ejecución fresca.
+
+Ningún número reutilizado de gates anteriores; todos re-ejecutados tras el cierre de D39-1 a D39-5.

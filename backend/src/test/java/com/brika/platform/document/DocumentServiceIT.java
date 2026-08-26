@@ -47,9 +47,13 @@ class DocumentServiceIT {
           .withUsername("brika_test")
           .withPassword("brika_test");
 
+  // Sprint 39 audit (D39-1): pinned to the same tag as the brika-minio service in
+  // docs/docker-compose.yml so tests validate against the same MinIO version developers and
+  // prod actually run, not an unrelated ~20-month-old tag. Every other MinIOContainer-using IT in
+  // this module uses this same tag for the same reason.
   @Container
   static final MinIOContainer MINIO =
-      new MinIOContainer("minio/minio:RELEASE.2024-01-16T16-07-38Z");
+      new MinIOContainer("minio/minio:RELEASE.2025-09-07T16-13-09Z");
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {

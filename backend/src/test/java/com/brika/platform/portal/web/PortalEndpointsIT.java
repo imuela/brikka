@@ -67,7 +67,7 @@ class PortalEndpointsIT {
 
   @Container
   static final MinIOContainer MINIO =
-      new MinIOContainer("minio/minio:RELEASE.2024-01-16T16-07-38Z");
+      new MinIOContainer("minio/minio:RELEASE.2025-09-07T16-13-09Z");
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {

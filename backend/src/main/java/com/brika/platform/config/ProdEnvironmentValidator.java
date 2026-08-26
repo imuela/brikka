@@ -27,6 +27,16 @@ import org.springframework.util.StringUtils;
  *   <li>Seed reproducible prohibido: {@code brika.seed.enabled} no puede ser {@code true} en PROD.
  *   <li>CORS controlado: {@code brika.security.cors-allowed-origins} no puede quedar vacío, no
  *       puede contener un comodín ni la cadena {@code localhost} (06_SECURITY_SPECIFICATION.md §9).
+ *   <li>Sprint 39 audit (D39-5): {@code MINIO_ROOT_USER}/{@code MINIO_ROOT_PASSWORD}/{@code
+ *       RABBITMQ_USER}/{@code RABBITMQ_PASSWORD}/{@code DB_USER}/{@code DB_PASSWORD} obligatorias —
+ *       {@code application.yml} da a las propiedades Spring correspondientes ({@code
+ *       brika.storage.access-key}/{@code secret-key}, {@code spring.rabbitmq.username}/{@code
+ *       password}, {@code spring.datasource.username}/{@code password}) un valor por defecto no
+ *       vacío ({@code brika}/{@code brika_dev_password}, el mismo par que usa {@code
+ *       docs/docker-compose.yml} en local), así que se comprueban las variables de entorno en
+ *       crudo, no la propiedad resuelta (igual que {@code SMTP_HOST} más arriba) — de lo contrario
+ *       un PROD que olvide fijarlas arrancaría en silencio con credenciales de desarrollo conocidas
+ *       en vez de fallar.
  * </ul>
  *
  * <p>Registrado como {@code EnvironmentPostProcessor} (META-INF/spring/…), corre antes de crear
@@ -51,6 +61,17 @@ public class ProdEnvironmentValidator implements EnvironmentPostProcessor, Order
           "brika.security.self-auth.portal-signing-key-pem",
           "SMTP_HOST",
           "brika.security.cors-allowed-origins",
+          // D39-5: raw env var names, not the Spring property path — application.yml gives
+          // brika.storage.access-key/secret-key and spring.rabbitmq.username/password non-blank
+          // defaults ("brika"/"brika_dev_password"), so checking the resolved property would
+          // always pass even when the real env var is unset, same reason SMTP_HOST above is
+          // checked as a raw var instead of "spring.mail.host".
+          "MINIO_ROOT_USER",
+          "MINIO_ROOT_PASSWORD",
+          "RABBITMQ_USER",
+          "RABBITMQ_PASSWORD",
+          "DB_USER",
+          "DB_PASSWORD",
         }) {
       if (!StringUtils.hasText(environment.getProperty(key))) {
         violations.add("Falta el secreto/configuración obligatoria '" + key + "' en PROD");

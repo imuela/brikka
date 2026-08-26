@@ -68,7 +68,11 @@ Nunca se almacenarán secretos en Git.
 
 **PROD es fail-closed**: `ProdEnvironmentValidator` (un `EnvironmentPostProcessor`) aborta el
 arranque si falta cualquier secreto o hay una condición insegura (claves JWT ausentes, transporte
-no `smtp`, seed activo, CORS con comodines/localhost).
+no `smtp`, seed activo, CORS con comodines/localhost, o si faltan `MINIO_ROOT_USER` /
+`MINIO_ROOT_PASSWORD` / `RABBITMQ_USER` / `RABBITMQ_PASSWORD` / `DB_USER` / `DB_PASSWORD` — Sprint
+39, D39-5: estas seis, a diferencia de las claves JWT, tienen un valor por defecto no vacío en
+`application.yml`, así que sin esta comprobación PROD podría arrancar en silencio con las
+credenciales de desarrollo del `docker-compose.yml` local en vez de fallar).
 
 ### Claves JWT (RS256 autoemitido)
 
