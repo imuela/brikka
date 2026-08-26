@@ -2225,3 +2225,39 @@ documentado.**
   tenant → `HTTP 404` (enmascarado). Adicionalmente, login real a través del navegador
   (`superadmin@brika.local`) → dashboard real con datos reales (10 operaciones activas, actividad
   reciente real) — confirmación visual de la integración completa frontend↔backend.
+
+**Bloque G — Release tag.**
+- **Gate 21**: `git status`/`git diff`/`git diff --check` limpio antes de `add`; sin secretos, sin
+  `.env`, sin claves privadas, sin ficheros temporales. Regresión final consolidada (tras el fix de
+  `spring.factories`, código backend cambiado dos veces desde el Gate 5 inicial): `mvn clean
+  verify` → **108/108 unitarios, 410/410 IT, 0 failures, 0 errors** (518/518), jar
+  `brika-backend-1.0.0.jar` generado. Frontend/worker: números ya frescos del Bloque B, sin cambios
+  de código desde entonces, no repetidos innecesariamente.
+- **Gate 22**: commit único `a4cc152` — "fix(v1): finalize HTTP error handling and release
+  preparation". **Nota de proceso**: el primer intento de commit quedó incompleto (una llamada a
+  `git add` con un pathspec inválido —un fichero ya borrado— no dejó en el índice varios de los
+  demás ficheros listados en la misma invocación, y la lectura apresurada de `git status --short`
+  no distinguió el espacio inicial que marca "no staged"). Detectado inmediatamente comparando
+  `git show HEAD -- docs/12_DECISION_LOG.md` (vacío) contra lo esperado; corregido con
+  `git add` de los ficheros restantes + `git commit --amend --no-edit` — commit local, no
+  pusheado todavía en ese momento, por lo que enmendar no reescribe historia compartida ni pierde
+  nada; resultado: un único commit realmente coherente con los 11 ficheros del sprint, tal como
+  exige el gate.
+- **Gate 23**: confirmación explícita del usuario obtenida antes de `git push origin main`. Push
+  real: `c18ddec..a4cc152 main -> main` (incluye también `c1b135b`, el commit de documentación de
+  cierre de Sprint 39). `git status` tras el push → limpio, `main`/`origin/main` sincronizados.
+- **Gate 24**: CI real del commit final comprobada con `gh run watch 32979229537 --exit-status`
+  (espera acotada) → `gh run view --json conclusion,status,headSha` →
+  `{"conclusion":"success","headSha":"a4cc152...","status":"completed"}`. Los 3 jobs verdes:
+  Backend 6m27s, Frontend 1m8s, Backend Docker (incluye Trivy) 3m24s.
+- **Gate 25**: confirmación explícita del usuario obtenida antes de crear el tag. `git tag -a
+  v1.0.0 -m "Brikka V1.0.0"` + `git push origin v1.0.0`. Verificado con `git ls-remote --tags
+  origin`: `refs/tags/v1.0.0^{}` → `a4cc152b69ca10c89a4db68f90d9404d7ff6d916` — el commit final
+  real, con CI verde confirmada antes de crear el tag, no después.
+
+**ENTORNO FINAL: DETENIDO.** `docker compose down` real (4 contenedores + red eliminados);
+`docker compose ps` y `docker ps` (sistema completo) vacíos; sin procesos `BrikaApplication`/
+`ng serve`/`spring-boot:run`; Ollama no arrancado en este sprint; los 10 puertos del proyecto
+(4200, 8080, 8081, 15432, 25672, 35672, 19000, 19001, 11025, 18025) verificados libres con `lsof`.
+
+**Decisión final: BRIKKA V1.0.0 — RELEASED.**
