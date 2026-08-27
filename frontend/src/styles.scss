@@ -157,6 +157,22 @@ body {
   border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
 }
 
+/* Sprint 41: Material's subscript area (hint/error, below the input) reserves flow height for
+ * exactly one line via a `::before` spacer, while the real hint/error text renders with
+ * `position: absolute` underneath it — invisible to layout. A hint that wraps to 2+ lines (long
+ * help text, or on a narrow field) then visually overflows past the field's box and overlaps
+ * whatever comes next, instead of the field growing to fit it. Fixed by taking the hint/error
+ * back into normal flow so the field's own height (and the space it reserves in its container)
+ * reflects its real content, exactly like every other element — no fixed height anywhere. */
+.mat-mdc-form-field-subscript-wrapper {
+  height: auto !important;
+}
+
+.mat-mdc-form-field-hint-wrapper,
+.mat-mdc-form-field-error-wrapper {
+  position: static !important;
+}
+
 .mdc-notched-outline__trailing {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
 }

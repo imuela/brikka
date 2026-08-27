@@ -10,5 +10,12 @@
 }
 
 .shell-content {
+  /* Sprint 41: Material sets `height: 100%` on `.mat-drawer-content` (this element) against its
+   * `.mat-drawer-container` parent (`.shell-container`, fixed height + overflow:hidden — the
+   * intended clipping viewport). Without border-box, this padding was added ON TOP of that 100%
+   * height, so the element's own box grew past its parent's clipped bound. That excess sat outside
+   * the element entirely — not reachable by *its own* overflow-y:auto, since the ancestor had
+   * already clipped it — which is why scrolling never revealed the rest of a tall form. */
+  box-sizing: border-box;
   padding: var(--space-6);
 }

@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 
 import { environment } from '../../../../environments/environment';
 import { errorInterceptor } from '../../../core/http/error.interceptor';
+import { SessionStore } from '../../../core/session/session.store';
 import { DashboardComponent } from './dashboard.component';
 import { Dashboard } from './dashboard.model';
 
@@ -54,5 +55,55 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No tienes permisos para realizar esta acción.');
+  });
+
+  it('renders the SUPERADMIN overview instead of the tenant-scoped dashboard, without calling /api/v1/dashboard', () => {
+    const sessionStore = TestBed.inject(SessionStore);
+    sessionStore.setUser({
+      id: 'u1',
+      email: 'super@brika.local',
+      role: 'SUPERADMIN',
+      companyId: null,
+      entitlements: {},
+    });
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    // Only the SUPERADMIN overview's own list requests should fire — never /api/v1/dashboard.
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/companies`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/clients`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Actividad reciente');
+    expect(fixture.nativeElement.textContent).not.toContain('Operaciones por estado');
+  });
+
+  it('renders the MANAGER overview instead of the tenant-scoped dashboard, without calling /api/v1/dashboard', () => {
+    const sessionStore = TestBed.inject(SessionStore);
+    sessionStore.setUser({
+      id: 'u1',
+      email: 'manager@brika.local',
+      role: 'MANAGER',
+      companyId: 'c1',
+      entitlements: {},
+    });
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    // Only the MANAGER overview's own list requests should fire — never /api/v1/dashboard, and
+    // never /api/v1/companies (MANAGER has no Empresas card).
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/clients`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Actividad reciente');
+    expect(fixture.nativeElement.textContent).not.toContain('Operaciones por estado');
   });
 });

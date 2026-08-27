@@ -2,13 +2,18 @@
   <h1>Panel</h1>
 </div>
 
-@if (error()) {
-  <p class="error-text">{{ error() }}</p>
-}
-
-@if (dashboard() === null) {
-  <mat-spinner diameter="32" />
+@if (isSuperadmin()) {
+  <app-superadmin-dashboard />
+} @else if (isManager()) {
+  <app-manager-dashboard />
 } @else {
+  @if (error()) {
+    <p class="error-text">{{ error() }}</p>
+  }
+
+  @if (dashboard() === null) {
+    <mat-spinner diameter="32" />
+  } @else {
   <div class="dashboard-cards">
     <mat-card>
       <mat-card-content>
@@ -71,4 +76,5 @@
       </ul>
     }
   </div>
+  }
 }

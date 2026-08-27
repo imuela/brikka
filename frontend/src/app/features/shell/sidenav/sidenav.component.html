@@ -2,7 +2,7 @@
   <app-logo variant="full" theme="dark" [heightPx]="24" />
 </div>
 <mat-nav-list>
-  @for (item of navItems; track item.route) {
+  @for (item of navItems(); track item.route) {
     @if (item.permission === null) {
       <a
         mat-list-item

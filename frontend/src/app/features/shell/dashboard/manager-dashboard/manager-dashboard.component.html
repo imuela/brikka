@@ -1,0 +1,47 @@
+@if (error()) {
+  <p class="error-text">{{ error() }}</p>
+} @else if (metrics() === null) {
+  <mat-spinner diameter="32" />
+} @else {
+  <div class="metric-row metric-row--four">
+    @for (metric of row1()!; track metric.key) {
+      <div
+        class="metric-card"
+        [class.metric-card--clickable]="metric.route !== null"
+        [attr.role]="metric.route !== null ? 'button' : null"
+        [attr.tabindex]="metric.route !== null ? 0 : null"
+        (click)="open(metric)"
+        (keydown.enter)="open(metric)"
+      >
+        <div class="metric-card__icon">
+          <mat-icon>{{ metric.icon }}</mat-icon>
+        </div>
+        <div class="metric-card__body">
+          <div class="metric-card__value">{{ metric.value }}</div>
+          <div class="metric-card__label">{{ metric.label }}</div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="metric-row metric-row--three">
+    @for (metric of row2()!; track metric.key) {
+      <div
+        class="metric-card"
+        [class.metric-card--clickable]="metric.route !== null"
+        [attr.role]="metric.route !== null ? 'button' : null"
+        [attr.tabindex]="metric.route !== null ? 0 : null"
+        (click)="open(metric)"
+        (keydown.enter)="open(metric)"
+      >
+        <div class="metric-card__icon">
+          <mat-icon>{{ metric.icon }}</mat-icon>
+        </div>
+        <div class="metric-card__body">
+          <div class="metric-card__value">{{ metric.value }}</div>
+          <div class="metric-card__label">{{ metric.label }}</div>
+        </div>
+      </div>
+    }
+  </div>
+}
