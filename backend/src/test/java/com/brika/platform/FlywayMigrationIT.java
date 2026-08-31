@@ -65,8 +65,10 @@ class FlywayMigrationIT {
     // SUPERADMIN x NOTIFICATION_READ) + V22 (Sprint 30: client financial profile) = 22.
     // + V23 (Sprint 31: case_financial_analysis_results) + V24 (Sprint 31: FINANCIAL_ANALYSIS_RUN/
     // READ permissions) = 24. + V25 (Sprint 32: case_fees/case_fee_history) + V26 (Sprint 32:
-    // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26.
-    assertThat(appliedMigrations).isEqualTo(26);
+    // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26. + V27 (BRIKKA V2 I1: document
+    // checklist — documents.client_id, document_requirements unique constraint + 9 PURCHASE
+    // requirement rows, no new table) = 27.
+    assertThat(appliedMigrations).isEqualTo(27);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -184,5 +186,26 @@ class FlywayMigrationIT {
               table);
       assertThat(exists).as("table %s must exist (V17)", table).isTrue();
     }
+
+    // V27 (BRIKKA V2 I1): documents.client_id nullable + document_requirements seed for PURCHASE.
+    Boolean documentsClientIdNullable =
+        jdbc.queryForObject(
+            "SELECT is_nullable = 'YES' FROM information_schema.columns WHERE table_name ="
+                + " 'documents' AND column_name = 'client_id'",
+            Boolean.class);
+    assertThat(documentsClientIdNullable).isTrue();
+
+    Integer purchaseRequirementCount =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM document_requirements WHERE operation_type = 'PURCHASE'",
+            Integer.class);
+    assertThat(purchaseRequirementCount).isEqualTo(9);
+
+    Integer mandatoryPurchaseRequirementCount =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM document_requirements WHERE operation_type = 'PURCHASE'"
+                + " AND mandatory = true",
+            Integer.class);
+    assertThat(mandatoryPurchaseRequirementCount).isEqualTo(5);
   }
 }

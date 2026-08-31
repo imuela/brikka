@@ -6,6 +6,7 @@ import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.crm.Client;
 import com.brika.platform.crm.ClientRepository;
+import com.brika.platform.document.CaseChecklistService;
 import com.brika.platform.identity.User;
 import com.brika.platform.identity.UserRepository;
 import com.brika.platform.notification.NotificationPublisher;
@@ -36,6 +37,7 @@ public class CaseService {
   private final ActivityPublisher activityPublisher;
   private final NotificationPublisher notificationPublisher;
   private final NotificationRecipients notificationRecipients;
+  private final CaseChecklistService caseChecklistService;
 
   public CaseService(
       CaseRepository caseRepository,
@@ -46,7 +48,8 @@ public class CaseService {
       UserRepository userRepository,
       ActivityPublisher activityPublisher,
       NotificationPublisher notificationPublisher,
-      NotificationRecipients notificationRecipients) {
+      NotificationRecipients notificationRecipients,
+      CaseChecklistService caseChecklistService) {
     this.caseRepository = caseRepository;
     this.caseClientRepository = caseClientRepository;
     this.caseAssignmentRepository = caseAssignmentRepository;
@@ -56,6 +59,7 @@ public class CaseService {
     this.activityPublisher = activityPublisher;
     this.notificationPublisher = notificationPublisher;
     this.notificationRecipients = notificationRecipients;
+    this.caseChecklistService = caseChecklistService;
   }
 
   @Transactional
@@ -133,6 +137,18 @@ public class CaseService {
     caseRepository.updateStatus(theCase.id(), newStatus, null);
     caseStatusHistoryRepository.insert(
         theCase.companyId(), theCase.id(), current, newStatus, actorUserId, reason);
+
+    // BRIKKA V2 I1: entering DOCUMENTATION materialises the document checklist for the operation
+    // type (idempotent — safe on the backwards ANALYSIS -> DOCUMENTATION edge too).
+    if (newStatus == CaseStatus.DOCUMENTATION) {
+      caseChecklistService.ensureRequests(
+          theCase.companyId(),
+          theCase.id(),
+          theCase.operationType(),
+          holderClientIds(theCase.id()),
+          actorUserId);
+    }
+
     String activityType = newStatus == CaseStatus.COMPLETED ? "CaseCompleted" : "CaseStatusChanged";
     activityPublisher.publish(
         CaseActivityEvent.byUser(
@@ -158,6 +174,19 @@ public class CaseService {
       throw new ValidationException(
           "MISSING_CLIENT", "Case must have at least one client before moving to DOCUMENTATION.");
     }
+  }
+
+  /**
+   * Client ids of the case's holders / co-holders — the targets of per-holder document requests.
+   */
+  private List<UUID> holderClientIds(UUID caseId) {
+    return caseClientRepository.findAllByCaseId(caseId).stream()
+        .filter(
+            cc ->
+                cc.participationType() == ParticipationType.HOLDER
+                    || cc.participationType() == ParticipationType.CO_HOLDER)
+        .map(CaseClient::clientId)
+        .toList();
   }
 
   /**

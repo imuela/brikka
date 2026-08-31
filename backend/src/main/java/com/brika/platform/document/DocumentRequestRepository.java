@@ -104,4 +104,39 @@ public class DocumentRequestRepository {
         status.name(),
         id);
   }
+
+  /**
+   * BRIKKA V2 I1: has this exact requirement already been materialised as a request for this case
+   * and (optionally) this holder? Used to keep the auto-generation on entering DOCUMENTATION
+   * idempotent. clientId null matches the per-case row (requested_from_client_id IS NULL).
+   */
+  public boolean existsForRequirement(UUID caseId, UUID requirementId, UUID clientId) {
+    String sql =
+        "SELECT count(*) FROM document_requests WHERE case_id = ? AND requirement_id = ? AND "
+            + (clientId == null
+                ? "requested_from_client_id IS NULL"
+                : "requested_from_client_id = ?");
+    Integer count =
+        clientId == null
+            ? jdbcTemplate.queryForObject(sql, Integer.class, caseId, requirementId)
+            : jdbcTemplate.queryForObject(sql, Integer.class, caseId, requirementId, clientId);
+    return count != null && count > 0;
+  }
+
+  /**
+   * BRIKKA V2 I1: requirement-backed requests on a case matching a document's type and holder
+   * (clientId null matches per-case requests). Drives the review→fulfilment reconciliation.
+   */
+  public List<DocumentRequest> findByCaseTypeAndClientForRequirements(
+      UUID caseId, UUID documentTypeId, UUID clientId) {
+    String sql =
+        SELECT
+            + " WHERE case_id = ? AND document_type_id = ? AND requirement_id IS NOT NULL AND "
+            + (clientId == null
+                ? "requested_from_client_id IS NULL"
+                : "requested_from_client_id = ?");
+    return clientId == null
+        ? jdbcTemplate.query(sql, ROW_MAPPER, caseId, documentTypeId)
+        : jdbcTemplate.query(sql, ROW_MAPPER, caseId, documentTypeId, clientId);
+  }
 }

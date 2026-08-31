@@ -63,6 +63,17 @@ public class DocumentRequirementRepository {
         operationTypeFilter);
   }
 
+  /**
+   * BRIKKA V2 I1: the active checklist for an operation type — feeds both the auto-generation of
+   * document_requests on entering DOCUMENTATION and the checklist view.
+   */
+  public List<DocumentRequirement> findActiveByOperationType(String operationType) {
+    return jdbcTemplate.query(
+        SELECT + " WHERE operation_type = ? AND active = true ORDER BY mandatory DESC, id",
+        ROW_MAPPER,
+        operationType);
+  }
+
   public void update(UUID id, boolean mandatory, boolean active, String conditionsJson) {
     jdbcTemplate.update(
         "UPDATE document_requirements SET mandatory = ?, active = ?, conditions = ?::jsonb,"

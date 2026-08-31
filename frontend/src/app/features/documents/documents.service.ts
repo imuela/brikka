@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 
 import { ApiClient } from '../../core/http/api-client';
 import {
+  CaseChecklist,
   CaseDocument,
   CaseDocumentPublication,
   CaseDocumentRequest,
@@ -18,8 +19,9 @@ import {
 /** Sprint 15: thin wrapper over the real /api/v1/documents, /api/v1/cases/{caseId}/documents,
  * /api/v1/cases/{caseId}/document-requests and /api/v1/document-types contracts
  * (17_API_SPECIFICATION_DETAILED.md §9/§10) — no fields, endpoints or business rules beyond what
- * the backend exposes. document-requirements is deliberately not called anywhere in this service:
- * Sprint 15 scope keeps it fully out (no read, no write), per explicit authorization. */
+ * the backend exposes. The document-requirements catalog CRUD is still not called here; BRIKKA V2 I1
+ * adds only the read-only case checklist (GET /api/v1/cases/{caseId}/checklist), a view over the
+ * requirement-backed document requests. */
 @Injectable({ providedIn: 'root' })
 export class DocumentsService {
   private readonly apiClient = inject(ApiClient);
@@ -89,5 +91,12 @@ export class DocumentsService {
     request: UpdateCaseDocumentRequestRequest,
   ): Observable<CaseDocumentRequest> {
     return this.apiClient.patch<CaseDocumentRequest>(`/api/v1/document-requests/${id}`, request);
+  }
+
+  /** BRIKKA V2 I1: the case's document checklist — requirement-backed requests plus their live
+   * state derived from the documents on the case. Read-only; auto-generated server-side when the
+   * case enters DOCUMENTATION. */
+  getChecklist(caseId: string): Observable<CaseChecklist> {
+    return this.apiClient.get<CaseChecklist>(`/api/v1/cases/${caseId}/checklist`);
   }
 }

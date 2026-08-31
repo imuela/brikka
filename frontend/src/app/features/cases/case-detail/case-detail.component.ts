@@ -59,6 +59,7 @@ import { CreateConversationDialogComponent } from '../../communications/communic
 import { Conversation } from '../../communications/communication.model';
 import { CommunicationService } from '../../communications/communication.service';
 import {
+  CaseChecklist,
   CaseDocument,
   CaseDocumentRequest,
   CaseDocumentVersion,
@@ -169,6 +170,18 @@ export class CaseDetailComponent {
 
   readonly documentRequests = signal<CaseDocumentRequest[] | null>(null);
   readonly documentRequestColumns = ['type', 'client', 'status', 'dueAt', 'actions'];
+
+  /** BRIKKA V2 I1: document checklist of the case (auto-generated server-side on entering
+   * DOCUMENTATION). complete = every mandatory item APPROVED. */
+  readonly checklist = signal<CaseChecklist | null>(null);
+  readonly checklistError = signal<string | null>(null);
+  readonly checklistColumns = ['document', 'holder', 'mandatory', 'state'];
+  readonly checklistItemStateLabels: Record<string, string> = {
+    MISSING: 'Falta',
+    SUBMITTED: 'Subido (pendiente de revisión)',
+    REJECTED: 'Rechazado',
+    APPROVED: 'Aprobado',
+  };
 
   readonly simulations = signal<Simulation[] | null>(null);
   readonly simulationColumns = ['principal', 'interestRate', 'termMonths', 'estimatedPayment', 'createdAt'];
@@ -404,6 +417,29 @@ export class CaseDetailComponent {
         this.error.set(friendlyErrorMessage(err));
       },
     });
+    // BRIKKA V2 I1: the checklist state is derived from these documents' review status.
+    this.loadChecklist();
+  }
+
+  private loadChecklist(): void {
+    this.documentsService.getChecklist(this.caseId).subscribe({
+      next: (checklist) => this.checklist.set(checklist),
+      error: (err: ApiError) => {
+        this.checklist.set(null);
+        this.checklistError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  /** BRIKKA V2 I1: resolve a checklist item's holder (null = document of the expediente). */
+  checklistHolderName(clientId: string | null): string {
+    if (!clientId) {
+      return 'Expediente';
+    }
+    const holder = (this.clients() ?? []).find((c) => c.clientId === clientId);
+    return holder
+      ? `${holder.firstName ?? ''} ${holder.lastName ?? ''}`.trim() || clientId
+      : clientId;
   }
 
   documentTypeName(documentTypeId: string): string {
@@ -414,13 +450,21 @@ export class CaseDetailComponent {
     if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateDocumentDialogComponent, {
-        data: { caseId: this.caseId, documentTypes: this.documentTypes() },
+        data: {
+          caseId: this.caseId,
+          documentTypes: this.documentTypes(),
+          holders: (this.clients() ?? []).map((c) => ({
+            id: c.clientId,
+            name: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || c.clientId,
+          })),
+        },
         width: '400px',
       })
       .afterClosed()
       .subscribe((result: CaseDocument | undefined) => {
         if (result) {
           this.loadDocuments();
+          this.loadChecklist();
         }
       });
   }

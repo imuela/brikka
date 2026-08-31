@@ -164,6 +164,58 @@
     }
   </div>
 
+  <div class="section" *appHasPermission="'DOCUMENT_REQUEST'">
+    <div class="section-header">
+      <h2>Checklist documental</h2>
+    </div>
+    @if (checklistError()) {
+      <p class="error-text">{{ checklistError() }}</p>
+    } @else if (checklist() === null) {
+      <mat-spinner diameter="24" />
+    } @else if (checklist()!.items.length === 0) {
+      <p>Sin requisitos documentales para este tipo de operación.</p>
+    } @else {
+      <p>
+        @if (checklist()!.complete) {
+          <strong>Documentación obligatoria completa.</strong>
+        } @else {
+          <strong>Faltan {{ checklist()!.mandatoryMissing }}</strong> de
+          {{ checklist()!.mandatoryTotal }} documentos obligatorios.
+        }
+        @if (checklist()!.optionalTotal > 0) {
+          Opcionales pendientes: {{ checklist()!.optionalMissing }} de
+          {{ checklist()!.optionalTotal }}.
+        }
+      </p>
+      <div class="table-scroll">
+        <table mat-table [dataSource]="checklist()!.items">
+          <ng-container matColumnDef="document">
+            <th mat-header-cell *matHeaderCellDef>Documento</th>
+            <td mat-cell *matCellDef="let item">
+              {{ item.documentTypeName ?? item.documentTypeCode }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="holder">
+            <th mat-header-cell *matHeaderCellDef>Titular</th>
+            <td mat-cell *matCellDef="let item">{{ checklistHolderName(item.clientId) }}</td>
+          </ng-container>
+          <ng-container matColumnDef="mandatory">
+            <th mat-header-cell *matHeaderCellDef>Obligatorio</th>
+            <td mat-cell *matCellDef="let item">{{ item.mandatory ? 'Sí' : 'No' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="state">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let item">
+              <app-status-badge [value]="item.state" [labels]="checklistItemStateLabels" />
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="checklistColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: checklistColumns"></tr>
+        </table>
+      </div>
+    }
+  </div>
+
   <div class="section" *appHasPermission="'DOCUMENT_READ'">
     <div class="section-header">
       <h2>Documentos</h2>

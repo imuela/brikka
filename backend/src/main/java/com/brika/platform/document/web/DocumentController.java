@@ -3,6 +3,7 @@ package com.brika.platform.document.web;
 import com.brika.platform.audit.AuditEventWriter;
 import com.brika.platform.casemgmt.CaseAccessResult;
 import com.brika.platform.casemgmt.CaseAccessService;
+import com.brika.platform.casemgmt.CaseClientRepository;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.document.Document;
 import com.brika.platform.document.DocumentAccessResult;
@@ -40,6 +41,7 @@ public class DocumentController {
   private final DocumentService documentService;
   private final StorageProperties storageProperties;
   private final AuditEventWriter auditEventWriter;
+  private final CaseClientRepository caseClientRepository;
 
   public DocumentController(
       CaseAccessService caseAccessService,
@@ -47,13 +49,15 @@ public class DocumentController {
       DocumentRepository documentRepository,
       DocumentService documentService,
       StorageProperties storageProperties,
-      AuditEventWriter auditEventWriter) {
+      AuditEventWriter auditEventWriter,
+      CaseClientRepository caseClientRepository) {
     this.caseAccessService = caseAccessService;
     this.documentAccessService = documentAccessService;
     this.documentRepository = documentRepository;
     this.documentService = documentService;
     this.storageProperties = storageProperties;
     this.auditEventWriter = auditEventWriter;
+    this.caseClientRepository = caseClientRepository;
   }
 
   @GetMapping("/api/v1/cases/{caseId}/documents")
@@ -72,9 +76,14 @@ public class DocumentController {
       @RequestBody CreateDocumentApiRequest request) {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "DOCUMENT_CREATE", caseId);
+    UUID clientId = request.clientId();
+    if (clientId != null && !caseClientRepository.exists(access.theCase().id(), clientId)) {
+      throw new ValidationException(
+          "CLIENT_NOT_ON_CASE", "clientId must be a client linked to this case.");
+    }
     Document created =
         documentService.createDocument(
-            access.tenantId(), access.theCase().id(), request.documentTypeId());
+            access.tenantId(), access.theCase().id(), request.documentTypeId(), clientId);
     return DocumentResponse.from(created);
   }
 

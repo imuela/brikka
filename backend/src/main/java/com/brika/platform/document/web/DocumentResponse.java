@@ -8,6 +8,7 @@ public record DocumentResponse(
     UUID companyId,
     UUID caseId,
     UUID documentTypeId,
+    UUID clientId,
     UUID currentVersionId,
     String status) {
 
@@ -17,6 +18,7 @@ public record DocumentResponse(
         document.companyId(),
         document.caseId(),
         document.documentTypeId(),
+        document.clientId(),
         document.currentVersionId(),
         document.status().name());
   }

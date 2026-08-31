@@ -11,17 +11,17 @@
 ## Barra de progreso global
 
 ```
-V2  [██░░░░░░░░░░░░░░░░░░░]   ~5 %   (0 / 5 bloques · V2-0 cerrado)   —   fase: I1 (Sprint V2-1)
+V2  [██████░░░░░░░░░░░░░░░]   25 %   (1 / 5 bloques · I1 ✅)   —   siguiente: I3 (Sprint V2-2)
 ```
 
 | Bloque | Peso | Estado | Backend | Frontend | Tests BE | Tests FE | % bloque |
 |---|---:|---|---|---|---|---|---:|
-| **I1** · Checklist documental | 25 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
+| **I1** · Checklist documental | 25 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I2** · Scoring de fábrica + RAG | 20 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
 | **I3** · Precondiciones de transición | 15 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
 | **I4** · Simulación enriquecida | 25 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
 | **I5** · Dossier + ZIP + narrativa | 15 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
-| **TOTAL** | 100 % | | | | | | **0 %** |
+| **TOTAL** | 100 % | | | | | | **25 %** |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
@@ -29,7 +29,53 @@ Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
 ## Bloque / sprint actual
 
-**V2-1 · I1 · Checklist documental** (en curso).
+**V2-2 · I3 · Precondiciones de transición** (siguiente, sin empezar).
+
+### V2-1 · I1 · Checklist documental — ✅ CERRADO (2026-08-31)
+
+Commit del sprint: pendiente de `git commit` (ver "Registro de avance"). Implementado:
+
+- **Migración `V27__document_checklist.sql`**: `UNIQUE(operation_type, document_type_id)` en
+  `document_requirements`; `documents.client_id uuid NULL` + índice; seed de 9 requisitos para
+  `operation_type='PURCHASE'` (mapa Legacy → códigos `V2`; 5 obligatorios / 4 opcionales;
+  `conditions.appliesTo` = `PER_HOLDER` | `PER_CASE`).
+- **Backend nuevo:** `ChecklistItemState`, `CaseChecklistItem`, `CaseChecklist`,
+  `CaseChecklistService` (auto-gen idempotente + vista + reconciliación), `DocumentRequestFulfillment`
+  (hook de revisión, AI-ready), `CaseChecklistController` + `CaseChecklistResponse`
+  (`GET /api/v1/cases/{caseId}/checklist`, permiso `DOCUMENT_REQUEST`).
+- **Backend modificado:** `Document`/`DocumentRepository` (+`client_id`, overloads compatibles),
+  `DocumentService` (`createDocument` con clientId + hook en `review`), `DocumentController` +
+  `CreateDocumentApiRequest` (+`clientId` opcional, validado contra `case_clients`),
+  `DocumentResponse` (+`clientId`), `DocumentRequirementRepository` (`findActiveByOperationType`),
+  `DocumentRequestRepository` (`existsForRequirement`, `findByCaseTypeAndClientForRequirements`),
+  `CaseService.changeStatus` (auto-gen al entrar en `DOCUMENTATION`, idempotente en la vuelta
+  `ANALYSIS→DOCUMENTATION`).
+- **Frontend:** `document.model.ts` (+`CaseChecklist`/`Item`, `clientId?` en `CreateCaseDocumentRequest`),
+  `documents.service.ts` (`getChecklist`), `case-detail` (sección "Checklist documental" con resumen
+  "Faltan N obligatorios" + tabla documento/titular/obligatorio/estado; recarga tras cada acción
+  documental), `create-document-dialog` (selector "Titular (opcional)" cuando el caso tiene
+  titulares).
+- **Cierre por evidencia (decisión §10.3):** un requisito solo cuenta como completo con
+  `review_status = APPROVED`; `SUBIDO` visible como estado intermedio; `REJECTED` de una versión
+  previamente aprobada reabre el requisito.
+- **AI-ready:** el casado "documento → requisito" vive en `DocumentRequestFulfillment` (colaborador
+  aislado), no en el controlador ni el formulario. **Sin IA implementada.**
+
+**Tests (todos verdes):**
+- `CaseChecklistServiceIT` (nuevo) — 6/6: auto-gen per-holder/per-case + idempotencia · checklist
+  todo MISSING/incompleto · subir ≠ completo (request sigue PENDING) · aprobar → APPROVED + request
+  FULFILLED + `complete=true` · rechazar versión aprobada → REJECTED + request PENDING · aislamiento
+  de tenant.
+- `DocumentEndpointsIT` (+2) — 16/16: `GET /checklist` devuelve items y `complete=false`; otra
+  empresa → 404.
+- `FlywayMigrationIT` — actualizado (26→27 migraciones, +asserts V27) y verde.
+- Barrido de regresión (background): **document, casemgmt, contract, dossier, financialanalysis,
+  ai, e2e, portal, notification (sync + async)** — todos verdes. `NotificationAsyncIntegrationIT`
+  requiere el broker `brika-rabbitmq` real (documentado en `12_DECISION_LOG.md`, no Testcontainers);
+  levantado con `docker compose -f docs/docker-compose.yml up -d rabbitmq` → 4/4 verde. Sin relación
+  con I1.
+- Frontend — `npm test` **488/488** (+3: `documents.service` getChecklist, `create-document-dialog`
+  holders, `case-detail` render de checklist); `ng lint` y `npm run build` verdes.
 
 ### V2-0 · Preparación — ✅ CERRADO (2026-08-31)
 
@@ -58,26 +104,62 @@ Luz verde para **V2-1 (I1)**.
 
 ## Detalle por bloque
 
-### I1 · Checklist documental  *(P0 — Sprint V2-1)*
+### I1 · Checklist documental  *(P0 — Sprint V2-1 · ✅ COMPLETADO 2026-08-31)*
+
+**Diseño (decisiones de sprint, tras leer el dominio `document` real):**
+
+1. **Per-titular vs per-expediente** se modela en `document_requirements.conditions` (jsonb ya
+   existente, hoy sin semántica): `{"appliesTo":"PER_HOLDER"}` | `{"appliesTo":"PER_CASE"}`
+   (por defecto `PER_CASE` si falta).
+2. **`documents` es hoy `(case_id, document_type_id)` sin dimensión de cliente** (Legacy tenía
+   `client_documents` + `case_documents` separadas). Para poder **cerrar por evidencia por titular**
+   —que está dentro del DoD de I1— se añade `documents.client_id uuid NULL REFERENCES clients(id)`
+   (cambio arquitectónico mínimo y necesario, `SCOPE §8`). Flujos existentes pasan `null`
+   (comportamiento intacto). `create-document-dialog` gana un selector "Titular" **opcional**
+   (visible solo si el caso tiene titulares).
+3. **Auto-generación:** hook en `CaseService.changeStatus` cuando `newStatus == DOCUMENTATION` →
+   `CaseChecklistService.ensureRequests(...)`: por cada `document_requirement` activo de la
+   `operationType`, crea `document_requests` idempotentes — `PER_CASE` → 1 request
+   (`requested_from_client_id = null`); `PER_HOLDER` → 1 request por `case_clients` con
+   `participation_type IN (HOLDER, CO_HOLDER)`. Nunca duplica; nunca borra requests si el catálogo
+   cambia luego.
+4. **Estado del requisito** (derivado, no columna nueva en `document_requests`):
+   `APROBADO` si ∃ `Document(case, type, client_id = request.client)` con `status = APPROVED`;
+   `SUBIDO` si existe versión pero `status = PENDING`; `RECHAZADO` si `status = REJECTED`;
+   `FALTA` si no hay documento. **Un requisito solo cuenta como completo con `APPROVED`** (decisión
+   del propietario §10.3).
+5. **Reconciliación de `document_requests.status`:** hook en `DocumentService.review` —
+   `APPROVED` → requests casantes `PENDING→FULFILLED`; `REJECTED` → `FULFILLED→PENDING`. Defensa en
+   profundidad: `CaseChecklistService` también reconcilia al leer.
+6. **Endpoint:** `GET /api/v1/cases/{caseId}/checklist` → `{ mandatoryMissing, mandatoryTotal,
+   optionalMissing, optionalTotal, complete, items[] }`. Permiso: reutiliza `DOCUMENT_REQUEST` (no
+   se añade permiso nuevo — RBAC estable, `ADR-RBAC-001`). `complete` (todos los obligatorios
+   `APPROVED`) es lo que consumirá **I3**.
+7. **AI-ready:** el casado "documento → requisito (tipo + titular)" vive en un colaborador
+   dedicado (`DocumentRequestFulfillment`), no en el controlador ni en el formulario — punto de
+   extensión para que una clasificación IA lo proponga en el futuro.
+8. **Migración `V27__document_checklist.sql`:** seed de `document_requirements` para `PURCHASE`
+   (mapa Legacy → códigos `V2`), `ALTER TABLE documents ADD client_id`, índice, y
+   `UNIQUE(operation_type, document_type_id)` en `document_requirements` (guarda la auto-gen).
 
 **Definition of Done:**
-- [ ] Migración `V27__seed_document_requirements.sql` con el mapa `PURCHASE` (por titular:
+- [x] Migración `V27__seed_document_requirements.sql` con el mapa `PURCHASE` (por titular:
       `DNI`, `PAYSLIP`, `EMPLOYMENT_HISTORY` obl.; `INCOME_TAX_RETURN`, `EMPLOYMENT_CONTRACT`,
       `BANK_STATEMENT` opc. — de expediente: `LAND_REGISTRY_EXTRACT`, `DEPOSIT_CONTRACT` obl.;
       `PROPERTY_APPRAISAL` opc.).
-- [ ] Auto-generación idempotente de `document_requests` al entrar el caso en `DOCUMENTATION`
+- [x] Auto-generación idempotente de `document_requests` al entrar el caso en `DOCUMENTATION`
       (por titular vs de expediente).
-- [ ] Cierre del requisito **solo** con `review_status = APPROVED` de la versión casante; estado
+- [x] Cierre del requisito **solo** con `review_status = APPROVED` de la versión casante; estado
       intermedio `SUBIDO` visible.
-- [ ] `CaseChecklistService` + endpoint de completitud (obligatorios/opcionales, por titular y de
+- [x] `CaseChecklistService` + endpoint de completitud (obligatorios/opcionales, por titular y de
       expediente, con estado por requisito).
-- [ ] Vista de checklist en `case-detail` (Angular) integrada con guards y manejo de errores.
-- [ ] Punto de extensión "documento → requisito (tipo + titular)" como interfaz (AI-ready, sin IA).
-- [ ] Tests BE: auto-gen idempotente · requisito NO se cierra al subir, SÍ al aprobar · aislamiento
+- [x] Vista de checklist en `case-detail` (Angular) integrada con guards y manejo de errores.
+- [x] Punto de extensión "documento → requisito (tipo + titular)" como interfaz (AI-ready, sin IA).
+- [x] Tests BE: auto-gen idempotente · requisito NO se cierra al subir, SÍ al aprobar · aislamiento
       de tenant.
-- [ ] Tests FE: componente de checklist.
-- [ ] Batería completa en verde.
-- [ ] `docs/` y este PROGRESS actualizados.
+- [x] Tests FE: componente de checklist.
+- [x] Batería completa en verde.
+- [x] `docs/` y este PROGRESS actualizados.
 
 **Criterio de aceptación:** al pasar un caso `PURCHASE` a `DOCUMENTATION` aparecen los requisitos;
 subir el documento del tipo correcto → requisito `SUBIDO`; aprobarlo → `APROBADO`; la vista muestra
@@ -159,13 +241,13 @@ incluye un párrafo de contexto generado por reglas.
 
 ## Tests — estado
 
-| Ámbito | Baseline (V2-0, 2026-08-31) | Actual | Nuevos en V2 |
+| Ámbito | Baseline (V2-0) | Actual (tras I1) | Nuevos en V2 |
 |---|---|---|---|
-| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** (97 ficheros) | 485/485 | 0 |
-| Backend unit (Surefire, sin Docker) | **106/106** ✅ | 106/106 | 0 |
-| Backend integración (Failsafe, Colima) — muestra V2-0 | `FlywayMigrationIT` + `CaseServiceIT` = **26/26** ✅ | 26/26 | 0 |
-| Backend integración — suite completa `./mvnw verify` | *(no ejecutada en V2-0; gate de cierre)* | — | — |
-| Aislamiento de tenant (por recurso nuevo) | n/a | — | 0 / 5 recursos nuevos |
+| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **488/488** | +3 |
+| Backend unit (Surefire, sin Docker) | **106/106** ✅ | **106/106** ✅ | 0 |
+| Backend IT — barrido I1 (document, casemgmt, contract, dossier, financialanalysis, ai, e2e, portal, notification) | — | **verde** (189 tests; `NotificationAsyncIntegrationIT` verde con broker `brika-rabbitmq` levantado) | `CaseChecklistServiceIT` 6/6 · `DocumentEndpointsIT` +2 · `FlywayMigrationIT` actualizado |
+| Backend integración — suite completa `./mvnw verify` | *(no ejecutada; gate de cierre)* | — | — |
+| Aislamiento de tenant (por recurso nuevo) | n/a | **1/1** (`checklist` — `CaseChecklistServiceIT.checklistIsTenantScoped` + `DocumentEndpointsIT.checklistEndpointIsTenantScoped`) | — |
 
 ---
 
@@ -197,6 +279,7 @@ Decisiones **de diseño interno** (se resuelven dentro de cada sprint, sin bloqu
 |---|---|---|---|
 | 2026-08-31 | — | Fases 0–7. Creados `BRIKKA_V2_FUNCTIONAL_GAP.md`, `BRIKKA_V2_BUSINESS_RULES_GAP.md`, `BRIKKA_V2_MIGRATION_SCOPE.md`. Decisiones del propietario (§10). Creado este PROGRESS. **Sin cambios de código.** | n/a |
 | 2026-08-31 | V2-0 | Commit Sprint 40.x (`5c4b223`, `main`). Rama `feat/v2-migration`. Baseline de tests medido. Docs de planificación commiteados en la rama. | FE 485 ✅ · BE unit 106 ✅ · BE IT muestra 26 ✅ |
+| 2026-08-31 | V2-1 (I1) | Checklist documental: `V27` + 7 clases backend nuevas + 8 modificadas + 3 ficheros frontend + selector de titular. Cierre por `APPROVED` (§10.3), auto-gen en `DOCUMENTATION`, AI-ready. | `CaseChecklistServiceIT` 6/6 · `DocumentEndpointsIT` 16/16 · `FlywayMigrationIT` ✅ · barrido regresión ✅ · FE 488/488 ✅ |
 
 ---
 

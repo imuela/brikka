@@ -12,6 +12,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.brika.platform.audit.AuditEvent;
 import com.brika.platform.audit.AuditEventRepository;
+import com.brika.platform.casemgmt.CaseClientRepository;
+import com.brika.platform.casemgmt.CaseService;
+import com.brika.platform.casemgmt.CaseStatus;
+import com.brika.platform.casemgmt.ParticipationType;
+import com.brika.platform.crm.ClientRepository;
 import com.brika.platform.document.DocumentTypeRepository;
 import com.brika.platform.identity.CompanyRepository;
 import com.brika.platform.identity.CreateUserCommand;
@@ -100,6 +105,9 @@ class DocumentEndpointsIT {
   @Autowired private UserProvisioningService userProvisioningService;
   @Autowired private DocumentTypeRepository documentTypeRepository;
   @Autowired private AuditEventRepository auditEventRepository;
+  @Autowired private CaseService caseService;
+  @Autowired private CaseClientRepository caseClientRepository;
+  @Autowired private ClientRepository clientRepository;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -512,5 +520,50 @@ class DocumentEndpointsIT {
         .perform(
             get("/api/v1/cases/" + caseId + "/documents").header("Authorization", client.bearer()))
         .andExpect(status().isForbidden());
+  }
+
+  // BRIKKA V2 I1 — GET /api/v1/cases/{caseId}/checklist
+
+  private UUID purchaseCaseInDocumentation(TestPrincipal manager, UUID companyId) throws Exception {
+    var theCase = caseService.createCase(companyId, manager.user().id(), "PURCHASE");
+    UUID clientId =
+        clientRepository.insert(
+            companyId, "Cli", "Ent", "cli-" + UUID.randomUUID() + "@brika.test", "600");
+    caseClientRepository.insert(theCase.id(), clientId, ParticipationType.HOLDER, true);
+    caseService.changeStatus(theCase, CaseStatus.DOCUMENTATION, manager.user().id(), null);
+    return theCase.id();
+  }
+
+  @Test
+  void checklistEndpointReturnsTheGeneratedItemsAndIsIncompleteUntilApprovals() throws Exception {
+    UUID companyId = companyRepository.insert("Co DC7", "Co DC7", "TC-DC7");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-dc7");
+    UUID caseId = purchaseCaseInDocumentation(manager, companyId);
+
+    mockMvc
+        .perform(
+            get("/api/v1/cases/" + caseId + "/checklist").header("Authorization", manager.bearer()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.complete").value(false))
+        .andExpect(jsonPath("$.mandatoryTotal").value(5)) // DNI, PAYSLIP, EMPLOYMENT_HISTORY + 2
+        .andExpect(jsonPath("$.mandatoryMissing").value(5))
+        .andExpect(jsonPath("$.items", hasSize(9)))
+        .andExpect(jsonPath("$.items[?(@.documentTypeCode == 'DNI')].state").value("MISSING"));
+  }
+
+  @Test
+  void checklistEndpointIsTenantScoped() throws Exception {
+    UUID companyA = companyRepository.insert("Co DC8A", "Co DC8A", "TC-DC8A");
+    TestPrincipal managerA = createUser(UserRole.MANAGER, companyA, "manager-dc8a");
+    UUID caseId = purchaseCaseInDocumentation(managerA, companyA);
+
+    UUID companyB = companyRepository.insert("Co DC8B", "Co DC8B", "TC-DC8B");
+    TestPrincipal managerB = createUser(UserRole.MANAGER, companyB, "manager-dc8b");
+
+    mockMvc
+        .perform(
+            get("/api/v1/cases/" + caseId + "/checklist")
+                .header("Authorization", managerB.bearer()))
+        .andExpect(status().isNotFound());
   }
 }

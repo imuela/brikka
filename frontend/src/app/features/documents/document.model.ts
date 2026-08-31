@@ -35,9 +35,35 @@ export interface CaseDocumentVersion {
   reviewComment: string | null;
 }
 
-/** Mirrors backend CreateDocumentApiRequest. */
+/** Mirrors backend CreateDocumentApiRequest. clientId is optional (BRIKKA V2 I1): when set, the
+ * document is attributed to that case holder so it can satisfy a per-holder checklist requirement. */
 export interface CreateCaseDocumentRequest {
   documentTypeId: string;
+  clientId?: string | null;
+}
+
+/** Mirrors backend CaseChecklistResponse.Item (BRIKKA V2 I1). state is one of MISSING / SUBMITTED /
+ * REJECTED / APPROVED; only APPROVED counts as satisfied. clientId is null for a document of the
+ * expediente, or the holder the requirement is addressed to. */
+export interface CaseChecklistItem {
+  requirementId: string;
+  documentRequestId: string | null;
+  documentTypeId: string;
+  documentTypeCode: string | null;
+  documentTypeName: string | null;
+  mandatory: boolean;
+  clientId: string | null;
+  state: string;
+}
+
+/** Mirrors backend CaseChecklistResponse (BRIKKA V2 I1). complete = every mandatory item APPROVED. */
+export interface CaseChecklist {
+  mandatoryTotal: number;
+  mandatoryMissing: number;
+  optionalTotal: number;
+  optionalMissing: number;
+  complete: boolean;
+  items: CaseChecklistItem[];
 }
 
 /** Mirrors backend ReviewDocumentApiRequest. decision must be APPROVED or REJECTED — "request a

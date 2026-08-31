@@ -13,16 +13,20 @@ const documentTypes = [{ id: 't1', code: 'DNI', name: 'DNI', active: true }];
 describe('CreateDocumentDialogComponent', () => {
   let httpMock: HttpTestingController;
   let dialogRef: { close: ReturnType<typeof vi.fn> };
+  // Mutable so a test can add `holders` before it creates the component (the provider keeps this
+  // object by reference); overrideProvider can't be used once TestBed has been instantiated.
+  let dialogData: { caseId: string; documentTypes: typeof documentTypes; holders?: { id: string; name: string }[] };
 
   beforeEach(() => {
     dialogRef = { close: vi.fn() };
+    dialogData = { caseId: 'k1', documentTypes };
     TestBed.configureTestingModule({
       imports: [CreateDocumentDialogComponent, NoopAnimationsModule],
       providers: [
         provideHttpClient(withInterceptors([errorInterceptor])),
         provideHttpClientTesting(),
         { provide: MatDialogRef, useValue: dialogRef },
-        { provide: MAT_DIALOG_DATA, useValue: { caseId: 'k1', documentTypes } },
+        { provide: MAT_DIALOG_DATA, useValue: dialogData },
       ],
     });
     httpMock = TestBed.inject(HttpTestingController);
@@ -36,15 +40,15 @@ describe('CreateDocumentDialogComponent', () => {
     expect(fixture.componentInstance.documentTypes).toEqual(documentTypes);
   });
 
-  it('submits documentTypeId and closes the dialog with the created document', () => {
+  it('submits documentTypeId (clientId null when no holder chosen) and closes with the document', () => {
     const fixture = TestBed.createComponent(CreateDocumentDialogComponent);
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({ documentTypeId: 't1' });
+    fixture.componentInstance.form.setValue({ documentTypeId: 't1', clientId: '' });
     fixture.componentInstance.submit();
 
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`);
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ documentTypeId: 't1' });
+    expect(req.request.body).toEqual({ documentTypeId: 't1', clientId: null });
     req.flush({ id: 'd1', companyId: 'co1', caseId: 'k1', documentTypeId: 't1', currentVersionId: null, status: 'PENDING' });
 
     expect(dialogRef.close).toHaveBeenCalledWith({
@@ -69,7 +73,7 @@ describe('CreateDocumentDialogComponent', () => {
   it('shows the backend error on failure', () => {
     const fixture = TestBed.createComponent(CreateDocumentDialogComponent);
     fixture.detectChanges();
-    fixture.componentInstance.form.setValue({ documentTypeId: 't1' });
+    fixture.componentInstance.form.setValue({ documentTypeId: 't1', clientId: '' });
     fixture.componentInstance.submit();
 
     httpMock
@@ -85,5 +89,33 @@ describe('CreateDocumentDialogComponent', () => {
     fixture.detectChanges();
     fixture.componentInstance.cancel();
     expect(dialogRef.close).toHaveBeenCalledWith();
+  });
+
+  it('with case holders, exposes them and submits the chosen clientId (BRIKKA V2 I1)', () => {
+    const holders = [
+      { id: 'h1', name: 'Ada Lovelace' },
+      { id: 'h2', name: 'Alan Turing' },
+    ];
+    dialogData.holders = holders;
+
+    const fixture = TestBed.createComponent(CreateDocumentDialogComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.holders).toEqual(holders);
+
+    fixture.componentInstance.form.setValue({ documentTypeId: 't1', clientId: 'h2' });
+    fixture.componentInstance.submit();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`);
+    expect(req.request.body).toEqual({ documentTypeId: 't1', clientId: 'h2' });
+    req.flush({
+      id: 'd1',
+      companyId: 'co1',
+      caseId: 'k1',
+      documentTypeId: 't1',
+      clientId: 'h2',
+      currentVersionId: null,
+      status: 'PENDING',
+    });
+    expect(dialogRef.close).toHaveBeenCalled();
   });
 });

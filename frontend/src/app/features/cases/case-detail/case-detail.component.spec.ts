@@ -47,16 +47,30 @@ describe('CaseDetailComponent', () => {
 
   afterEach(() => httpMock.verify());
 
-  function flushInitialLoad() {
+  function flushInitialLoad(overrides: { clients?: unknown[]; checklist?: unknown } = {}) {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
-    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`)
+      .flush(overrides.clients ?? []);
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush(
+        overrides.checklist ?? {
+          mandatoryTotal: 0,
+          mandatoryMissing: 0,
+          optionalTotal: 0,
+          optionalMissing: 0,
+          complete: true,
+          items: [],
+        },
+      );
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -95,6 +109,16 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({
+        mandatoryTotal: 0,
+        mandatoryMissing: 0,
+        optionalTotal: 0,
+        optionalMissing: 0,
+        complete: true,
+        items: [],
+      });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -136,6 +160,16 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({
+        mandatoryTotal: 0,
+        mandatoryMissing: 0,
+        optionalTotal: 0,
+        optionalMissing: 0,
+        complete: true,
+        items: [],
+      });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -302,6 +336,16 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({
+        mandatoryTotal: 0,
+        mandatoryMissing: 0,
+        optionalTotal: 0,
+        optionalMissing: 0,
+        complete: true,
+        items: [],
+      });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -821,6 +865,37 @@ describe('CaseDetailComponent', () => {
     });
 
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+  });
+
+  it('renders the document checklist with holder names and the pending-mandatory summary', () => {
+    sessionStore.setPermissions(['CASE_READ', 'DOCUMENT_REQUEST']);
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad({
+      clients: [{ clientId: 'h1', firstName: 'Ada', lastName: 'Lovelace', participationType: 'HOLDER', isPrimary: true }],
+      checklist: {
+        mandatoryTotal: 3,
+        mandatoryMissing: 2,
+        optionalTotal: 1,
+        optionalMissing: 1,
+        complete: false,
+        items: [
+          { requirementId: 'r1', documentRequestId: 'dr1', documentTypeId: 't1', documentTypeCode: 'DNI', documentTypeName: 'DNI', mandatory: true, clientId: 'h1', state: 'APPROVED' },
+          { requirementId: 'r2', documentRequestId: 'dr2', documentTypeId: 't2', documentTypeCode: 'PAYSLIP', documentTypeName: 'Nómina', mandatory: true, clientId: 'h1', state: 'SUBMITTED' },
+          { requirementId: 'r3', documentRequestId: 'dr3', documentTypeId: 't3', documentTypeCode: 'LAND_REGISTRY_EXTRACT', documentTypeName: 'Nota simple', mandatory: true, clientId: null, state: 'MISSING' },
+          { requirementId: 'r4', documentRequestId: 'dr4', documentTypeId: 't4', documentTypeCode: 'PROPERTY_APPRAISAL', documentTypeName: 'Tasación', mandatory: false, clientId: null, state: 'MISSING' },
+        ],
+      },
+    });
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Checklist documental');
+    expect(text).toContain('Faltan 2');
+    expect(text).toContain('Ada Lovelace');
+    expect(text).toContain('Expediente'); // per-case items' holder column
+    expect(text).toContain('Aprobado');
+    expect(text).toContain('Subido (pendiente de revisión)');
   });
 
   const task = {
