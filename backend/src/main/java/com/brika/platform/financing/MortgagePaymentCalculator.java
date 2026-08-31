@@ -1,4 +1,4 @@
-package com.brika.platform.financialanalysis;
+package com.brika.platform.financing;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -59,5 +59,57 @@ public final class MortgagePaymentCalculator {
             .multiply(growthFactor, WORKING_PRECISION);
     BigDecimal denominator = growthFactor.subtract(BigDecimal.ONE, WORKING_PRECISION);
     return numerator.divide(denominator, MONEY_SCALE, RoundingMode.HALF_UP);
+  }
+
+  /**
+   * BRIKKA V2 I4. Outstanding principal after {@code elapsedMonths} regular payments of a French
+   * amortization loan — the balance that a MIXED simulation carries into its variable tranche. Same
+   * formula family as {@link #computeMonthlyPayment} (no second engine): {@code balance =
+   * principal*(1+i)^k - payment*((1+i)^k - 1)/i}, with {@code payment} the actual (rounded) monthly
+   * payment the borrower makes, {@code i} the monthly rate and {@code k = elapsedMonths}. The
+   * zero-rate limit is {@code principal - payment*k}. {@code elapsedMonths <= 0} returns the full
+   * principal; {@code elapsedMonths >= termMonths} returns zero. Result is scale 2, HALF_UP,
+   * clamped to be non-negative.
+   *
+   * @param principal financed capital, must be positive (validated by the caller)
+   * @param annualInterestRatePercent nominal annual rate as a percentage, zero or positive
+   *     (validated by the caller)
+   * @param termMonths full loan term in months, must be positive (validated by the caller)
+   * @param elapsedMonths number of payments already made
+   * @return the outstanding principal, scale 2, HALF_UP, never negative
+   */
+  public static BigDecimal computeOutstandingBalance(
+      BigDecimal principal,
+      BigDecimal annualInterestRatePercent,
+      int termMonths,
+      int elapsedMonths) {
+    if (elapsedMonths <= 0) {
+      return principal.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+    }
+    if (elapsedMonths >= termMonths) {
+      return BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
+    }
+
+    BigDecimal payment = computeMonthlyPayment(principal, annualInterestRatePercent, termMonths);
+    BigDecimal monthlyRate =
+        annualInterestRatePercent.divide(
+            BigDecimal.valueOf(PERCENT_DIVISOR * MONTHS_PER_YEAR), WORKING_PRECISION);
+
+    BigDecimal balance;
+    if (monthlyRate.signum() == 0) {
+      balance = principal.subtract(payment.multiply(BigDecimal.valueOf(elapsedMonths)));
+    } else {
+      BigDecimal growthFactor =
+          BigDecimal.ONE.add(monthlyRate).pow(elapsedMonths, WORKING_PRECISION);
+      BigDecimal grownPrincipal = principal.multiply(growthFactor, WORKING_PRECISION);
+      BigDecimal paidDownFactor =
+          growthFactor
+              .subtract(BigDecimal.ONE, WORKING_PRECISION)
+              .divide(monthlyRate, WORKING_PRECISION);
+      balance = grownPrincipal.subtract(payment.multiply(paidDownFactor, WORKING_PRECISION));
+    }
+
+    balance = balance.max(BigDecimal.ZERO);
+    return balance.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
   }
 }

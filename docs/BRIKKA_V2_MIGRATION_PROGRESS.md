@@ -11,7 +11,7 @@
 ## Barra de progreso global
 
 ```
-V2  [██████████████████░░░░░░░░░░░░]   60 %   (3 / 5 bloques · I1 ✅ · I2 ✅ · I3 ✅)   —   siguiente: I4 (Sprint V2-4)
+V2  [████████████████████████░░░░]   85 %   (4 / 5 bloques · I1 ✅ · I2 ✅ · I3 ✅ · I4 ✅)   —   siguiente: I5 (Sprint V2-5)
 ```
 
 | Bloque | Peso | Estado | Backend | Frontend | Tests BE | Tests FE | % bloque |
@@ -19,9 +19,9 @@ V2  [██████████████████░░░░░░░
 | **I1** · Checklist documental | 25 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I2** · Scoring de fábrica + RAG | 20 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I3** · Precondiciones de transición | 15 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
-| **I4** · Simulación enriquecida | 25 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
+| **I4** · Simulación enriquecida | 25 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I5** · Dossier + ZIP + narrativa | 15 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
-| **TOTAL** | 100 % | | | | | | **60 %** |
+| **TOTAL** | 100 % | | | | | | **85 %** |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
@@ -29,7 +29,124 @@ Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
 ## Bloque / sprint actual
 
-**V2-4 · I4 · Simulación hipotecaria enriquecida** (siguiente, sin empezar).
+**V2-5 · I5 · Dossier + ZIP documental + narrativa determinista** (siguiente, sin empezar).
+
+### V2-4 · I4 · Simulación hipotecaria enriquecida — ✅ CERRADO (2026-08-31)
+
+Commit del sprint: pendiente de `git commit` (ver "Registro de avance"). Implementado sobre el motor
+de cuota francés existente (`MortgagePaymentCalculator`) — **sin segundo motor de cálculo**, sin
+recuperar bugs Legacy (`monthly_payment_phase2`, `total_interest`, `recommended`, bonificaciones sin
+aplicar).
+
+**1. Modelo de datos — `V30__simulation_interest_type_and_bonifications.sql`** (aditivo, no
+destructivo, sin tabla ni permiso nuevos). 9 columnas nuevas en `simulations`:
+
+| columna | tipo | notas |
+|---|---|---|
+| `interest_type` | `varchar(20) NOT NULL DEFAULT 'FIXED'` + CHECK `IN (FIXED,VARIABLE,MIXED)` | filas históricas → `FIXED` |
+| `base_interest_rate` | `numeric(7,4)` → `NOT NULL` tras backfill | tipo antes de bonificaciones |
+| `final_interest_rate` | `numeric(7,4)` → `NOT NULL` tras backfill | `= interest_rate` (tipo efectivo) |
+| `euribor_rate`, `spread_rate` | `numeric(7,4)` NULL | solo VARIABLE / MIXED |
+| `fixed_period_months` | `integer` NULL + CHECK `> 0` | solo MIXED |
+| `fixed_period_rate` | `numeric(7,4)` NULL | solo MIXED (tipo del tramo fijo, pre-bonif.) |
+| `ico_guarantee` | `boolean NOT NULL DEFAULT false` | dato, no motor de elegibilidad |
+| `bonifications` | `jsonb NOT NULL DEFAULT '[]'` | array `{code,label,rate,active}` — datos, no seis códigos hardcoded en Java |
+
+- **`interest_rate`** (columna existente) se conserva como **tipo efectivo** que leen aguas abajo
+  `FinancialAnalysisService` y `ViabilityDossierService` → siempre `= final_interest_rate` (para
+  MIXED, el final del **tramo fijo**). **`estimated_payment`** (existente) pasa a **calcularse en el
+  servidor** (antes lo tecleaba el bróker).
+- **Backfill:** `UPDATE simulations SET base_interest_rate = interest_rate, final_interest_rate =
+  interest_rate WHERE base_interest_rate IS NULL` → las filas antiguas quedan como `FIXED` sin
+  bonificaciones, `estimated_payment` intacto. Ninguna conversión silenciosa; ninguna columna se
+  elimina.
+- **`MortgagePaymentCalculator` movido** de `financialanalysis` a `financing` (paquete correcto:
+  `financialanalysis` ya dependía de `financing`; así se evita un ciclo de paquetes). Es la misma
+  clase; consumidores (`FinancialAnalysisService`) actualizan el `import`.
+
+**2. Cálculo — `financing/SimulationInterestCalculator`** (puro, estático, determinista; usa
+`MortgagePaymentCalculator`):
+
+| tipo | tipo base | tipo final | cuota |
+|---|---|---|---|
+| **FIXED** | `fixedRate` | `max(0, base − Σ bonif. activas)` | francés a `final` sobre el plazo total |
+| **VARIABLE** | `euribor + spread` | `max(0, base − Σ)` | francés a `final` sobre el plazo total |
+| **MIXED** | `fixedPeriodRate` (tramo fijo) | `max(0, base − Σ)` | **tramo fijo:** francés a `final` sobre plazo total · **tramo variable:** re-amortiza el saldo pendiente (`MortgagePaymentCalculator.computeOutstandingBalance`, nueva — misma familia de fórmula) a `max(0, euribor+spread − Σ)` sobre los meses restantes |
+
+- **Bonificaciones (R19, aplicadas de verdad):** `Σ` = suma de `rate` de las entradas con
+  `active = true`; se resta al tipo base; *floor* 0. La misma `Σ` se aplica a **ambos tramos** de un
+  MIXED (una bonificación —nómina, seguro— es condición de la hipoteca completa).
+- **Redondeo (documentado):** suma de bonificaciones exacta (`BigDecimal`); cada tipo (base, final)
+  a escala 4 `HALF_UP` una vez; toda cuota y el saldo pendiente a escala 2 `HALF_UP` (los redondea
+  `MortgagePaymentCalculator`, comportamiento ya existente). Nunca `double`/`float`.
+- **Alcance MIXED (documentado):** el tramo variable se proyecta con el euríbor introducido; no se
+  modela una senda futura del euríbor. `interest_rate` (lo que consumen aguas abajo) = tipo del
+  tramo fijo, el que rige al inicio del préstamo. La fase variable (saldo + cuota) **no se persiste**
+  — se re-deriva al leer desde los datos guardados (determinista, reproducible).
+
+**3. Validación — `financing/SimulationService`** (validación de dominio → `ValidationException` →
+400 `{code,message,requestId}`; el código base **no usa Bean Validation**, decisión Sprint 40):
+
+| código | caso |
+|---|---|
+| `INVALID_SIMULATION_INTEREST_TYPE` | tipo no ∈ {FIXED,VARIABLE,MIXED} |
+| `INVALID_SIMULATION_AMOUNT` / `INVALID_SIMULATION_TERM` | principal ≤ 0 · plazo < 1 |
+| `SIMULATION_INTEREST_MODEL_MISMATCH` | campo requerido ausente **o** campo no aplicable presente (FIXED con euríbor, VARIABLE sin diferencial, MIXED sin tramo fijo…) |
+| `INVALID_SIMULATION_FIXED_PERIOD` | MIXED con `fixedPeriodMonths` ∉ [1, plazo − 1] |
+| `NEGATIVE_SIMULATION_VALUE` | tipo fijo / diferencial / tramo fijo negativo (el **euríbor sí puede ser negativo**) |
+| `INVALID_SIMULATION_BONIFICATION` | código en blanco / duplicado, `rate` nulo o negativo, código desconocido sin descripción |
+
+`final ≤ base` siempre por construcción (las bonificaciones solo reducen). Catálogo
+`SimulationBonificationCatalog` = etiquetas de los códigos conocidos (PAYROLL, HOME_INSURANCE, …) —
+**solo presentación**, el cálculo no lo consulta; se admiten códigos no listados con descripción.
+
+**4. API — `POST` / `GET /api/v1/cases/{caseId}/simulations`** (endpoints existentes extendidos, sin
+API paralela). Permisos `SIMULATION_CREATE` / `SIMULATION_READ` sin cambios; tenant vía
+`CaseAccessService` (caso de otro tenant → 404); contrato de error intacto.
+`CreateSimulationApiRequest`: `interestType, principal, termMonths, fixedRate?, euriborRate?,
+spreadRate?, fixedPeriodMonths?, fixedPeriodRate?, bonifications[], icoGuarantee?, metadata`.
+`SimulationResponse`: + `interestType, baseInterestRate, finalInterestRate, euriborRate, spreadRate,
+fixedPeriodMonths, fixedPeriodRate, icoGuarantee, bonifications[], variablePhase` (`{baseInterestRate,
+finalInterestRate, outstandingBalanceAtSwitch, monthlyPayment}`, solo MIXED).
+
+**5. Frontend** (solo pantallas de simulación):
+- `create-simulation-dialog`: selector de tipo → campos adaptados (FIXED: tipo fijo · VARIABLE:
+  euríbor + diferencial · MIXED: meses/tipo del tramo fijo + euríbor + diferencial); lista de
+  bonificaciones (catálogo + "Otra", descripción, reducción, activa); casilla aval ICO;
+  **previsualización** de tipo base / suma de bonificaciones / tipo final (aritmética trivial en
+  cliente — **no** se duplica la fórmula de cuota). Tras crear, muestra un **resumen** con tipo base,
+  tipo final y **cuota** (del backend), y para MIXED la cuota del tramo variable.
+- `financing.model.ts`: `Simulation` / `CreateSimulationRequest` enriquecidos + `SimulationBonification`
+  + `SimulationVariablePhase` + `INTEREST_TYPES`.
+- `case-detail`: columna **"Tipo"** en la tabla de simulaciones (badge + "· aval ICO"); "Interés" →
+  "Interés final".
+- `status-labels.ts`: `INTEREST_TYPE_LABELS`. `error-messages.ts`: +7 códigos de simulación.
+
+**Tests (backend, todos verdes):**
+- `SimulationInterestCalculatorTest` (nuevo, unit) — **7/7**: FIXED sin/con bonif. + *floor* 0 +
+  cuota; VARIABLE euríbor+diferencial (+ euríbor negativo) + bonif. + cuota; MIXED dos tramos con
+  bonif. en ambos + saldo pendiente + cuota variable; suma de bonif. activas.
+- `SimulationServiceValidationTest` (nuevo, unit) — **12/12**: los 7 códigos de error, mezcla
+  campos/tipo, tramo fijo ≥ plazo, diferencial negativo, bonif. duplicada / negativa / en blanco /
+  desconocida sin descripción.
+- `MortgagePaymentCalculatorTest` (+5) — `computeOutstandingBalance`: k=0 → principal, k≥plazo → 0,
+  tipo 0 → lineal, monotonía + escala, re-amortización reproduce la cuota original.
+- `FinancingEndpointsIT` (reescrito + ampliado, **11/11**) — FIXED aplica bonif. y devuelve la cuota
+  calculada; VARIABLE euríbor+diferencial−bonif.; MIXED devuelve ambos tramos; ICO true/false
+  persistido; modelo inválido → 400 estructurado (`SIMULATION_INTEREST_MODEL_MISMATCH`,
+  `INVALID_SIMULATION_FIXED_PERIOD`); **caso de otro tenant → 404**; sin asignación → 403; CLIENT → 403.
+- `FlywayMigrationIT` — 29→30; +asserts de las 9 columnas de `simulations`, `interest_type` NOT NULL,
+  `ico_guarantee` default false.
+- Regresión: `FinancialAnalysisEndpointsIT` 10/10, `ViabilityDossierEndpointsIT` 8/8,
+  `EngagementContractEndpointsIT` 7/7, `CrossModuleE2EIT` 3/3 — verdes tras mover
+  `MortgagePaymentCalculator` y añadir el `insert` de bajo nivel (compat.).
+
+**Tests (frontend, todos verdes):** `create-simulation-dialog.component.spec` (reescrito) — FIXED con
+bonif. + body exacto + resumen; VARIABLE adapta campos + body; MIXED muestra cuota del tramo variable;
+ICO; previsualización de tipos; no envía inválido; error de backend. `financing.service.spec`
+actualizado. `ng test` **501/501** · `ng lint` verde.
+
+**FUTURO (detectado, no implementado):** ninguno nuevo en I4.
 
 ### V2-3 · I2 · Scoring de fábrica + indicador RAG — ✅ CERRADO (2026-08-31)
 
@@ -357,25 +474,38 @@ sin datos → "sin evaluar".  ✅ verificado en `CaseRagServiceIT` + `ScoringEnd
 **Criterio de aceptación:** no se avanza si la precondición falla; con permiso + motivo sí, y queda
 auditado.
 
-### I4 · Simulación enriquecida  *(P1 — Sprint V2-4)*
+### I4 · Simulación enriquecida  *(P1 — Sprint V2-4 · ✅ COMPLETADO 2026-08-31)*
 
 **Definition of Done:**
-- [ ] Migración `V30__simulation_interest_type_and_bonifications.sql` (antes V29; V29 la ocupa I2): `interest_type`
-      (`FIXED`/`VARIABLE`/`MIXED`), desglose (`spread`, `euribor`, `fixed_years`, `fixed_rate`,
-      `variable_spread`), `base_interest_rate` / `final_interest_rate` `numeric(7,4)`, bonificaciones
-      (tabla o `metadata` tipado), `ico_guarantee`.
-- [ ] `final_interest_rate = max(0, base − Σ tasas de bonificaciones activas)` **en el backend**.
-- [ ] `estimated_payment` recalculado con `MortgagePaymentCalculator` a partir de `final_interest_rate`.
-- [ ] Validación `MIXED`: años fijos < plazo total.
-- [ ] `create-simulation-dialog` (Angular): tipo de interés, desglose, bonificaciones, ICO; muestra
-      base / final / cuota.
-- [ ] Tests BE: `final_interest_rate` con varias bonificaciones (floor 0) · cuota francesa ·
-      validación MIXED · redondeo `numeric(7,4)` / `numeric(14,2)`.
-- [ ] Tests FE: diálogo.
-- [ ] Batería completa en verde.
+- [x] Migración `V30__simulation_interest_type_and_bonifications.sql` (aditiva, no destructiva):
+      `interest_type` (`FIXED`/`VARIABLE`/`MIXED`, CHECK), `base_interest_rate` /
+      `final_interest_rate` `numeric(7,4)`, `euribor_rate`, `spread_rate`, `fixed_period_months`,
+      `fixed_period_rate`, `ico_guarantee boolean DEFAULT false`, `bonifications jsonb` (array
+      tipado — datos, no seis códigos en Java). Backfill de filas históricas (FIXED, base = final =
+      `interest_rate`). **Antes V29; V29 la ocupó I2.**
+- [x] `final_interest_rate = max(0, base − Σ bonificaciones activas)` **en el backend**
+      (`SimulationInterestCalculator`), aplicado de verdad (Legacy no lo hacía).
+- [x] `estimated_payment` recalculado con `MortgagePaymentCalculator` (movido a `financing`) a
+      partir de `final_interest_rate`. MIXED: cuota del tramo fijo + cuota del tramo variable
+      re-amortizando el saldo pendiente (`computeOutstandingBalance`, nueva; misma familia de
+      fórmula).
+- [x] Validación `MIXED`: `fixedPeriodMonths` ∈ [1, plazo − 1] (`INVALID_SIMULATION_FIXED_PERIOD`).
+- [x] Modelo de interés explícito + validación de dominio (`SimulationService`, 7 códigos de error;
+      FIXED no admite euríbor, VARIABLE exige euríbor+diferencial, etc.). ICO como dato en
+      `simulations` (no motor de elegibilidad).
+- [x] `create-simulation-dialog` (Angular): tipo de interés → campos adaptados, bonificaciones, ICO;
+      muestra tipo base / suma de bonificaciones / tipo final y, al crear, la **cuota** (del backend).
+- [x] Tests BE: `SimulationInterestCalculatorTest` 7/7 · `SimulationServiceValidationTest` 12/12 ·
+      `MortgagePaymentCalculatorTest` +5 (saldo pendiente) · `FinancingEndpointsIT` 11/11 (FIXED /
+      VARIABLE / MIXED / ICO / modelo inválido / **tenant → 404**) · `FlywayMigrationIT` 29→30.
+- [x] Tests FE: `create-simulation-dialog.component.spec` reescrito · `financing.service.spec`
+      actualizado.
+- [x] Regresión completa en verde (incl. `FinancialAnalysisEndpointsIT`, `ViabilityDossierEndpointsIT`).
+- [x] `docs/` (`SCOPE §1 I4` + tabla de migración) y este PROGRESS actualizados.
 
-**Criterio de aceptación:** una simulación `VARIABLE` con euríbor + diferencial + 2 bonificaciones
-activas muestra base, final y cuota coherentes; el dossier lo refleja.
+**Criterio de aceptación:** una simulación `VARIABLE` con euríbor + diferencial + bonificaciones
+activas muestra tipo base, tipo final y cuota coherentes.  ✅ verificado en
+`variableSimulationUsesEuriborPlusSpreadMinusBonifications` + `SimulationInterestCalculatorTest`.
 
 ### I5 · Dossier + ZIP documental + narrativa determinista  *(P1 — Sprint V2-5)*
 
@@ -399,14 +529,16 @@ incluye un párrafo de contexto generado por reglas.
 
 ## Tests — estado
 
-| Ámbito | Baseline (V2-0) | Actual (tras I2) | Nuevos en V2 |
+| Ámbito | Baseline (V2-0) | Actual (tras I4) | Nuevos en V2 |
 |---|---|---|---|
-| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **499/499** | +14 |
-| Backend unit (Surefire, sin Docker) | **106/106** ✅ | **106/106** ✅ | 0 |
+| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **501/501** | +16 |
+| Backend unit (Surefire, sin Docker) | **106/106** ✅ | **132/132** ✅ | +26 (I4: `SimulationInterestCalculatorTest` 7 · `SimulationServiceValidationTest` 12 · `MortgagePaymentCalculatorTest` +5; I3: +2) |
 | Backend IT — barrido I1 (document, casemgmt, contract, dossier, financialanalysis, ai, e2e, portal, notification) | — | **verde** (189 tests) | I1 |
 | Backend IT — barrido I3 (`CaseTransitionPreconditionsIT` 15, `CrmCaseEndpointsIT` 23, `CaseServiceIT` 17, `CaseChecklistServiceIT` 6, `FlywayMigrationIT`, `RbacSeedIT` 30, `IdentityEndpointsIT`) | — | **verde** | `CaseTransitionPreconditionsIT` 15/15 · `CrmCaseEndpointsIT` +2 |
 | Backend IT — barrido I2 (`CaseRagServiceIT` 7, `ScoringEndpointsIT` 14, `ScoringNoActiveRulesetIT` 1, `ScoringRulesetEndpointsIT`, `FlywayMigrationIT`, `CrossModuleE2EIT`) | — | **verde** | `CaseRagServiceIT` 7/7 · `ScoringEndpointsIT` +2 |
-| Backend integración — suite completa `./mvnw clean verify` (tras I2) | *(no ejecutada en V2-0)* | _(en curso — se anota el resultado al terminar)_ | — |
+| Backend IT — barrido I4 (`FinancingEndpointsIT` 11, `FinancialAnalysisEndpointsIT` 10, `ViabilityDossierEndpointsIT` 8, `EngagementContractEndpointsIT` 7, `CrossModuleE2EIT` 3, `FlywayMigrationIT`) | — | **verde** | `FinancingEndpointsIT` +expandido · `SimulationInterestCalculatorTest` 7 · `SimulationServiceValidationTest` 12 · `MortgagePaymentCalculatorTest` +5 |
+| Backend integración — suite completa `./mvnw clean verify` (tras I2) | *(no ejecutada en V2-0)* | **BUILD SUCCESS** — Surefire **108/108**, Failsafe **444/444** (72 clases IT), 0 fallos / 0 errores | — |
+| Backend integración — suite completa `./mvnw clean verify` (tras I4) | — | **BUILD SUCCESS** — Surefire **132/132**, Failsafe **449/449**, 0 fallos / 0 errores; `spotless:check` ✅ | — |
 | Aislamiento de tenant (por recurso nuevo) | n/a | **checklist** (I1) + **3 gates** (I3) + **RAG** (I2): `CaseRagServiceIT.scoringResultOfAnotherTenantNeverLeaksIntoTheIndicator`, `ScoringEndpointsIT.ragFromAnotherTenantCaseIsNotFound` | — |
 
 ---
@@ -441,7 +573,8 @@ Decisiones **de diseño interno** (se resuelven dentro de cada sprint, sin bloqu
 | 2026-08-31 | V2-0 | Commit Sprint 40.x (`5c4b223`, `main`). Rama `feat/v2-migration`. Baseline de tests medido. Docs de planificación commiteados en la rama. | FE 485 ✅ · BE unit 106 ✅ · BE IT muestra 26 ✅ |
 | 2026-08-31 | V2-1 (I1) | Checklist documental: `V27` + 7 clases backend nuevas + 8 modificadas + 3 ficheros frontend + selector de titular. Cierre por `APPROVED` (§10.3), auto-gen en `DOCUMENTATION`, AI-ready. | `CaseChecklistServiceIT` 6/6 · `DocumentEndpointsIT` 16/16 · `FlywayMigrationIT` ✅ · barrido regresión ✅ · FE 488/488 ✅ |
 | 2026-08-31 | V2-2 (I3) | 3 gates de transición (`CaseTransitionPreconditions` + `CaseService.changeStatus`) + excepción autorizada (`CASE_TRANSITION_OVERRIDE`, `V28`) + FE (casilla forzar + traducción de errores). | `CaseTransitionPreconditionsIT` 15/15 · `CrmCaseEndpointsIT` 23/23 · `CaseServiceIT` 17/17 · RBAC counters ✅ · FE 492/492 ✅ · `./mvnw verify` completo → ver abajo |
-| 2026-08-31 | V2-3 (I2) | Scoring de fábrica (`V29` — ruleset `ACTIVE` `default-operation-v1` + 4 reglas + categorías `GREEN/AMBER/RED` en jsonb, motor existente) + indicador RAG del expediente (`scoring/CaseRagService` + `GET /scoring/rag`, `SCORING_READ`, peor de 3 ejes tenant-scoped) + FE (`features/scoring/*` + sección "Indicador RAG" en `case-detail` + `status-tone`/labels). `case-list` RAG → FUTURO `§6.5`. | `CaseRagServiceIT` 7/7 · `ScoringEndpointsIT` 16/16 (+2) · `ScoringNoActiveRulesetIT` adaptado ✅ · `FlywayMigrationIT` 28→29 ✅ · FE 499/499 ✅ · `ng lint` ✅ · `./mvnw clean verify` completo → ver abajo |
+| 2026-08-31 | V2-3 (I2) | Scoring de fábrica (`V29` — ruleset `ACTIVE` `default-operation-v1` + 4 reglas + categorías `GREEN/AMBER/RED` en jsonb, motor existente) + indicador RAG del expediente (`scoring/CaseRagService` + `GET /scoring/rag`, `SCORING_READ`, peor de 3 ejes tenant-scoped) + FE (`features/scoring/*` + sección "Indicador RAG" en `case-detail` + `status-tone`/labels). `case-list` RAG → FUTURO `§6.5`. | `CaseRagServiceIT` 7/7 · `ScoringEndpointsIT` 16/16 (+2) · `ScoringNoActiveRulesetIT` adaptado ✅ · `FlywayMigrationIT` 28→29 ✅ · FE 499/499 ✅ · `ng lint` ✅ · `./mvnw clean verify` → Surefire 108/108 · Failsafe 444/444 · BUILD SUCCESS |
+| 2026-08-31 | V2-4 (I4) | Simulación enriquecida: `V30` (9 columnas en `simulations`, aditiva) + `financing/SimulationInterestCalculator` (FIXED/VARIABLE/MIXED, bonificaciones aplicadas de verdad, floor 0, MIXED dos tramos) + `financing/SimulationService` (validación de dominio, 7 códigos) + `MortgagePaymentCalculator` movido a `financing` + `computeOutstandingBalance` · `POST/GET /simulations` extendidos (sin API paralela) · FE `create-simulation-dialog` adaptado + `case-detail` columna "Tipo". Sin recuperar bugs Legacy. | `SimulationInterestCalculatorTest` 7/7 · `SimulationServiceValidationTest` 12/12 · `MortgagePaymentCalculatorTest` +5 · `FinancingEndpointsIT` 11/11 · `FlywayMigrationIT` 29→30 ✅ · regresión (financialanalysis/dossier/contract/e2e) ✅ · FE 501/501 ✅ · `ng lint` ✅ · `./mvnw clean verify` → Surefire 132/132 · Failsafe 449/449 · BUILD SUCCESS |
 
 ---
 

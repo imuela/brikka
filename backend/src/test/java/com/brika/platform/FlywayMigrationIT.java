@@ -70,8 +70,9 @@ class FlywayMigrationIT {
     // requirement rows, no new table) = 27. + V28 (BRIKKA V2 I3: CASE_TRANSITION_OVERRIDE
     // permission + 2 role_permissions rows, no new table) = 28. + V29 (BRIKKA V2 I2: factory
     // scoring ruleset — 1 scoring_rulesets row + 4 scoring_rules rows, no new table, no new
-    // permission) = 29.
-    assertThat(appliedMigrations).isEqualTo(29);
+    // permission) = 29. + V30 (BRIKKA V2 I4: simulations interest breakdown + bonifications — 9
+    // columns added to simulations, no new table, no new permission) = 30.
+    assertThat(appliedMigrations).isEqualTo(30);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -243,5 +244,41 @@ class FlywayMigrationIT {
                 + " WHERE code = 'default-operation-v1'",
             Integer.class);
     assertThat(factoryRulesetCategoryCount).isEqualTo(3);
+
+    // V30 (BRIKKA V2 I4): simulations gains the interest breakdown + bonifications, additively.
+    for (String column :
+        new String[] {
+          "interest_type",
+          "base_interest_rate",
+          "final_interest_rate",
+          "euribor_rate",
+          "spread_rate",
+          "fixed_period_months",
+          "fixed_period_rate",
+          "ico_guarantee",
+          "bonifications"
+        }) {
+      Boolean exists =
+          jdbc.queryForObject(
+              "SELECT COUNT(*) > 0 FROM information_schema.columns WHERE table_name = 'simulations'"
+                  + " AND column_name = ?",
+              Boolean.class,
+              column);
+      assertThat(exists).as("simulations.%s must exist (V30)", column).isTrue();
+    }
+
+    Boolean interestTypeNotNull =
+        jdbc.queryForObject(
+            "SELECT is_nullable = 'NO' FROM information_schema.columns WHERE table_name ="
+                + " 'simulations' AND column_name = 'interest_type'",
+            Boolean.class);
+    assertThat(interestTypeNotNull).isTrue();
+
+    Boolean icoGuaranteeDefaultsFalse =
+        jdbc.queryForObject(
+            "SELECT column_default LIKE 'false%' FROM information_schema.columns WHERE table_name ="
+                + " 'simulations' AND column_name = 'ico_guarantee'",
+            Boolean.class);
+    assertThat(icoGuaranteeDefaultsFalse).isTrue();
   }
 }

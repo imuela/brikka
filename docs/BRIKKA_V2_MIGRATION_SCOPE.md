@@ -115,22 +115,34 @@ FUERA de V2** por decisión del propietario (no existe clausulado jurídico apro
 
 ### I4 · Simulación hipotecaria enriquecida  *(P1 — GAP filas 17, 17a, 17b; reglas R18, R19)*
 
-- **`interest_type`** (`FIXED` / `VARIABLE` / `MIXED`) + desglose: `spread`, `euribor`,
-  `fixed_years`, `fixed_rate`, `variable_spread` (columnas nuevas en `simulations` **o** `metadata`
-  tipado — decisión de diseño dentro del sprint, sin `double`, dinero `numeric(14,2)`, tipos
-  `numeric(7,4)`). Validación **"años fijos < plazo total"** para `MIXED`.
-- **Bonificaciones**: catálogo cerrado (`SALARY`, `HOME_INSURANCE`, `LIFE_INSURANCE`, `ALARM`,
-  `CARD`, `INVESTMENTS`, `OTHER`) con tasa por bonificación; `rate_final = max(0, rate_base − Σ tasas
-  activas)`, **calculado en el backend** (NO reproducir el bug Legacy de guardarlas sin aplicarlas —
-  regla R19).
-- Recalcular `estimated_payment` con `MortgagePaymentCalculator` (sistema francés, ya existe) a
-  partir del `rate_final`.
-- Persistir `base_interest_rate`, bonificaciones aplicadas y `final_interest_rate`; mostrarlos en el
-  diálogo de simulación y en el dossier (I5).
-- Flag **`ico_guarantee`** a nivel de operación (`cases` u `properties` — decisión de diseño dentro
-  del sprint) y reflejo en la simulación.
-- Backend + `create-simulation-dialog` (Angular) + tests (cálculo del tipo final con varias
-  bonificaciones, floor 0; cuota francesa; validación MIXED; redondeo monetario y de tipos).
+- **`interest_type`** (`FIXED` / `VARIABLE` / `MIXED`) + desglose. *(Realizado `V30`: 9 columnas
+  nuevas en `simulations` — `interest_type` (CHECK), `base_interest_rate`, `final_interest_rate`,
+  `euribor_rate`, `spread_rate`, `fixed_period_months`, `fixed_period_rate`, `ico_guarantee`,
+  `bonifications jsonb`; `numeric(7,4)` tipos, `numeric(14,2)` dinero, sin `double`. Aditiva y no
+  destructiva; backfill de filas históricas como FIXED.)* Validación **tramo fijo < plazo total**
+  para `MIXED` (`INVALID_SIMULATION_FIXED_PERIOD`; en meses, no años).
+- **Bonificaciones**: modelo de datos (`bonifications` jsonb, array `{code,label,rate,active}`) —
+  **datos, no seis códigos hardcoded en Java** (`SimulationBonificationCatalog` = solo etiquetas de
+  los conocidos; se admiten códigos no listados con descripción). `final = max(0, base − Σ tasas
+  activas)`, **calculado en el backend** (`SimulationInterestCalculator`), aplicado de verdad — NO
+  se reproduce el bug Legacy (R19). En MIXED la misma Σ se aplica a los dos tramos.
+- Recalcular `estimated_payment` con `MortgagePaymentCalculator` (sistema francés, ya existe;
+  **movido de `financialanalysis` a `financing`** para evitar un ciclo de paquetes) a partir del
+  tipo final. MIXED: cuota del tramo fijo + cuota del tramo variable re-amortizando el saldo
+  pendiente (`computeOutstandingBalance`, nueva, misma familia de fórmula — **no** un segundo motor).
+- Persistir `base_interest_rate`, `final_interest_rate` y las bonificaciones aplicadas;
+  `interest_rate` (columna existente) se conserva como **tipo efectivo** que consumen aguas abajo
+  `FinancialAnalysisService` / `ViabilityDossierService` (= `final_interest_rate`; para MIXED, el
+  del tramo fijo). La fase variable de MIXED **no se persiste** — se re-deriva al leer (determinista).
+- Flag **`ico_guarantee`** en **`simulations`** (`boolean DEFAULT false`) — la simulación es el
+  escenario donde el aval aplica; solo se representa el dato, sin motor de elegibilidad.
+- Backend + `create-simulation-dialog` (Angular; campos adaptados al tipo, bonificaciones, ICO,
+  previsualización de base/Σ/final y cuota del backend) + `case-detail` (columna "Tipo") + tests
+  (tipo final con varias bonificaciones y floor 0; cuota francesa; validación MIXED; `numeric(7,4)`
+  / `numeric(14,2)`; tenant). **NO** se recuperan de Legacy `monthly_payment_phase2`,
+  `total_interest`, `recommended` ni las bonificaciones sin aplicar.
+- *(NO recuperado de Legacy, como pedía el encargo: `recommended`, `monthly_payment_phase2`,
+  `total_interest` con valores incorrectos, cualquier cálculo identificado como defectuoso.)*
 
 ### I5 · Dossier de viabilidad con documentación empaquetada + narrativa determinista  *(P1 — GAP filas 18, 18a, 21, 22; regla R12/R22-parcial)*
 
@@ -211,10 +223,10 @@ FUERA de V2** por decisión del propietario (no existe clausulado jurídico apro
 | Semilla `document_requirements` (mapa `CLIENT_DOCUMENTS`/`CASE_DOCUMENTS` → códigos `V2`) | filas `INSERT` en migración Flyway nueva, `operation_type='PURCHASE'` | I1 | **P0** |
 | Estado de completitud del requisito (`SIN_DOCUMENTO`/`SUBIDO`/`APROBADO`) | derivado en el servicio a partir de `document_requests.status` + `documents.review_status`; si hace falta, columna `document_requests.fulfilled_at` / `fulfilled_by_version_id` | I1 | **P0** |
 | Semilla `scoring_ruleset` + `scoring_rules` + 3 categorías | filas `INSERT` en migración Flyway nueva | I2 | P1 |
-| `simulations.interest_type` (`FIXED`/`VARIABLE`/`MIXED`) + `spread, euribor, fixed_years, fixed_rate, variable_spread` | columnas nuevas `numeric` / `varchar(20) CHECK(...)` **o** `metadata` tipado | I4 | P1 |
-| `simulations.base_interest_rate`, `simulations.final_interest_rate` `numeric(7,4)` | columnas nuevas | I4 | P1 |
-| Bonificaciones de simulación | tabla `simulation_bonifications(id, simulation_id, type CHECK(...), rate numeric(7,4))` **o** array tipado en `metadata` | I4 | P1 |
-| `ico_guarantee` | `boolean NOT NULL DEFAULT false` en `cases` (o `properties`) | I4 | P2 (dentro de I4) |
+| `simulations.interest_type` (`FIXED`/`VARIABLE`/`MIXED`) + `euribor_rate, spread_rate, fixed_period_months, fixed_period_rate` | **Realizado `V30`:** columnas nuevas `numeric(7,4)` / `integer` / `varchar(20) CHECK(...)` en `simulations` (no `metadata`) | I4 | P1 |
+| `simulations.base_interest_rate`, `simulations.final_interest_rate` `numeric(7,4)` | **Realizado `V30`:** columnas nuevas, `NOT NULL` tras backfill de filas históricas | I4 | P1 |
+| Bonificaciones de simulación | **Realizado `V30`:** `simulations.bonifications jsonb` (array `{code,label,rate,active}`) — no tabla; `SimulationBonificationCatalog` = solo etiquetas | I4 | P1 |
+| `ico_guarantee` | **Realizado `V30`:** `boolean NOT NULL DEFAULT false` en **`simulations`** (el escenario donde el aval aplica) | I4 | P2 (dentro de I4) |
 
 ### 4.3 Campos Legacy que NO se recuperan (confirmado)
 
@@ -346,7 +358,7 @@ y **se detiene el trabajo de migración**. Cualquier hueco descubierto después 
 | **V2-1** · Checklist documental (I1, **P0**) | V2-0 | seed `document_requirements(PURCHASE)`; auto-gen de `document_requests` al entrar en `DOCUMENTATION`; cierre de requisito solo con `review_status = APPROVED`; endpoint + vista de completitud; diseño AI-ready del enganche "documento→requisito" | migración `V27__seed_document_requirements.sql`; `document/DocumentRequestService.java`, `document/DocumentService.java` (hook al aprobar), `casemgmt/CaseService.java` (hook de transición); nuevo `document/CaseChecklistService.java` + controller; `frontend/.../cases/case-detail/*` + nuevo componente de checklist + `documents.service.ts` | auto-gen idempotente; requisito NO se cierra al subir, SÍ al aprobar; tenant; componente Angular | al pasar `PURCHASE` a `DOCUMENTATION` aparecen los requisitos por titular y de expediente; subir el documento deja el requisito en `SUBIDO`; aprobarlo lo deja `APROBADO`; la vista muestra "faltan N obligatorios" |
 | **V2-2** · Precondiciones de transición (I3, P1) | V2-1 (para la primera transición) | 3 gates: `DOCUMENTATION→ANALYSIS` (checklist obligatorio aprobado), `BANK_SEARCH→BANK_SUBMISSION` (≥1 solicitud bancaria válida), `OFFER→FORMALIZATION` (oferta seleccionada / `final_financing`); excepción autorizada con motivo | `casemgmt/CaseService.java` (`changeStatus`), sin cambios en `CaseWorkflow`; permiso nuevo `CASE_TRANSITION_OVERRIDE` (o equivalente); `frontend/.../cases/case-dialogs/change-status-dialog.component.ts` | por transición: bloqueada / permitida / con excepción; error estructurado | no se avanza si la precondición falla; con permiso + motivo sí, y queda en `case_status_history.reason` |
 | **V2-3** · Scoring de fábrica + RAG (I2, P1) — ✅ | V2-1 (eje "checklist" del RAG) | migración seed `scoring_ruleset` `ACTIVE` + 3 categorías `GREEN/AMBER/RED`; endpoint RAG del caso (peor eje evaluado, cualitativo); badge en `case-detail` (**`case-list` → FUTURO §6.5**) | migración `V29__seed_default_scoring_ruleset.sql`; nuevo `scoring/CaseRagService.java` + `RagLevel`/`RagAxis`/`CaseRagIndicator` + `scoring/web/CaseRagController.java` + `CaseRagResponse`; `frontend` `features/scoring/scoring.{model,service}.ts` + `case-detail` + `status-labels.ts` + `status-tone.ts` | seed (`ACTIVE`, 3 categorías, 4 reglas, reproducible); combinación RAG completa/parcial/ausente; tenant (`GET /scoring/rag` de otro tenant → 404); regresión scoring/viabilidad | caso con LTV bajo + viabilidad FAVORABLE → verde; cualquier eje en rojo → rojo; sin datos → "sin evaluar" |
-| **V2-4** · Simulación enriquecida (I4, P1) | V2-0 | `interest_type` + desglose; bonificaciones (catálogo + tasa); `rate_final` en backend; cuota recalculada con `MortgagePaymentCalculator`; flag `ico_guarantee` | migración `V30__simulation_interest_type_and_bonifications.sql` (antes V29; V29 la ocupa I2); `financing/Simulation.java`, `SimulationRepository`, `SimulationController`, `CreateSimulationApiRequest`; `frontend` `create-simulation-dialog.component.ts` | `rate_final` con varias bonificaciones (floor 0); cuota francesa; validación MIXED (años fijos < plazo); redondeo `numeric(7,4)`/`numeric(14,2)` | una simulación VARIABLE con euríbor + diferencial + 2 bonificaciones muestra base, final y cuota coherentes; el dossier lo refleja |
+| **V2-4** · Simulación enriquecida (I4, P1) — ✅ | V2-0 | `interest_type` + desglose; bonificaciones (jsonb tipado + tasa, aplicadas de verdad); tipo final en backend; cuota recalculada con `MortgagePaymentCalculator`; flag `ico_guarantee` en `simulations` | migración `V30__simulation_interest_type_and_bonifications.sql` (9 columnas, aditiva); `financing/Simulation.java`, `SimulationRepository`, `SimulationService` (nuevo), `SimulationInterestCalculator` (nuevo), `SimulationBonification`/`SimulationInterestType`/`SimulationBonificationCatalog` (nuevos), `web/SimulationController` + `CreateSimulationApiRequest` + `SimulationResponse`; `MortgagePaymentCalculator` movido a `financing` + `computeOutstandingBalance`; `frontend` `create-simulation-dialog` + `financing.model` + `case-detail` + `status-labels`/`error-messages` | tipo final con varias bonificaciones (floor 0); cuota francesa; validación MIXED (tramo fijo < plazo); redondeo `numeric(7,4)`/`numeric(14,2)`; tenant → 404; regresión financialanalysis/dossier | una simulación VARIABLE con euríbor + diferencial + bonificaciones muestra base, final y cuota coherentes |
 | **V2-5** · Dossier + ZIP documental + narrativa determinista (I5, P1) | V2-1 (documentos), V2-4 (simulación en el dossier) | endpoint "descargar toda la documentación del caso" (ZIP streaming, permisos, tenant); dossier combina/enlaza; `NarrativeService` determinista (reglas), AI-ready | nuevo `document/CaseDocumentsArchiveService.java` + controller; `dossier/ViabilityDossierService.java` (narrativa + enlace ZIP); nuevo `dossier/NarrativeService.java`; `frontend` `viability-dossier.service.ts` + botón en `case-detail` | contenido y estructura del ZIP; permisos y tenant; caso sin documentos; narrativa por rama (1 titular / varios; antigüedad; ingresos) | el broker descarga un ZIP con todos los documentos del caso; el dossier incluye un párrafo de contexto generado por reglas |
 
 ### Cierre (dentro de V2-5)

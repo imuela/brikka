@@ -4,7 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 
 import { environment } from '../../../environments/environment';
 import { FinancingService } from './financing.service';
-import { FinancingRequest, Simulation } from './financing.model';
+import { CreateSimulationRequest, FinancingRequest, Simulation } from './financing.model';
 
 describe('FinancingService', () => {
   let service: FinancingService;
@@ -14,9 +14,19 @@ describe('FinancingService', () => {
     id: 's1',
     caseId: 'k1',
     principal: 200000,
-    interestRate: 3.5,
+    interestRate: 3.2,
     termMonths: 300,
-    estimatedPayment: 950.25,
+    estimatedPayment: 969.32,
+    interestType: 'FIXED',
+    baseInterestRate: 3.5,
+    finalInterestRate: 3.2,
+    euriborRate: null,
+    spreadRate: null,
+    fixedPeriodMonths: null,
+    fixedPeriodRate: null,
+    icoGuarantee: false,
+    bonifications: [{ code: 'PAYROLL', label: 'Domiciliación de nómina', rate: 0.3, active: true }],
+    variablePhase: null,
     metadata: {},
     createdBy: 'u1',
     createdAt: '2026-08-17T10:00:00Z',
@@ -50,11 +60,19 @@ describe('FinancingService', () => {
   });
 
   it('createSimulation(caseId) POSTs the exact CreateSimulationApiRequest shape', () => {
-    const request = {
+    const request: CreateSimulationRequest = {
+      interestType: 'FIXED',
       principal: 200000,
-      interestRate: 3.5,
       termMonths: 300,
-      estimatedPayment: 950.25,
+      fixedRate: 3.5,
+      euriborRate: null,
+      spreadRate: null,
+      fixedPeriodMonths: null,
+      fixedPeriodRate: null,
+      bonifications: [
+        { code: 'PAYROLL', label: 'Domiciliación de nómina', rate: 0.3, active: true },
+      ],
+      icoGuarantee: false,
       metadata: {},
     };
     service

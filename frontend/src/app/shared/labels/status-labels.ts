@@ -264,3 +264,10 @@ export const RAG_AXIS_LABELS: Record<string, string> = {
   viability: 'Viabilidad (DTI)',
   documentation: 'Documentación obligatoria',
 };
+
+/** BRIKKA V2 I4. Mirrors backend SimulationInterestType (R18). */
+export const INTEREST_TYPE_LABELS: Record<string, string> = {
+  FIXED: 'Fijo',
+  VARIABLE: 'Variable',
+  MIXED: 'Mixto',
+};

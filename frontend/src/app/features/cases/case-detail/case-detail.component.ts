@@ -23,6 +23,7 @@ import {
   FEE_STATUS_LABELS,
   FEE_TYPE_LABELS,
   FINANCING_REQUEST_STATUS_LABELS,
+  INTEREST_TYPE_LABELS,
   MATCH_RESULT_LABELS,
   OPERATION_TYPE_LABELS,
   PARTICIPATION_TYPE_LABELS,
@@ -191,7 +192,15 @@ export class CaseDetailComponent {
   };
 
   readonly simulations = signal<Simulation[] | null>(null);
-  readonly simulationColumns = ['principal', 'interestRate', 'termMonths', 'estimatedPayment', 'createdAt'];
+  readonly simulationColumns = [
+    'principal',
+    'interestType',
+    'interestRate',
+    'termMonths',
+    'estimatedPayment',
+    'createdAt',
+  ];
+  readonly interestTypeLabels = INTEREST_TYPE_LABELS;
 
   readonly financingRequests = signal<FinancingRequest[] | null>(null);
   readonly financingRequestColumns = ['status', 'requestedAmount', 'termMonths', 'createdAt', 'actions'];

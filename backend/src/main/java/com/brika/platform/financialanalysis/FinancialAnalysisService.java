@@ -9,6 +9,7 @@ import com.brika.platform.casemgmt.CaseClientRepository;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.crm.ClientFinancialProfile;
 import com.brika.platform.crm.ClientFinancialProfileRepository;
+import com.brika.platform.financing.MortgagePaymentCalculator;
 import com.brika.platform.financing.Simulation;
 import com.brika.platform.financing.SimulationRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;

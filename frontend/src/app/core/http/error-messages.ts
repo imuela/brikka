@@ -39,6 +39,17 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   NEGATIVE_FINANCIAL_VALUE: 'Los importes y cantidades no pueden ser negativos.',
   // BRIKKA V2 I2: solo puede aparecer si se desactiva el ruleset de scoring de fábrica (V29).
   NO_ACTIVE_SCORING_RULESET: 'No hay ningún conjunto de reglas de scoring activo para evaluar.',
+  // BRIKKA V2 I4: validación de la simulación enriquecida (tipo de interés, tramo fijo, bonificaciones).
+  INVALID_SIMULATION_INTEREST_TYPE: 'El tipo de interés debe ser fijo, variable o mixto.',
+  INVALID_SIMULATION_AMOUNT: 'El importe de la simulación debe ser mayor que cero.',
+  INVALID_SIMULATION_TERM: 'El plazo de la simulación no es válido.',
+  SIMULATION_INTEREST_MODEL_MISMATCH:
+    'Los datos del tipo de interés no encajan con el tipo elegido (revisa euríbor, diferencial o tramo fijo).',
+  INVALID_SIMULATION_FIXED_PERIOD:
+    'El tramo fijo debe durar menos que el plazo total de la simulación.',
+  NEGATIVE_SIMULATION_VALUE: 'Los tipos y diferenciales de la simulación no pueden ser negativos.',
+  INVALID_SIMULATION_BONIFICATION:
+    'Alguna bonificación no es válida: revisa el código, la descripción y la reducción.',
   NEGATIVE_FEE_VALUE: 'Los importes de honorarios no pueden ser negativos.',
   INVALID_FEE_TYPE: 'El tipo de honorario no es válido.',
   INVALID_FEE_STATUS: 'El estado de honorarios no es válido.',
