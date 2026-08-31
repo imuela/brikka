@@ -50,6 +50,8 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   NEGATIVE_SIMULATION_VALUE: 'Los tipos y diferenciales de la simulación no pueden ser negativos.',
   INVALID_SIMULATION_BONIFICATION:
     'Alguna bonificación no es válida: revisa el código, la descripción y la reducción.',
+  // BRIKKA V2 I5: descarga ZIP de la documentación del expediente.
+  CASE_HAS_NO_DOCUMENTS: 'Este expediente no tiene documentos para descargar.',
   NEGATIVE_FEE_VALUE: 'Los importes de honorarios no pueden ser negativos.',
   INVALID_FEE_TYPE: 'El tipo de honorario no es válido.',
   INVALID_FEE_STATUS: 'El estado de honorarios no es válido.',

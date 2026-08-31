@@ -2,12 +2,15 @@ package com.brika.platform.document.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.brika.platform.audit.AuditEvent;
@@ -25,10 +28,13 @@ import com.brika.platform.identity.UserProvisioningService;
 import com.brika.platform.identity.UserRole;
 import com.brika.platform.identity.web.StubJwtDecoderConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -39,6 +45,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -563,6 +570,146 @@ class DocumentEndpointsIT {
     mockMvc
         .perform(
             get("/api/v1/cases/" + caseId + "/checklist")
+                .header("Authorization", managerB.bearer()))
+        .andExpect(status().isNotFound());
+  }
+
+  // --- BRIKKA V2 I5: case documents ZIP ---
+
+  private UUID uploadDocument(TestPrincipal actor, UUID caseId, String filename, byte[] bytes)
+      throws Exception {
+    UUID documentId = createDocument(actor, caseId);
+    mockMvc
+        .perform(
+            multipart("/api/v1/documents/" + documentId + "/versions")
+                .file(new MockMultipartFile("file", filename, "application/pdf", bytes))
+                .header("Authorization", actor.bearer()))
+        .andExpect(status().isOk());
+    return documentId;
+  }
+
+  private byte[] downloadArchive(TestPrincipal actor, UUID caseId) throws Exception {
+    MvcResult started =
+        mockMvc
+            .perform(
+                get("/api/v1/cases/" + caseId + "/documents/archive")
+                    .header("Authorization", actor.bearer()))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+    return mockMvc
+        .perform(asyncDispatch(started))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Content-Type", "application/zip"))
+        .andExpect(
+            header().string("Content-Disposition", org.hamcrest.Matchers.containsString(".zip")))
+        .andReturn()
+        .getResponse()
+        .getContentAsByteArray();
+  }
+
+  private static Map<String, byte[]> readZip(byte[] archive) throws Exception {
+    Map<String, byte[]> entries = new java.util.LinkedHashMap<>();
+    try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
+      ZipEntry entry;
+      while ((entry = zip.getNextEntry()) != null) {
+        entries.put(entry.getName(), zip.readAllBytes());
+      }
+    }
+    return entries;
+  }
+
+  @Test
+  void caseDocumentsArchiveStreamsAValidZipWithTheCurrentVersions() throws Exception {
+    UUID companyId = companyRepository.insert("Co ARC1", "Co ARC1", "TC-ARC1");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-arc1");
+    UUID caseId = createCase(manager);
+    UUID doc1 = uploadDocument(manager, caseId, "dni.pdf", "DNI-BYTES".getBytes());
+    UUID doc2 = uploadDocument(manager, caseId, "nomina.pdf", "NOMINA-BYTES".getBytes());
+
+    Map<String, byte[]> entries = readZip(downloadArchive(manager, caseId));
+
+    assertThat(entries).hasSize(2);
+    assertThat(entries.keySet())
+        .allMatch(name -> !name.contains("..") && !name.startsWith("/"))
+        .anyMatch(name -> name.contains(doc1.toString()) && name.endsWith("dni.pdf"))
+        .anyMatch(name -> name.contains(doc2.toString()) && name.endsWith("nomina.pdf"));
+    assertThat(new String(findEntry(entries, doc1))).isEqualTo("DNI-BYTES");
+    assertThat(new String(findEntry(entries, doc2))).isEqualTo("NOMINA-BYTES");
+
+    List<AuditEvent> events =
+        auditEventRepository.findAll().stream()
+            .filter(e -> "CASE_DOCUMENTS_ARCHIVE_DOWNLOADED".equals(e.action()))
+            .filter(e -> caseId.equals(e.resourceId()))
+            .toList();
+    assertThat(events).hasSize(1);
+    assertThat(events.get(0).companyId()).isEqualTo(companyId);
+  }
+
+  private static byte[] findEntry(Map<String, byte[]> entries, UUID documentId) {
+    return entries.entrySet().stream()
+        .filter(e -> e.getKey().contains(documentId.toString()))
+        .findFirst()
+        .orElseThrow()
+        .getValue();
+  }
+
+  @Test
+  void caseDocumentsArchiveNeverIncludesAnotherCasesDocuments() throws Exception {
+    UUID companyId = companyRepository.insert("Co ARC2", "Co ARC2", "TC-ARC2");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-arc2");
+    UUID caseA = createCase(manager);
+    UUID caseB = createCase(manager);
+    UUID docA = uploadDocument(manager, caseA, "a.pdf", "A".getBytes());
+    uploadDocument(manager, caseB, "b.pdf", "B".getBytes());
+
+    Map<String, byte[]> entries = readZip(downloadArchive(manager, caseA));
+
+    assertThat(entries).hasSize(1);
+    assertThat(entries.keySet()).allMatch(name -> name.contains(docA.toString()));
+  }
+
+  @Test
+  void caseDocumentsArchiveIsRejectedWhenThereAreNoDocuments() throws Exception {
+    UUID companyId = companyRepository.insert("Co ARC3", "Co ARC3", "TC-ARC3");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-arc3");
+    UUID caseId = createCase(manager);
+
+    mockMvc
+        .perform(
+            get("/api/v1/cases/" + caseId + "/documents/archive")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("CASE_HAS_NO_DOCUMENTS"))
+        .andExpect(jsonPath("$.requestId").exists());
+  }
+
+  @Test
+  void caseDocumentsArchiveForbiddenForUnassignedBroker() throws Exception {
+    UUID companyId = companyRepository.insert("Co ARC4", "Co ARC4", "TC-ARC4");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-arc4");
+    TestPrincipal broker = createUser(UserRole.BROKER, companyId, "broker-arc4");
+    UUID caseId = createCase(manager);
+    uploadDocument(manager, caseId, "dni.pdf", "X".getBytes());
+
+    mockMvc
+        .perform(
+            get("/api/v1/cases/" + caseId + "/documents/archive")
+                .header("Authorization", broker.bearer()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void caseDocumentsArchiveFromAnotherTenantIsNotFound() throws Exception {
+    UUID companyA = companyRepository.insert("Co ARC5A", "Co ARC5A", "TC-ARC5A");
+    UUID companyB = companyRepository.insert("Co ARC5B", "Co ARC5B", "TC-ARC5B");
+    TestPrincipal managerA = createUser(UserRole.MANAGER, companyA, "manager-arc5a");
+    TestPrincipal managerB = createUser(UserRole.MANAGER, companyB, "manager-arc5b");
+    UUID caseA = createCase(managerA);
+    uploadDocument(managerA, caseA, "dni.pdf", "X".getBytes());
+
+    mockMvc
+        .perform(
+            get("/api/v1/cases/" + caseA + "/documents/archive")
                 .header("Authorization", managerB.bearer()))
         .andExpect(status().isNotFound());
   }

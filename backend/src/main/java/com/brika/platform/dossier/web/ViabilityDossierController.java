@@ -10,6 +10,7 @@ import com.brika.platform.document.DocumentTypeRepository;
 import com.brika.platform.document.DocumentVersion;
 import com.brika.platform.document.web.DocumentVersionResponse;
 import com.brika.platform.document.web.GeneratedDocumentResponse;
+import com.brika.platform.dossier.CaseNarrativeService;
 import com.brika.platform.dossier.ViabilityDossierService;
 import java.util.List;
 import java.util.Optional;
@@ -31,6 +32,7 @@ public class ViabilityDossierController {
 
   private final CaseAccessService caseAccessService;
   private final ViabilityDossierService dossierService;
+  private final CaseNarrativeService caseNarrativeService;
   private final DocumentTypeRepository documentTypeRepository;
   private final DocumentRepository documentRepository;
   private final DocumentService documentService;
@@ -39,16 +41,25 @@ public class ViabilityDossierController {
   public ViabilityDossierController(
       CaseAccessService caseAccessService,
       ViabilityDossierService dossierService,
+      CaseNarrativeService caseNarrativeService,
       DocumentTypeRepository documentTypeRepository,
       DocumentRepository documentRepository,
       DocumentService documentService,
       AuditEventWriter auditEventWriter) {
     this.caseAccessService = caseAccessService;
     this.dossierService = dossierService;
+    this.caseNarrativeService = caseNarrativeService;
     this.documentTypeRepository = documentTypeRepository;
     this.documentRepository = documentRepository;
     this.documentService = documentService;
     this.auditEventWriter = auditEventWriter;
+  }
+
+  @GetMapping("/api/v1/cases/{caseId}/dossier/narrative")
+  public CaseNarrativeResponse narrative(Authentication authentication, @PathVariable UUID caseId) {
+    CaseAccessResult access =
+        caseAccessService.requireCaseAccess(authentication, "DOCUMENT_READ", caseId);
+    return CaseNarrativeResponse.from(caseNarrativeService.narrate(access.theCase()));
   }
 
   @PostMapping("/api/v1/cases/{caseId}/dossier")

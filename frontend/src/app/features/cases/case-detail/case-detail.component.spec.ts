@@ -93,6 +93,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -144,6 +147,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -198,6 +204,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
@@ -379,6 +388,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
 
     expect(fixture.componentInstance.bankName('b1')).toBe('Banco Demo Desarrollo');
     expect(fixture.componentInstance.bankName('unknown')).toBe('unknown');
@@ -1350,6 +1362,111 @@ describe('CaseDetailComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Versión 1');
     expect(fixture.nativeElement.textContent).toContain('Regenerar dossier');
+  });
+
+  it('renders the deterministic dossier narrative sections (BRIKKA V2 I5)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
+      .flush({ code: 'PROPERTY_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({ mandatoryTotal: 0, mandatoryMissing: 0, optionalTotal: 0, optionalMissing: 0, complete: true, items: [] });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`).flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
+      .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`).flush({ documentId: null, versions: [] });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`).flush({ documentId: null, versions: [] });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`).flush({
+      sections: [
+        { key: 'situation', title: 'Situación del expediente', paragraphs: ['El expediente REF-1 se encuentra en estado «Preestudio».'] },
+        { key: 'scoring', title: 'Scoring e indicador RAG', paragraphs: ['Scoring de la operación no calculado.'] },
+      ],
+    });
+    sessionStore.setPermissions(['DOCUMENT_READ']);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Narrativa del expediente');
+    expect(text).toContain('Situación del expediente');
+    expect(text).toContain('El expediente REF-1 se encuentra en estado «Preestudio».');
+    expect(text).toContain('Scoring e indicador RAG');
+  });
+
+  it('downloads the case documents ZIP through an authenticated blob request (BRIKKA V2 I5)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_DOWNLOAD']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Descargar toda la documentación (ZIP)');
+
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    const createUrlSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:mock');
+    const revokeUrlSpy = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined);
+
+    fixture.componentInstance.downloadCaseArchive();
+    const req = httpMock.expectOne(
+      `${environment.apiBaseUrl}/api/v1/cases/k1/documents/archive`,
+    );
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['zip'], { type: 'application/zip' }), {
+      headers: { 'Content-Disposition': 'attachment; filename="expediente-REF-1-documentos.zip"' },
+    });
+
+    expect(clickSpy).toHaveBeenCalled();
+    expect(createUrlSpy).toHaveBeenCalled();
+    expect(revokeUrlSpy).toHaveBeenCalled();
+    expect(fixture.componentInstance.archiveDownloading()).toBe(false);
+
+    clickSpy.mockRestore();
+    createUrlSpy.mockRestore();
+    revokeUrlSpy.mockRestore();
+  });
+
+  it('shows a specific message when the case has no documents to archive (BRIKKA V2 I5)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_DOWNLOAD']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.downloadCaseArchive();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents/archive`)
+      .flush(new Blob(['{}'], { type: 'application/json' }), {
+        status: 400,
+        statusText: 'Bad Request',
+      });
+
+    expect(fixture.componentInstance.archiveError()).toBe(
+      'Este expediente no tiene documentos para descargar.',
+    );
   });
 
   it('shows the structured backend error when the contract cannot be generated', () => {

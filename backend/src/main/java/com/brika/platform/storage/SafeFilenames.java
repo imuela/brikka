@@ -2,13 +2,15 @@ package com.brika.platform.storage;
 
 /**
  * 18_STORAGE_SPECIFICATION.md §3: "No usar nombres proporcionados por el usuario como autoridad de
- * seguridad."
+ * seguridad." Public since BRIKKA V2 I5 so the case documents ZIP can sanitize every path segment
+ * it derives from document metadata (type name, holder name, original filename) — a document name
+ * can never steer a path inside the archive.
  */
-final class SafeFilenames {
+public final class SafeFilenames {
 
   private SafeFilenames() {}
 
-  static String sanitize(String originalFilename) {
+  public static String sanitize(String originalFilename) {
     if (originalFilename == null || originalFilename.isBlank()) {
       return "file";
     }

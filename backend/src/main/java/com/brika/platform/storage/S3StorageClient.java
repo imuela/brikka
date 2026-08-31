@@ -1,5 +1,6 @@
 package com.brika.platform.storage;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -30,6 +31,12 @@ class S3StorageClient implements StorageClient {
             .contentType(contentType)
             .build(),
         RequestBody.fromBytes(content));
+  }
+
+  @Override
+  public InputStream openStream(String key) {
+    return s3Client.getObject(
+        GetObjectRequest.builder().bucket(properties.bucket()).key(key).build());
   }
 
   @Override

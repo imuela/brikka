@@ -147,20 +147,35 @@ FUERA de V2** por decisión del propietario (no existe clausulado jurídico apro
 ### I5 · Dossier de viabilidad con documentación empaquetada + narrativa determinista  *(P1 — GAP filas 18, 18a, 21, 22; regla R12/R22-parcial)*
 
 - Nueva acción **"Descargar toda la documentación del caso"**: **ZIP en streaming** con los
-  `Document` del caso (última versión de cada uno), organizados por tipo / titular, servido con
-  control de acceso `DOCUMENT_DOWNLOAD` y aislamiento de tenant por documento. **Sin ficheros
-  temporales en disco** (mejora sobre la Legacy, que usaba `sys_get_temp_dir()` y además tenía un
-  IDOR — S03 de la auditoría).
-- El `ViabilityDossierService` incorpora un enlace/registro a la descarga combinada (dossier HTML +
-  ZIP documental — decisión de diseño dentro del sprint).
-- **Narrativa determinista (decisión §10.8: es funcionalidad del dossier, NO IA):** portar la
-  lógica por reglas de `DossierNarrativeService` de la Legacy (nº de titulares, homogeneidad
-  laboral, media de antigüedad e ingresos, comparación precio/valor del inmueble) como un
-  `NarrativeService` Java, **sin dependencia de ningún proveedor de IA**. Diseñado de forma que un
-  `AiProvider.explain` pueda sustituir/enriquecer el texto en el futuro sin tocar el dominio del
-  dossier.
-- Backend + botón en `case-detail` / `viability-dossier` + tests (contenido y estructura del ZIP;
-  permisos y tenant; caso sin documentos; textos de narrativa por rama).
+  `Document` del caso, servido con control de acceso `DOCUMENT_DOWNLOAD` y aislamiento de tenant.
+  **Sin ficheros temporales en disco** (mejora sobre la Legacy, que usaba `sys_get_temp_dir()` y
+  además tenía un IDOR — S03 de la auditoría).
+  *(Realizado: `document/CaseDocumentsArchiveService` + `GET /api/v1/cases/{caseId}/documents/archive`
+  con `StreamingResponseBody`; `StorageClient.openStream` nuevo → un stream de documento a la vez,
+  copiado a `ZipOutputStream` sobre la respuesta, nunca en memoria. **Versión actual** de cada
+  documento — la misma que devuelve `GET /documents/{id}/download`, sin filtro de aprobación
+  (decisión documentada). Ruta interna `<tipo de documento>/<titular | "expediente">/<documentId>-<nombre
+  original>` **derivada de metadatos actuales, NO de las carpetas Legacy `01–06`**; cada segmento
+  saneado (`SafeFilenames.sanitize` hecho `public`) + guarda contra `.`/`..`/vacío → path traversal
+  imposible. `caseAccessService.requireCaseAccess(auth, "DOCUMENT_DOWNLOAD", caseId)` antes de tocar
+  nada; otro tenant → 404; sin documentos → 400 `CASE_HAS_NO_DOCUMENTS` antes de arrancar el cuerpo.
+  Auditoría `CASE_DOCUMENTS_ARCHIVE_DOWNLOADED`. Sin permiso nuevo.)*
+- **Narrativa determinista (decisión §10.8: es funcionalidad del dossier, NO IA):** un servicio Java
+  por reglas, **sin dependencia de ningún proveedor de IA**, diseñado para que un `AiProvider`
+  posterior lo enriquezca sin tocar el dominio.
+  *(Realizado: `dossier/CaseNarrativeService.narrate(Case) → CaseNarrative` — 8 secciones
+  (situación, titulares, inmueble + LTV, financiación, scoring + RAG, viabilidad/DTI, documentación,
+  honorarios) con frases construidas solo a partir de datos almacenados; sin IA, sin `AiProvider`,
+  sin Ollama, sin lectura de reloj → determinista. Dato ausente → frase explícita, nunca inventado;
+  sin recomendaciones ni conclusiones nuevas; scoring y viabilidad filtrados por `companyId`.
+  `ViabilityDossierService` **elevado** — su HTML deja de ser un volcado de campos y pasa a ser la
+  narrativa sección a sección (mismo endpoint, mismo `Document` versionado, mismo snapshot; 389→~130
+  líneas). Nuevo `GET /api/v1/cases/{caseId}/dossier/narrative` (solo lectura, `DOCUMENT_READ`).
+  **No hay dossier paralelo.**)*
+- Backend + botón "Descargar toda la documentación (ZIP)" + panel de narrativa en `case-detail`
+  (`ApiClient.getBlob` nuevo para la descarga autenticada) + tests (ZIP válido / streaming / nombres
+  seguros / permisos / tenant / caso sin documentos; narrativa completa / dispersa / determinista /
+  sin datos de otro tenant / múltiples titulares).
 
 ---
 
@@ -347,6 +362,24 @@ y **se detiene el trabajo de migración**. Cualquier hueco descubierto después 
 
 ---
 
+### ✅ ESTADO 2026-08-31 — **MIGRACIÓN LEGACY → BRIKKA V2 COMPLETADA**
+
+Los siete criterios se cumplen para **I1, I2, I3, I4 e I5** (detalle y hashes de commit en
+`BRIKKA_V2_MIGRATION_PROGRESS.md` → "Declaración de cierre"). Resumen:
+
+| Bloque | Entregado | Migración | Commit |
+|---|---|---|---|
+| **I1** | Checklist documental condicional + cierre por aprobación + vista de completitud | `V27` | `f07c919` |
+| **I3** | 3 precondiciones de transición + excepción autorizada (permiso + motivo) | `V28` | `3e00857` |
+| **I2** | Ruleset de scoring de fábrica (motor existente) + indicador RAG cualitativo del expediente | `V29` | `33f4d18` |
+| **I4** | Simulación `FIXED/VARIABLE/MIXED` + euríbor/diferencial/tramo fijo + bonificaciones **aplicadas** + ICO | `V30` | `cd6218c` |
+| **I5** | ZIP de documentación en streaming (sin fichero temporal, sin IDOR) + narrativa **determinista** del dossier | — (sin esquema) | V2-5 |
+
+**Sin copiar código PHP, sin reproducir bugs Legacy, sin IA.** La rama `feat/v2-migration` **no** se
+ha mergeado a `main` ni se ha creado tag. A partir de aquí, todo lo nuevo → `§6 FUTURO`.
+
+---
+
 ## 8. Sprints — orden definitivo (Fase 8: NO ejecutar hasta confirmar §10.10)
 
 > El número de sprints **deriva del alcance**: **6 sprints** (V2-0 de preparación + 5 de bloque).
@@ -359,7 +392,7 @@ y **se detiene el trabajo de migración**. Cualquier hueco descubierto después 
 | **V2-2** · Precondiciones de transición (I3, P1) | V2-1 (para la primera transición) | 3 gates: `DOCUMENTATION→ANALYSIS` (checklist obligatorio aprobado), `BANK_SEARCH→BANK_SUBMISSION` (≥1 solicitud bancaria válida), `OFFER→FORMALIZATION` (oferta seleccionada / `final_financing`); excepción autorizada con motivo | `casemgmt/CaseService.java` (`changeStatus`), sin cambios en `CaseWorkflow`; permiso nuevo `CASE_TRANSITION_OVERRIDE` (o equivalente); `frontend/.../cases/case-dialogs/change-status-dialog.component.ts` | por transición: bloqueada / permitida / con excepción; error estructurado | no se avanza si la precondición falla; con permiso + motivo sí, y queda en `case_status_history.reason` |
 | **V2-3** · Scoring de fábrica + RAG (I2, P1) — ✅ | V2-1 (eje "checklist" del RAG) | migración seed `scoring_ruleset` `ACTIVE` + 3 categorías `GREEN/AMBER/RED`; endpoint RAG del caso (peor eje evaluado, cualitativo); badge en `case-detail` (**`case-list` → FUTURO §6.5**) | migración `V29__seed_default_scoring_ruleset.sql`; nuevo `scoring/CaseRagService.java` + `RagLevel`/`RagAxis`/`CaseRagIndicator` + `scoring/web/CaseRagController.java` + `CaseRagResponse`; `frontend` `features/scoring/scoring.{model,service}.ts` + `case-detail` + `status-labels.ts` + `status-tone.ts` | seed (`ACTIVE`, 3 categorías, 4 reglas, reproducible); combinación RAG completa/parcial/ausente; tenant (`GET /scoring/rag` de otro tenant → 404); regresión scoring/viabilidad | caso con LTV bajo + viabilidad FAVORABLE → verde; cualquier eje en rojo → rojo; sin datos → "sin evaluar" |
 | **V2-4** · Simulación enriquecida (I4, P1) — ✅ | V2-0 | `interest_type` + desglose; bonificaciones (jsonb tipado + tasa, aplicadas de verdad); tipo final en backend; cuota recalculada con `MortgagePaymentCalculator`; flag `ico_guarantee` en `simulations` | migración `V30__simulation_interest_type_and_bonifications.sql` (9 columnas, aditiva); `financing/Simulation.java`, `SimulationRepository`, `SimulationService` (nuevo), `SimulationInterestCalculator` (nuevo), `SimulationBonification`/`SimulationInterestType`/`SimulationBonificationCatalog` (nuevos), `web/SimulationController` + `CreateSimulationApiRequest` + `SimulationResponse`; `MortgagePaymentCalculator` movido a `financing` + `computeOutstandingBalance`; `frontend` `create-simulation-dialog` + `financing.model` + `case-detail` + `status-labels`/`error-messages` | tipo final con varias bonificaciones (floor 0); cuota francesa; validación MIXED (tramo fijo < plazo); redondeo `numeric(7,4)`/`numeric(14,2)`; tenant → 404; regresión financialanalysis/dossier | una simulación VARIABLE con euríbor + diferencial + bonificaciones muestra base, final y cuota coherentes |
-| **V2-5** · Dossier + ZIP documental + narrativa determinista (I5, P1) | V2-1 (documentos), V2-4 (simulación en el dossier) | endpoint "descargar toda la documentación del caso" (ZIP streaming, permisos, tenant); dossier combina/enlaza; `NarrativeService` determinista (reglas), AI-ready | nuevo `document/CaseDocumentsArchiveService.java` + controller; `dossier/ViabilityDossierService.java` (narrativa + enlace ZIP); nuevo `dossier/NarrativeService.java`; `frontend` `viability-dossier.service.ts` + botón en `case-detail` | contenido y estructura del ZIP; permisos y tenant; caso sin documentos; narrativa por rama (1 titular / varios; antigüedad; ingresos) | el broker descarga un ZIP con todos los documentos del caso; el dossier incluye un párrafo de contexto generado por reglas |
+| **V2-5** · Dossier + ZIP documental + narrativa determinista (I5, P1) — ✅ | V2-1 (documentos), V2-4 (simulación en el dossier) | `GET /cases/{id}/documents/archive` (ZIP `StreamingResponseBody`, `StorageClient.openStream` nuevo, un stream a la vez, versión actual, ruta saneada de metadatos, `DOCUMENT_DOWNLOAD`, tenant → 404, sin docs → 400); `dossier/CaseNarrativeService` determinista (8 secciones, sin IA) elevando `ViabilityDossierService`; `GET /dossier/narrative`; FE `case-detail` (botón ZIP blob + panel narrativa) + `ApiClient.getBlob` | `document/CaseDocumentsArchiveService.java` + `document/web/DocumentController.java` (+endpoint); `storage/StorageClient` + `S3StorageClient` (+`openStream`); `storage/SafeFilenames` (`public`); `dossier/CaseNarrativeService.java` + `CaseNarrative`/`NarrativeSection` + `dossier/ViabilityDossierService.java` (reescrito) + `dossier/web/{ViabilityDossierController,CaseNarrativeResponse}`; `frontend` `case-archive.service.ts` + `viability-dossier.{model,service}` + `case-detail` + `core/http/api-client` | ZIP válido / streaming / nombres seguros / permisos / tenant / caso sin documentos; narrativa completa/dispersa/determinista/multi-titular/sin datos de otro tenant | el equipo del caso descarga un ZIP con todos los documentos y el dossier incluye la narrativa determinista |
 
 ### Cierre (dentro de V2-5)
 Batería completa backend + frontend en verde · `BRIKKA_V2_MIGRATION_PROGRESS.md` al 100 % de I1–I5 ·

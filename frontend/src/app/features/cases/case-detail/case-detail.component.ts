@@ -46,8 +46,12 @@ import { CaseFeeService } from '../../case-fee/case-fee.service';
 import { EditCaseFeeDialogComponent } from '../../case-fee/case-fee-dialogs/edit-case-fee-dialog.component';
 import { GeneratedDocument as ContractDocument } from '../../engagement-contract/engagement-contract.model';
 import { EngagementContractService } from '../../engagement-contract/engagement-contract.service';
-import { GeneratedDocument as DossierDocument } from '../../viability-dossier/viability-dossier.model';
+import {
+  CaseNarrative,
+  GeneratedDocument as DossierDocument,
+} from '../../viability-dossier/viability-dossier.model';
 import { ViabilityDossierService } from '../../viability-dossier/viability-dossier.service';
+import { CaseArchiveService } from '../case-archive.service';
 import { Bank } from '../../banks/bank.model';
 import { BankService } from '../../banks/bank.service';
 import { RunMatchingDialogComponent } from '../../bank-matching/bank-matching-dialogs/run-matching-dialog.component';
@@ -148,6 +152,7 @@ export class CaseDetailComponent {
   private readonly caseFeeService = inject(CaseFeeService);
   private readonly engagementContractService = inject(EngagementContractService);
   private readonly viabilityDossierService = inject(ViabilityDossierService);
+  private readonly caseArchiveService = inject(CaseArchiveService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
@@ -257,6 +262,12 @@ export class CaseDetailComponent {
   readonly dossierGenerating = signal(false);
   readonly dossierError = signal<string | null>(null);
 
+  /** BRIKKA V2 I5: deterministic narrative + the case documents ZIP. */
+  readonly caseNarrative = signal<CaseNarrative | null>(null);
+  readonly caseNarrativeError = signal<string | null>(null);
+  readonly archiveDownloading = signal(false);
+  readonly archiveError = signal<string | null>(null);
+
   constructor() {
     this.loadCase();
     this.loadAssignments();
@@ -288,6 +299,7 @@ export class CaseDetailComponent {
     this.loadCaseFee();
     this.loadContract();
     this.loadDossier();
+    this.loadNarrative();
   }
 
   private loadCase(): void {
@@ -1029,6 +1041,49 @@ export class CaseDetailComponent {
     this.documentsService.downloadVersion(documentId, versionId).subscribe({
       next: (download) => window.open(download.url, '_blank'),
       error: (err: ApiError) => this.dossierError.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  private loadNarrative(): void {
+    this.viabilityDossierService.getNarrative(this.caseId).subscribe({
+      next: (narrative) => this.caseNarrative.set(narrative),
+      error: (err: ApiError) => {
+        this.caseNarrative.set(null);
+        this.caseNarrativeError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  /** BRIKKA V2 I5: downloads the case documents ZIP (authenticated blob → browser save). */
+  downloadCaseArchive(): void {
+    this.archiveDownloading.set(true);
+    this.archiveError.set(null);
+    this.caseArchiveService.downloadArchive(this.caseId).subscribe({
+      next: (response) => {
+        this.archiveDownloading.set(false);
+        const blob = response.body;
+        if (!blob) {
+          this.archiveError.set('No se ha podido descargar el archivo.');
+          return;
+        }
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const match = /filename="?([^"]+)"?/.exec(disposition);
+        const filename = match ? match[1] : `expediente-${this.caseId}-documentos.zip`;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err: ApiError) => {
+        this.archiveDownloading.set(false);
+        this.archiveError.set(
+          err.status === 400
+            ? 'Este expediente no tiene documentos para descargar.'
+            : friendlyErrorMessage(err),
+        );
+      },
     });
   }
 }

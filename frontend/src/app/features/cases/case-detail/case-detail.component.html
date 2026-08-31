@@ -889,6 +889,40 @@
         }
       </ul>
     }
+
+    <h3>Narrativa del expediente</h3>
+    <p style="color: rgba(0, 0, 0, 0.6); font-size: 0.85em;">
+      Resumen determinista a partir de los datos registrados. Es el mismo contenido que incluye el
+      dossier generado.
+    </p>
+    @if (caseNarrativeError()) {
+      <p class="error-text">{{ caseNarrativeError() }}</p>
+    } @else if (caseNarrative() === null) {
+      <mat-spinner diameter="24" />
+    } @else {
+      @for (section of caseNarrative()!.sections; track section.key) {
+        <h4>{{ section.title }}</h4>
+        @for (paragraph of section.paragraphs; track $index) {
+          <p>{{ paragraph }}</p>
+        }
+      }
+    }
+
+    <h3>Documentación del expediente</h3>
+    <button
+      *appHasPermission="'DOCUMENT_DOWNLOAD'"
+      mat-stroked-button
+      [disabled]="archiveDownloading()"
+      (click)="downloadCaseArchive()">
+      @if (archiveDownloading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Descargar toda la documentación (ZIP)
+      }
+    </button>
+    @if (archiveError()) {
+      <p class="error-text">{{ archiveError() }}</p>
+    }
   </div>
 
   <div class="section" *appHasPermission="'TASK_READ'">

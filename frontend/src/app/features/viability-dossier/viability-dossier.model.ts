@@ -20,3 +20,15 @@ export interface GeneratedDocument {
   documentId: string | null;
   versions: GeneratedDocumentVersion[];
 }
+
+/** BRIKKA V2 I5. Mirrors backend CaseNarrativeResponse — the deterministic dossier narrative as
+ * structured sections (same content the dossier HTML embeds). */
+export interface CaseNarrativeSection {
+  key: string;
+  title: string;
+  paragraphs: string[];
+}
+
+export interface CaseNarrative {
+  sections: CaseNarrativeSection[];
+}
