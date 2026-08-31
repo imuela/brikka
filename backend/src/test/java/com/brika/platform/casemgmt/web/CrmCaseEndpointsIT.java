@@ -567,6 +567,118 @@ class CrmCaseEndpointsIT {
     assertThat(events).allMatch(e -> "CASE".equals(e.resourceType()));
   }
 
+  // BRIKKA V2 I3 — transition preconditions + authorized override.
+
+  private boolean readsOverrideTrue(String metadataJson) {
+    try {
+      return metadataJson != null
+          && objectMapper.readTree(metadataJson).path("override").asBoolean(false);
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  private void changeStatus(TestPrincipal actor, UUID caseId, String body) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/status")
+                .header("Authorization", actor.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void bankSubmissionIsBlockedWithoutABankRequestAndAManagerCanOverrideIt() throws Exception {
+    UUID companyId = companyRepository.insert("Co I3A", "Co I3A", "TC-I3A");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-i3a");
+    UUID caseId = createCase(manager); // MORTGAGE — no seeded document requirements
+    UUID clientId = createClient(manager, "cli-i3a");
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/clients")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CaseClientApiRequest(clientId, "HOLDER", true))))
+        .andExpect(status().isOk());
+
+    changeStatus(
+        manager,
+        caseId,
+        objectMapper.writeValueAsString(new ChangeCaseStatusApiRequest("DOCUMENTATION", null)));
+    changeStatus(
+        manager,
+        caseId,
+        objectMapper.writeValueAsString(new ChangeCaseStatusApiRequest("ANALYSIS", null)));
+    changeStatus(
+        manager,
+        caseId,
+        objectMapper.writeValueAsString(new ChangeCaseStatusApiRequest("BANK_SEARCH", null)));
+
+    // Gate 2 blocks: no bank request for the case.
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/status")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new ChangeCaseStatusApiRequest("BANK_SUBMISSION", null))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("PRECONDITION_NO_BANK_REQUEST"));
+
+    // MANAGER has CASE_TRANSITION_OVERRIDE (V28): forced with a reason -> allowed.
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/status")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new ChangeCaseStatusApiRequest(
+                            "BANK_SUBMISSION", "sending by phone, urgent", true))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("BANK_SUBMISSION"));
+
+    List<AuditEvent> overrideEvents =
+        auditEventRepository.findAll().stream()
+            .filter(e -> caseId.equals(e.resourceId()))
+            .filter(e -> "CASE_STATUS_CHANGED".equals(e.action()))
+            .filter(e -> readsOverrideTrue(e.metadataJson()))
+            .toList();
+    assertThat(overrideEvents).hasSize(1);
+  }
+
+  @Test
+  void overridingATransitionRequiresTheOverridePermission() throws Exception {
+    UUID companyId = companyRepository.insert("Co I3B", "Co I3B", "TC-I3B");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-i3b");
+    TestPrincipal broker = createUser(UserRole.BROKER, companyId, "broker-i3b");
+    UUID caseId = createCase(manager);
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/assignments")
+                .header("Authorization", manager.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new CreateCaseAssignmentApiRequest(broker.user().id(), "BROKER"))))
+        .andExpect(status().isOk());
+
+    // BROKER has CASE_CHANGE_STATUS (via the assignment) but not CASE_TRANSITION_OVERRIDE.
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/status")
+                .header("Authorization", broker.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new ChangeCaseStatusApiRequest("DOCUMENTATION", "forcing", true))))
+        .andExpect(status().isForbidden());
+  }
+
   @Test
   void operationDetailsRoundTripThroughCreateGetAndPatch() throws Exception {
     UUID companyId = companyRepository.insert("Co DET", "Co DET", "TC-DET");

@@ -290,6 +290,8 @@ Registrado y documentado; retomar solo con decisión y prioridad explícitas del
 - Tope de asientos por empresa como entitlement de plan.
 - Unicidad parcial de `document_number` de cliente por empresa (regla R05) — mejora de integridad,
   no hueco funcional Legacy.
+- **(V2-2)** `case-detail`: recargar automáticamente la sección "Checklist documental" al cambiar
+  el estado del caso (hoy solo se recarga tras acciones documentales — enganche de I1). Cosmético.
 
 **Regla de control de alcance:** si durante la implementación de I1–I5 aparece una funcionalidad
 nueva interesante, se anota aquí y **no se implementa**.

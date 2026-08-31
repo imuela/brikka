@@ -11,17 +11,17 @@
 ## Barra de progreso global
 
 ```
-V2  [██████░░░░░░░░░░░░░░░]   25 %   (1 / 5 bloques · I1 ✅)   —   siguiente: I3 (Sprint V2-2)
+V2  [████████████░░░░░░░░]   40 %   (2 / 5 bloques · I1 ✅ · I3 ✅)   —   siguiente: I2 (Sprint V2-3)
 ```
 
 | Bloque | Peso | Estado | Backend | Frontend | Tests BE | Tests FE | % bloque |
 |---|---:|---|---|---|---|---|---:|
 | **I1** · Checklist documental | 25 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I2** · Scoring de fábrica + RAG | 20 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
-| **I3** · Precondiciones de transición | 15 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
+| **I3** · Precondiciones de transición | 15 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I4** · Simulación enriquecida | 25 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
 | **I5** · Dossier + ZIP + narrativa | 15 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
-| **TOTAL** | 100 % | | | | | | **25 %** |
+| **TOTAL** | 100 % | | | | | | **40 %** |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
@@ -29,7 +29,70 @@ Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
 ## Bloque / sprint actual
 
-**V2-2 · I3 · Precondiciones de transición** (siguiente, sin empezar).
+**V2-3 · I2 · Scoring de fábrica + RAG** (siguiente, sin empezar).
+
+### V2-2 · I3 · Precondiciones de transición — ✅ CERRADO (2026-08-31)
+
+Commit del sprint: pendiente de `git commit` (ver "Registro de avance"). Implementado:
+
+**Tres gates** (13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §5), validados en el **backend** (autoridad),
+en `CaseTransitionPreconditions` (colaborador nuevo en `casemgmt`, invocado por
+`CaseService.changeStatus`):
+
+| Transición | Precondición | Código de error (400, `{code,message,requestId}`) |
+|---|---|---|
+| `DOCUMENTATION → ANALYSIS` | checklist documental **obligatorio APROBADO** (usa I1: `CaseChecklistService.checklist(...).complete()`) | `PRECONDITION_CHECKLIST_INCOMPLETE` |
+| `BANK_SEARCH → BANK_SUBMISSION` | ≥1 `bank_request` del caso **de la misma empresa** (`BankRequestRepository.existsByCaseIdAndCompanyId`) | `PRECONDITION_NO_BANK_REQUEST` |
+| `OFFER → FORMALIZATION` | `final_financing` del caso, misma empresa, cuya `bank_offer_id` pertenece a una oferta del caso | `PRECONDITION_NO_SELECTED_OFFER` |
+
+- **Ausencia de checklist** (tipo de operación sin requisitos sembrados, p. ej. `MORTGAGE`): el
+  checklist queda vacío → `complete = true` → gate 1 no bloquea (comportamiento seguro y explícito).
+- **Sin gates adicionales.** Ninguna otra transición se toca. `reopen` intacto.
+
+**Excepción autorizada** (mecanismos existentes, sin auditoría paralela):
+- Permiso nuevo `CASE_TRANSITION_OVERRIDE` (`V28`), sembrado a **MANAGER + SUPERADMIN** (mismo
+  criterio que `BANK_MATCHING_OVERRIDE`).
+- `ChangeCaseStatusApiRequest.override` (opcional, por defecto `false`). Si `true`:
+  `CaseController` exige el permiso (`403` sin él, vía `authorizationService.requirePermission`);
+  `CaseService` exige un **motivo no vacío** (`PRECONDITION_OVERRIDE_REASON_REQUIRED`) y **salta**
+  los gates.
+- Registro: el motivo se persiste en `case_status_history.reason` con el marcador
+  `[PRECONDITION_OVERRIDE] `; el evento de auditoría `CASE_STATUS_CHANGED` incluye `"override":true`.
+
+**Frontend** (mínimo, sin rediseño):
+- `change-status-dialog`: casilla **"Forzar la transición (excepción autorizada)"**, visible solo
+  si el usuario tiene `CASE_TRANSITION_OVERRIDE` (`SessionStore.hasPermission`); si se marca, el
+  motivo pasa a obligatorio (validado en cliente y en servidor); envía `override` en el body.
+- `error-messages.ts`: traducción en español de los 4 códigos de gate (única fuente de verdad de
+  traducción de errores; no se cambia el contrato).
+- `case.model.ts`: `ChangeCaseStatusRequest.override?`.
+
+**Migración `V28__case_transition_override_permission.sql`**: 1 permiso + 2 `role_permissions`. Sin
+tabla nueva.
+
+**Tests (backend, todos verdes):**
+- `CaseTransitionPreconditionsIT` (nuevo, Postgres + MinIO) — **15/15**: gate 1 (pendiente / subido
+  no aprobado / todo aprobado / override / sin requisitos), gate 2 (0 solicitudes / ≥1 / otra
+  empresa / override), gate 3 (sin oferta / con oferta del caso / oferta de otra empresa /
+  override), override sin motivo → rechazado, transiciones no gateadas intactas.
+- `CrmCaseEndpointsIT` (+2) — vía HTTP: gate 2 bloquea `400 PRECONDITION_NO_BANK_REQUEST`; MANAGER
+  fuerza con `override:true` → `200` + evento de auditoría con `"override":true`; BROKER (con
+  asignación, sin el permiso) → `403`.
+- `CaseServiceIT.fullHappyPath` — actualizado con `bank_request` + `final_financing` reales para
+  pasar los gates 2/3; sigue verde (17/17).
+- `CaseChecklistServiceIT` (I1) — un test de idempotencia usa ahora `override` para el hop
+  `DOCUMENTATION→ANALYSIS`; verde (6/6).
+- Contadores de RBAC actualizados: `FlywayMigrationIT` (27→28 migr., 116→117 permisos, 250→252
+  role_permissions), `RbacSeedIT` (252 / 117 / 92 / breakdown MANAGER 82, SUPERADMIN 92),
+  `IdentityEndpointsIT` (`/me/permissions` MANAGER 81→82).
+
+**Tests (frontend, todos verdes):** `change-status-dialog.component.spec` — casilla oculta sin
+permiso, visible y envía `override:true` con motivo, motivo obligatorio al forzar, traducción del
+error de gate. `npm test` **492/492**; `ng lint` + `npm run build` verdes.
+
+**FUTURO (detectado, no implementado):** al cambiar el estado de un caso desde `case-detail`, la
+sección "Checklist documental" no se recarga automáticamente (solo se recarga tras acciones
+documentales — enganche de I1). Cosmético; se registra en `SCOPE §6.5`.
 
 ### V2-1 · I1 · Checklist documental — ✅ CERRADO (2026-08-31)
 
@@ -183,18 +246,18 @@ subir el documento del tipo correcto → requisito `SUBIDO`; aprobarlo → `APRO
 **Criterio de aceptación:** LTV bajo + viabilidad FAVORABLE + checklist completo → verde; cualquier
 eje en rojo → rojo; sin datos → "sin evaluar".
 
-### I3 · Precondiciones de transición  *(P1 — Sprint V2-2)*
+### I3 · Precondiciones de transición  *(P1 — Sprint V2-2 · ✅ COMPLETADO 2026-08-31)*
 
 **Definition of Done:**
-- [ ] `DOCUMENTATION → ANALYSIS`: exige checklist documental **obligatorio aprobado** (I1).
-- [ ] `BANK_SEARCH → BANK_SUBMISSION`: exige ≥1 solicitud/relación bancaria válida (`bank_requests`).
-- [ ] `OFFER → FORMALIZATION`: exige oferta seleccionada (`final_financing` → `bank_offer_id`).
-- [ ] Excepción autorizada: permiso específico + **motivo obligatorio** en `case_status_history.reason`.
-- [ ] Sin gate numérico de score. Sin gates adicionales.
-- [ ] Tests BE por transición: bloqueada / permitida / con excepción · error estructurado
+- [x] `DOCUMENTATION → ANALYSIS`: exige checklist documental **obligatorio aprobado** (I1).
+- [x] `BANK_SEARCH → BANK_SUBMISSION`: exige ≥1 solicitud/relación bancaria válida (`bank_requests`).
+- [x] `OFFER → FORMALIZATION`: exige oferta seleccionada (`final_financing` → `bank_offer_id`).
+- [x] Excepción autorizada: permiso específico + **motivo obligatorio** en `case_status_history.reason`.
+- [x] Sin gate numérico de score. Sin gates adicionales.
+- [x] Tests BE por transición: bloqueada / permitida / con excepción · error estructurado
       `{code, message, requestId}`.
-- [ ] `change-status-dialog` (Angular) refleja el motivo de bloqueo y la opción de excepción.
-- [ ] Batería completa en verde.
+- [x] `change-status-dialog` (Angular) refleja el motivo de bloqueo y la opción de excepción.
+- [x] Batería completa en verde.
 
 **Criterio de aceptación:** no se avanza si la precondición falla; con permiso + motivo sí, y queda
 auditado.
@@ -241,13 +304,14 @@ incluye un párrafo de contexto generado por reglas.
 
 ## Tests — estado
 
-| Ámbito | Baseline (V2-0) | Actual (tras I1) | Nuevos en V2 |
+| Ámbito | Baseline (V2-0) | Actual (tras I3) | Nuevos en V2 |
 |---|---|---|---|
-| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **488/488** | +3 |
+| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **492/492** | +7 |
 | Backend unit (Surefire, sin Docker) | **106/106** ✅ | **106/106** ✅ | 0 |
-| Backend IT — barrido I1 (document, casemgmt, contract, dossier, financialanalysis, ai, e2e, portal, notification) | — | **verde** (189 tests; `NotificationAsyncIntegrationIT` verde con broker `brika-rabbitmq` levantado) | `CaseChecklistServiceIT` 6/6 · `DocumentEndpointsIT` +2 · `FlywayMigrationIT` actualizado |
-| Backend integración — suite completa `./mvnw verify` | *(no ejecutada; gate de cierre)* | — | — |
-| Aislamiento de tenant (por recurso nuevo) | n/a | **1/1** (`checklist` — `CaseChecklistServiceIT.checklistIsTenantScoped` + `DocumentEndpointsIT.checklistEndpointIsTenantScoped`) | — |
+| Backend IT — barrido I1 (document, casemgmt, contract, dossier, financialanalysis, ai, e2e, portal, notification) | — | **verde** (189 tests) | I1 |
+| Backend IT — barrido I3 (`CaseTransitionPreconditionsIT` 15, `CrmCaseEndpointsIT` 23, `CaseServiceIT` 17, `CaseChecklistServiceIT` 6, `FlywayMigrationIT`, `RbacSeedIT` 30, `IdentityEndpointsIT`) | — | **verde** | `CaseTransitionPreconditionsIT` 15/15 · `CrmCaseEndpointsIT` +2 |
+| Backend integración — suite completa `./mvnw clean verify` (tras I3) | *(no ejecutada en V2-0)* | **BUILD SUCCESS** — Surefire **108/108**, Failsafe **435/435** (71 clases IT), 0 fallos / 0 errores | — |
+| Aislamiento de tenant (por recurso nuevo) | n/a | **checklist** (I1) + **3 gates** (I3): `CaseTransitionPreconditionsIT.gate2_bankRequestOfAnotherTenant...`, `gate3_selectedOfferOfAnotherTenant...` | — |
 
 ---
 
@@ -280,6 +344,7 @@ Decisiones **de diseño interno** (se resuelven dentro de cada sprint, sin bloqu
 | 2026-08-31 | — | Fases 0–7. Creados `BRIKKA_V2_FUNCTIONAL_GAP.md`, `BRIKKA_V2_BUSINESS_RULES_GAP.md`, `BRIKKA_V2_MIGRATION_SCOPE.md`. Decisiones del propietario (§10). Creado este PROGRESS. **Sin cambios de código.** | n/a |
 | 2026-08-31 | V2-0 | Commit Sprint 40.x (`5c4b223`, `main`). Rama `feat/v2-migration`. Baseline de tests medido. Docs de planificación commiteados en la rama. | FE 485 ✅ · BE unit 106 ✅ · BE IT muestra 26 ✅ |
 | 2026-08-31 | V2-1 (I1) | Checklist documental: `V27` + 7 clases backend nuevas + 8 modificadas + 3 ficheros frontend + selector de titular. Cierre por `APPROVED` (§10.3), auto-gen en `DOCUMENTATION`, AI-ready. | `CaseChecklistServiceIT` 6/6 · `DocumentEndpointsIT` 16/16 · `FlywayMigrationIT` ✅ · barrido regresión ✅ · FE 488/488 ✅ |
+| 2026-08-31 | V2-2 (I3) | 3 gates de transición (`CaseTransitionPreconditions` + `CaseService.changeStatus`) + excepción autorizada (`CASE_TRANSITION_OVERRIDE`, `V28`) + FE (casilla forzar + traducción de errores). | `CaseTransitionPreconditionsIT` 15/15 · `CrmCaseEndpointsIT` 23/23 · `CaseServiceIT` 17/17 · RBAC counters ✅ · FE 492/492 ✅ · `./mvnw verify` completo → ver abajo |
 
 ---
 

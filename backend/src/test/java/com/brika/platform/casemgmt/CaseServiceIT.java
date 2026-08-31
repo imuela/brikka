@@ -51,6 +51,12 @@ class CaseServiceIT {
   @Autowired private CaseClientRepository caseClientRepository;
   @Autowired private CaseStatusHistoryRepository caseStatusHistoryRepository;
   @Autowired private ActivityRepository activityRepository;
+  @Autowired private com.brika.platform.bank.BankRepository bankRepository;
+  @Autowired private com.brika.platform.bankrequest.BankRequestRepository bankRequestRepository;
+  @Autowired private com.brika.platform.bankrequest.BankOfferRepository bankOfferRepository;
+
+  @Autowired
+  private com.brika.platform.bankrequest.FinalFinancingRepository finalFinancingRepository;
 
   private UUID newCompany(String taxId) {
     return companyRepository.insert("Co " + taxId, "Co " + taxId, taxId);
@@ -292,6 +298,22 @@ class CaseServiceIT {
     Case created = caseService.createCase(companyId, manager.id(), "MORTGAGE");
     UUID clientId = newClient(companyId, "cli-cs15");
     caseService.addClient(created, clientId, ParticipationType.HOLDER, true);
+
+    // BRIKKA V2 I3: this MORTGAGE case has no seeded document requirements, so the
+    // DOCUMENTATION -> ANALYSIS gate passes vacuously. The other two gates need real data:
+    UUID bankId = bankRepository.insert("BNK-CS15", "Bank CS15", null);
+    UUID bankRequestId = bankRequestRepository.insert(companyId, created.id(), bankId, null, "{}");
+    UUID bankOfferId =
+        bankOfferRepository.insert(
+            companyId,
+            bankRequestId,
+            bankId,
+            new java.math.BigDecimal("150000"),
+            new java.math.BigDecimal("3.10"),
+            300,
+            new java.math.BigDecimal("720"),
+            "{}");
+    finalFinancingRepository.insert(companyId, created.id(), bankOfferId);
 
     Case c = caseService.changeStatus(created, CaseStatus.DOCUMENTATION, manager.id(), null);
     c = caseService.changeStatus(c, CaseStatus.ANALYSIS, manager.id(), null);

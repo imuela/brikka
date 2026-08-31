@@ -64,6 +64,14 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   NO_VERSION_TO_PUBLISH: 'El documento no tiene ninguna versión que publicar.',
   NO_VERSION_TO_REVIEW: 'El documento no tiene ninguna versión pendiente de revisión.',
   PLAN_NOT_FOUND: 'No se ha encontrado el plan solicitado.',
+  // BRIKKA V2 I3: transition preconditions (13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §5).
+  PRECONDITION_CHECKLIST_INCOMPLETE:
+    'Faltan documentos obligatorios por aprobar antes de pasar a Análisis.',
+  PRECONDITION_NO_BANK_REQUEST:
+    'El caso necesita al menos una solicitud a un banco antes de enviarlo a las entidades.',
+  PRECONDITION_NO_SELECTED_OFFER:
+    'El caso necesita una oferta bancaria seleccionada antes de pasar a Formalización.',
+  PRECONDITION_OVERRIDE_REASON_REQUIRED: 'Indica un motivo para forzar la transición.',
   PROPERTY_NOT_FOUND: 'No se ha encontrado ningún inmueble registrado para esta operación.',
   SUBSCRIPTION_NOT_FOUND: 'La empresa no tiene ninguna suscripción asignada.',
   // Sprint 22 (autenticación propia): UNAUTHENTICATED cubre login/refresh/password-reset con

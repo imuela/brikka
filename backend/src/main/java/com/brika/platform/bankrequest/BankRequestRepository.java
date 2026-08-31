@@ -66,4 +66,19 @@ public class BankRequestRepository {
     return jdbcTemplate.query(
         SELECT + " WHERE case_id = ? ORDER BY created_at DESC", ROW_MAPPER, caseId);
   }
+
+  /**
+   * BRIKKA V2 I3: the BANK_SEARCH -> BANK_SUBMISSION precondition (at least one bank request for
+   * the case). Tenant-aware on purpose — the gate must not be satisfied by a row belonging to
+   * another company, even if that row points at this case.
+   */
+  public boolean existsByCaseIdAndCompanyId(UUID caseId, UUID companyId) {
+    Integer count =
+        jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM bank_requests WHERE case_id = ? AND company_id = ?",
+            Integer.class,
+            caseId,
+            companyId);
+    return count != null && count > 0;
+  }
 }

@@ -149,8 +149,12 @@ class CaseChecklistServiceIT {
     assertThat(requests).allMatch(r -> r.requirementId() != null);
     assertThat(requests.stream().filter(r -> r.requestedFromClientId() == null)).hasSize(3);
 
-    // Backwards ANALYSIS -> DOCUMENTATION must not duplicate anything.
-    Case analysis = caseService.changeStatus(theCase, CaseStatus.ANALYSIS, manager.id(), null);
+    // Backwards ANALYSIS -> DOCUMENTATION must not duplicate anything. (The forward DOCUMENTATION
+    // ->
+    // ANALYSIS hop is gated by BRIKKA V2 I3 on an incomplete checklist, so it is taken here with an
+    // authorized override — this test is about checklist idempotency, not the transition gate.)
+    Case analysis =
+        caseService.changeStatus(theCase, CaseStatus.ANALYSIS, manager.id(), "test", true);
     caseService.changeStatus(analysis, CaseStatus.DOCUMENTATION, manager.id(), null);
     assertThat(documentRequestRepository.findAllByCaseId(theCase.id())).hasSize(15);
   }

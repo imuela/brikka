@@ -67,8 +67,9 @@ class FlywayMigrationIT {
     // READ permissions) = 24. + V25 (Sprint 32: case_fees/case_fee_history) + V26 (Sprint 32:
     // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26. + V27 (BRIKKA V2 I1: document
     // checklist — documents.client_id, document_requirements unique constraint + 9 PURCHASE
-    // requirement rows, no new table) = 27.
-    assertThat(appliedMigrations).isEqualTo(27);
+    // requirement rows, no new table) = 27. + V28 (BRIKKA V2 I3: CASE_TRANSITION_OVERRIDE
+    // permission + 2 role_permissions rows, no new table) = 28.
+    assertThat(appliedMigrations).isEqualTo(28);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -105,10 +106,10 @@ class FlywayMigrationIT {
     Integer permissionCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM permissions", Integer.class);
     assertThat(permissionCount)
-        .isEqualTo(116); // 110 full atomic catalog (14_DEFINITIVE_PERMISSION_CATALOG.md) + 1
+        .isEqualTo(117); // 110 full atomic catalog (14_DEFINITIVE_PERMISSION_CATALOG.md) + 1
     // CLIENT_PORTAL_ACCOUNT_CREATE (ADR-PORTAL-AUTH-001, V11) + 2 BANK_MATCHING_RUN/READ
     // (ADR-BANKENGINE-001, V13) + 1 BANK_MATCHING_OVERRIDE (ADR-BANKENGINE-002, V14) + 2
-    // FINANCIAL_ANALYSIS_RUN/READ (Sprint 31, V24)
+    // FINANCIAL_ANALYSIS_RUN/READ (Sprint 31, V24) + 1 CASE_TRANSITION_OVERRIDE (BRIKKA V2 I3, V28)
 
     Integer documentTypeCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM document_types", Integer.class);
@@ -124,8 +125,9 @@ class FlywayMigrationIT {
     // (SUPERADMIN/MANAGER/BROKER x AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE,
     // V15) = 243, + 1 from Sprint 29 stabilization (SUPERADMIN x NOTIFICATION_READ, V21) = 244,
     // + 6 from Sprint 31 (SUPERADMIN/MANAGER/BROKER x FINANCIAL_ANALYSIS_RUN/READ, V24) = 250.
+    // + 2 from BRIKKA V2 I3 (MANAGER/SUPERADMIN x CASE_TRANSITION_OVERRIDE, V28) = 252.
     // Full breakdown and PENDING/NOT_ASSIGNED absence verified in RbacSeedIT.
-    assertThat(rolePermissionCount).isEqualTo(250);
+    assertThat(rolePermissionCount).isEqualTo(252);
 
     Boolean reviewCommentExists =
         jdbc.queryForObject(
@@ -207,5 +209,14 @@ class FlywayMigrationIT {
                 + " AND mandatory = true",
             Integer.class);
     assertThat(mandatoryPurchaseRequirementCount).isEqualTo(5);
+
+    // V28 (BRIKKA V2 I3): CASE_TRANSITION_OVERRIDE granted to MANAGER + SUPERADMIN only.
+    Integer caseTransitionOverrideGrants =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM role_permissions rp JOIN roles r ON r.id = rp.role_id JOIN"
+                + " permissions p ON p.id = rp.permission_id WHERE p.code ="
+                + " 'CASE_TRANSITION_OVERRIDE'",
+            Integer.class);
+    assertThat(caseTransitionOverrideGrants).isEqualTo(2);
   }
 }
