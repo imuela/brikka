@@ -247,3 +247,20 @@ export const DOCUMENT_AI_STATUS_LABELS: Record<string, string> = {
   FAILED: 'Error del proveedor de IA',
   COMPLETED: 'Completado',
 };
+
+/** BRIKKA V2 I2. Mirrors backend RagLevel (com.brika.platform.scoring.RagLevel). Qualitative
+ * traffic light of the case indicator and of each of its axes. */
+export const RAG_LEVEL_LABELS: Record<string, string> = {
+  GREEN: 'Verde',
+  AMBER: 'Ámbar',
+  RED: 'Rojo',
+  NOT_EVALUATED: 'Sin evaluar',
+};
+
+/** BRIKKA V2 I2. Machine keys of the RAG axes (CaseRagService): the signals combined into the
+ * case indicator. */
+export const RAG_AXIS_LABELS: Record<string, string> = {
+  scoring: 'Scoring de la operación',
+  viability: 'Viabilidad (DTI)',
+  documentation: 'Documentación obligatoria',
+};

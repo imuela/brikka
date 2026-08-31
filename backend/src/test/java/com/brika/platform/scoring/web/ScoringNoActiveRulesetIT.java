@@ -19,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,10 +28,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * ADR-SCORING-001 D9-11: a fresh database with zero scoring_rulesets ever created must reject
- * /scoring/run with NO_ACTIVE_SCORING_RULESET. Kept in its own class/container — scoring_rulesets
- * is GLOBAL (D9-6), so this assertion would be unreliable in a class shared with any test that
- * creates a ruleset.
+ * ADR-SCORING-001 D9-11: with no ACTIVE scoring_ruleset, /scoring/run must reject with
+ * NO_ACTIVE_SCORING_RULESET. Since BRIKKA V2 I2 (V29) every fresh database ships one ACTIVE ruleset
+ * of factory, so the test first deactivates it via raw SQL to recreate the "no active ruleset"
+ * situation, then asserts the guard. Kept in its own class/container — scoring_rulesets is GLOBAL
+ * (D9-6), so mutating its status would be unreliable in a class shared with any test that relies on
+ * the seeded ruleset.
  */
 @Testcontainers
 @SpringBootTest
@@ -56,6 +59,7 @@ class ScoringNoActiveRulesetIT {
   @Autowired private ObjectMapper objectMapper;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private UserProvisioningService userProvisioningService;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   private record TestPrincipal(String externalIdentityId, User user) {
     String bearer() {
@@ -74,6 +78,12 @@ class ScoringNoActiveRulesetIT {
 
   @Test
   void noActiveRulesetRejectsScoringRun() throws Exception {
+    // Undo the V29 factory seed so there is genuinely no ACTIVE ruleset to evaluate.
+    int deactivated =
+        jdbcTemplate.update(
+            "UPDATE scoring_rulesets SET status = 'INACTIVE' WHERE status = 'ACTIVE'");
+    org.assertj.core.api.Assertions.assertThat(deactivated).isGreaterThanOrEqualTo(1);
+
     UUID companyId = companyRepository.insert("Co SNA1", "Co SNA1", "TC-SNA1");
     TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-sna1");
 

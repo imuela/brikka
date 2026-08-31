@@ -27,6 +27,8 @@ import {
   OPERATION_TYPE_LABELS,
   PARTICIPATION_TYPE_LABELS,
   PROPERTY_TYPE_LABELS,
+  RAG_AXIS_LABELS,
+  RAG_LEVEL_LABELS,
   REVIEW_STATUS_LABELS,
   TASK_STATUS_LABELS,
   TASK_TYPE_LABELS,
@@ -36,6 +38,8 @@ import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { FinancialAnalysisResult } from '../../financial-analysis/financial-analysis.model';
 import { FinancialAnalysisService } from '../../financial-analysis/financial-analysis.service';
+import { CaseRag } from '../../scoring/scoring.model';
+import { ScoringService } from '../../scoring/scoring.service';
 import { CaseFee } from '../../case-fee/case-fee.model';
 import { CaseFeeService } from '../../case-fee/case-fee.service';
 import { EditCaseFeeDialogComponent } from '../../case-fee/case-fee-dialogs/edit-case-fee-dialog.component';
@@ -127,6 +131,8 @@ export class CaseDetailComponent {
   readonly operationTypeLabels = OPERATION_TYPE_LABELS;
   readonly assignmentTypeLabels = ASSIGNMENT_TYPE_LABELS;
   readonly propertyTypeLabels = PROPERTY_TYPE_LABELS;
+  readonly ragLevelLabels = RAG_LEVEL_LABELS;
+  readonly ragAxisLabels = RAG_AXIS_LABELS;
   private readonly casesService = inject(CasesService);
   private readonly propertyService = inject(PropertyService);
   private readonly documentsService = inject(DocumentsService);
@@ -137,6 +143,7 @@ export class CaseDetailComponent {
   private readonly taskService = inject(TaskService);
   private readonly communicationService = inject(CommunicationService);
   private readonly financialAnalysisService = inject(FinancialAnalysisService);
+  private readonly scoringService = inject(ScoringService);
   private readonly caseFeeService = inject(CaseFeeService);
   private readonly engagementContractService = inject(EngagementContractService);
   private readonly viabilityDossierService = inject(ViabilityDossierService);
@@ -221,6 +228,12 @@ export class CaseDetailComponent {
   ];
   readonly viabilityCategoryLabels = VIABILITY_CATEGORY_LABELS;
 
+  /** BRIKKA V2 I2: qualitative RAG indicator of the case (scoring + viability + documentation). */
+  readonly caseRag = signal<CaseRag | null>(null);
+  readonly caseRagError = signal<string | null>(null);
+  readonly scoringRunning = signal(false);
+  readonly ragAxisColumns = ['axis', 'level', 'detail'];
+
   readonly caseFee = signal<CaseFee | null>(null);
   readonly caseFeeLoading = signal(true);
   readonly caseFeeError = signal<string | null>(null);
@@ -262,6 +275,7 @@ export class CaseDetailComponent {
     this.loadTasks();
     this.loadConversations();
     this.loadFinancialAnalysis();
+    this.loadCaseRag();
     this.loadCaseFee();
     this.loadContract();
     this.loadDossier();
@@ -877,6 +891,32 @@ export class CaseDetailComponent {
   financialAnalysisClientName(clientId: string): string {
     const client = this.clients()?.find((c) => c.clientId === clientId);
     return client ? `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() : clientId;
+  }
+
+  private loadCaseRag(): void {
+    this.scoringService.getRag(this.caseId).subscribe({
+      next: (rag) => this.caseRag.set(rag),
+      error: (err: ApiError) => {
+        this.caseRag.set(null);
+        this.caseRagError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  /** BRIKKA V2 I2: recompute the operation scoring (existing /scoring/run) and refresh the RAG. */
+  runScoring(): void {
+    this.scoringRunning.set(true);
+    this.caseRagError.set(null);
+    this.scoringService.run(this.caseId).subscribe({
+      next: () => {
+        this.scoringRunning.set(false);
+        this.loadCaseRag();
+      },
+      error: (err: ApiError) => {
+        this.scoringRunning.set(false);
+        this.caseRagError.set(friendlyErrorMessage(err));
+      },
+    });
   }
 
   private loadCaseFee(): void {

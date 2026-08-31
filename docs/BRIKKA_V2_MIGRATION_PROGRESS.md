@@ -11,17 +11,17 @@
 ## Barra de progreso global
 
 ```
-V2  [████████████░░░░░░░░]   40 %   (2 / 5 bloques · I1 ✅ · I3 ✅)   —   siguiente: I2 (Sprint V2-3)
+V2  [██████████████████░░░░░░░░░░░░]   60 %   (3 / 5 bloques · I1 ✅ · I2 ✅ · I3 ✅)   —   siguiente: I4 (Sprint V2-4)
 ```
 
 | Bloque | Peso | Estado | Backend | Frontend | Tests BE | Tests FE | % bloque |
 |---|---:|---|---|---|---|---|---:|
 | **I1** · Checklist documental | 25 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
-| **I2** · Scoring de fábrica + RAG | 20 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
+| **I2** · Scoring de fábrica + RAG | 20 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I3** · Precondiciones de transición | 15 % | ✅ Completado | ✅ | ✅ | ✅ | ✅ | 100 % |
 | **I4** · Simulación enriquecida | 25 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
 | **I5** · Dossier + ZIP + narrativa | 15 % | ⬜ Pendiente | ⬜ | ⬜ | ⬜ | ⬜ | 0 % |
-| **TOTAL** | 100 % | | | | | | **40 %** |
+| **TOTAL** | 100 % | | | | | | **60 %** |
 
 Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
@@ -29,7 +29,93 @@ Leyenda: ⬜ pendiente · 🟨 en curso · ✅ completado y validado.
 
 ## Bloque / sprint actual
 
-**V2-3 · I2 · Scoring de fábrica + RAG** (siguiente, sin empezar).
+**V2-4 · I4 · Simulación hipotecaria enriquecida** (siguiente, sin empezar).
+
+### V2-3 · I2 · Scoring de fábrica + indicador RAG — ✅ CERRADO (2026-08-31)
+
+Commit del sprint: pendiente de `git commit` (ver "Registro de avance"). Implementado:
+
+**1. Scoring de fábrica — Migración `V29__seed_default_scoring_ruleset.sql`** (sin tabla nueva, sin
+permiso nuevo). Usa el **motor existente** (`ScoringEngine` / `ScoringService`, ADR-SCORING-001), no
+un segundo sistema:
+
+- 1 `scoring_rulesets` `status = ACTIVE`, `code = default-operation-v1`, `version = v1`.
+- **Categorías en el jsonb del ruleset** (`rules.categories`), no en Java:
+  `RED maxScore 40` · `AMBER maxScore 69` · `GREEN maxScore null` (catch-all). El total acumula
+  "puntos a favor" → menos señales favorables ⇒ categoría más baja.
+- **4 reglas** `scoring_rules` (solo los 5 campos cerrados de `ScoreField`):
+
+  | code | condición | peso |
+  |---|---|---:|
+  | `ltv-strong` | `computed.ltv <= 0.70` | 50 |
+  | `ltv-moderate` | `computed.ltv <= 0.80` | 25 |
+  | `term-standard` | `financingRequest.termMonths <= 360` | 20 |
+  | `amount-known` | `financingRequest.requestedAmount > 0` | 5 |
+
+- Datos pasan `ScoringRulesValidator`. Reproducible: migración versionada (una vez por BD, igual que
+  V27/V28), `code`/`version` fijados. Un expediente sin inmueble ni solicitud → 0 → `RED`.
+- **NO** fórmula Legacy de scoring de cliente, **NO** 65/35, **NO** gate numérico de transición.
+
+**2. Indicador RAG del expediente — `scoring/CaseRagService`** (decisión §10.1: cualitativo,
+determinista, sin variables de negocio nuevas, sin IA). Combina 3 ejes, cada uno **filtrado por
+`company_id`**:
+
+| Eje (`axis`) | Fuente | Regla |
+|---|---|---|
+| `scoring` | último `scoring_results` del caso (repo `ORDER BY calculated_at DESC`) | categoría `GREEN`/`AMBER`/`RED` → mismo nivel; otra categoría (ruleset a medida) → `NOT_EVALUATED`; sin resultado → `NOT_EVALUATED` |
+| `viability` | `case_financial_analysis_results`, último por cliente | `FAVORABLE→GREEN`, `REVISAR→AMBER`, `NO_VIABLE→RED`; **peor** entre titulares; sin análisis → `NOT_EVALUATED` |
+| `documentation` | `CaseChecklistService.checklist(...)` (I1) | obligatorio completo → `GREEN`; 0 aprobados de N → `RED`; parcial → `AMBER`; sin requisitos (p. ej. `MORTGAGE`/`REFINANCE`) → `NOT_EVALUATED` |
+
+- **Combinado = peor de los ejes evaluados** (severidad `RED > AMBER > GREEN`); `NOT_EVALUATED` no
+  empeora; **todos `NOT_EVALUATED` ⇒ `NOT_EVALUATED`** (nunca degrada a verde).
+- Determinista: mismos datos almacenados ⇒ mismo indicador (test dedicado).
+- `scoring` package: solo **lee** de `financialanalysis` y `document` (ninguno importa `scoring`) →
+  sin ciclo de paquetes.
+
+**3. API — `GET /api/v1/cases/{caseId}/scoring/rag`** (`scoring/web/CaseRagController` +
+`CaseRagResponse`). Convenciones actuales: `CaseAccessService.requireCaseAccess(auth, "SCORING_READ",
+caseId)` (tenant + rol + asignación; caso de otro tenant → **404** antes de tocar datos RAG).
+**Permiso reutilizado `SCORING_READ`** (ya sembrado a SUPERADMIN/MANAGER/BROKER) — **sin permiso
+nuevo, sin endpoint de administración nuevo**. Contrato de error intacto (`{code,message,requestId}`).
+Respuesta: `{ rag, axes:[{axis, level, detail}] }` (enums viajan por nombre; etiquetas en el front).
+
+**4. Frontend** (mínimo, solo visualización del RAG en `case-detail`):
+- `features/scoring/scoring.model.ts` + `scoring.service.ts` (`getRag` + `run` reutiliza
+  `POST /scoring/run` — sin endpoint nuevo).
+- `case-detail`: sección **"Indicador RAG"** (`*appHasPermission="'SCORING_READ'"`) — badge del
+  indicador global + tabla de los 3 ejes (señal / nivel / detalle). Botón **"Calcular scoring"**
+  (`*appHasPermission="'SCORING_RUN'"`) → `POST /scoring/run` → recarga el RAG.
+- `status-labels.ts`: `RAG_LEVEL_LABELS` (Verde/Ámbar/Rojo/Sin evaluar) + `RAG_AXIS_LABELS`.
+- `status-tone.ts`: `GREEN→success`, `AMBER→warning`, `RED→error` (conjunto cerrado, antes de la
+  heurística léxica); `NOT_EVALUATED→neutral`.
+- `error-messages.ts`: +`NO_ACTIVE_SCORING_RULESET` (único fallo que puede surgir del botón, si se
+  desactivara el ruleset de fábrica).
+- **`case-list` → FUTURO** (`SCOPE §6.5`): el semáforo por fila exigiría N peticiones o un endpoint
+  de lote; no se justifica en I2. Sin otros cambios de componente.
+
+**Tests (backend, todos verdes):**
+- `CaseRagServiceIT` (nuevo, Postgres) — **7/7**: sin señales → `NOT_EVALUATED`; todo favorable →
+  `GREEN`; peor eje manda (`GREEN`+`REVISAR` → `AMBER`); `NO_VIABLE` fuerza `RED` pese a scoring
+  `GREEN`; documentación obligatoria sin aprobar → eje `RED`; **datos de otra empresa nunca entran**
+  (scoring + viabilidad de otro `company_id` → ejes `NOT_EVALUATED`); determinista (dos llamadas ⇒
+  igual).
+- `ScoringEndpointsIT` (+2) — vía HTTP: `GET /scoring/rag` legible por el equipo del caso, eje
+  `scoring` refleja el ruleset de fábrica sin crear ninguno (LTV 0.60 → `GREEN`); caso de otro
+  tenant → **404**.
+- `ScoringNoActiveRulesetIT` — **adaptado**: desactiva el ruleset de fábrica (`UPDATE ... SET status
+  = 'INACTIVE'`) y sigue verificando el guard `NO_ACTIVE_SCORING_RULESET`.
+- `FlywayMigrationIT` — 28→29 migraciones; +asserts V29 (1 ruleset `ACTIVE`, 4 reglas, 3 categorías).
+  Sin cambios en contadores de permisos/roles (V29 no añade ninguno).
+- Suite scoring existente (`ScoringEndpointsIT`, `ScoringRulesetEndpointsIT`, `ScoringEngineTest`,
+  `ScoringRulesValidatorTest`, `CrossModuleE2EIT`) — sin cambios de aserción necesarios (todas
+  localizan sus resultados por `rulesetId`; ninguna asume cero rulesets).
+
+**Tests (frontend, todos verdes):** `scoring.service.spec` (nuevo, `getRag`/`run`),
+`status-tone.spec` (nuevo, mapeo RAG + patrones existentes), `case-detail.component.spec` (+3:
+sección RAG gateada por `SCORING_READ` y render de ejes; botón "Calcular scoring" solo con
+`SCORING_RUN` + recarga; error del run). `ng test` **499/499** · `ng lint` verde.
+
+**FUTURO (detectado, no implementado):** indicador RAG en `case-list` (registrado en `SCOPE §6.5`).
 
 ### V2-2 · I3 · Precondiciones de transición — ✅ CERRADO (2026-08-31)
 
@@ -228,23 +314,32 @@ Luz verde para **V2-1 (I1)**.
 subir el documento del tipo correcto → requisito `SUBIDO`; aprobarlo → `APROBADO`; la vista muestra
 "faltan N obligatorios".
 
-### I2 · Scoring de fábrica + indicador RAG  *(P1 — Sprint V2-3)*
+### I2 · Scoring de fábrica + indicador RAG  *(P1 — Sprint V2-3 · ✅ COMPLETADO 2026-08-31)*
 
 **Definition of Done:**
-- [ ] Migración `V28__seed_default_scoring_ruleset.sql`: `scoring_ruleset` `ACTIVE`
-      (`default-property-v1`) + reglas LTV / importe / plazo + 3 categorías
-      (`SOLIDO`/`VIGILANCIA`/`BLOQUEADO`, `maxScore` configurable + catch-all).
-- [ ] `CaseIndicatorService` + endpoint de solo lectura: RAG = **peor** de {categoría de
-      `scoring_result`, categoría de `case_financial_analysis_result`, completitud de checklist
-      obligatorio (I1)}. Ejes ausentes → "sin evaluar".
-- [ ] Badge en `case-detail` y `case-list` (`shared/status-badge`).
-- [ ] Tests BE: resolución de categoría con el ruleset sembrado · combinación RAG completa/parcial/
-      ausente · tenant.
-- [ ] Tests FE: badge.
-- [ ] Batería completa en verde.
+- [x] Migración `V29__seed_default_scoring_ruleset.sql`: `scoring_rulesets` `ACTIVE`
+      (`default-operation-v1` / `v1`) + 4 reglas (`ltv-strong`, `ltv-moderate`, `term-standard`,
+      `amount-known`, solo campos de `ScoreField`) + 3 categorías **`GREEN`/`AMBER`/`RED`**
+      (`maxScore` en el jsonb del ruleset: `RED 40` / `AMBER 69` / `GREEN null`). Usa el motor
+      existente; configuración por datos, no hardcoded en Java.
+- [x] `scoring/CaseRagService` + `GET /api/v1/cases/{caseId}/scoring/rag` (solo lectura, sin
+      persistencia nueva, permiso reutilizado `SCORING_READ`): RAG = **peor de los ejes evaluados**
+      de {categoría del último `scoring_results`, peor viabilidad por cliente de
+      `case_financial_analysis_results`, completitud del checklist obligatorio (I1)}. Cada eje
+      filtra por `company_id`. Ejes ausentes → `NOT_EVALUATED`; todos ausentes → `NOT_EVALUATED`.
+- [x] Badge en `case-detail` (indicador global + tabla de 3 ejes). **`case-list` → FUTURO** (`SCOPE
+      §6.5`: exigiría N peticiones o endpoint de lote).
+- [x] Tests BE: seed del ruleset (`ACTIVE`, 3 categorías, 4 reglas, reproducible — `FlywayMigrationIT`);
+      scoring evalúa con el ruleset sembrado y comportamiento sin ruleset activo
+      (`ScoringNoActiveRulesetIT` adaptado); combinación RAG completa/parcial/ausente
+      (`CaseRagServiceIT` 7/7); aislamiento de tenant (`GET /scoring/rag` de otro tenant → 404;
+      datos de otra empresa nunca entran); regresión de scoring/viabilidad.
+- [x] Tests FE: `scoring.service.spec`, `status-tone.spec`, sección RAG en `case-detail.component.spec`.
+- [x] Batería completa en verde.
+- [x] `docs/` (`SCOPE §1 I2` + `§6.5`) y este PROGRESS actualizados.
 
-**Criterio de aceptación:** LTV bajo + viabilidad FAVORABLE + checklist completo → verde; cualquier
-eje en rojo → rojo; sin datos → "sin evaluar".
+**Criterio de aceptación:** LTV bajo + viabilidad FAVORABLE → verde; cualquier eje en rojo → rojo;
+sin datos → "sin evaluar".  ✅ verificado en `CaseRagServiceIT` + `ScoringEndpointsIT`.
 
 ### I3 · Precondiciones de transición  *(P1 — Sprint V2-2 · ✅ COMPLETADO 2026-08-31)*
 
@@ -265,7 +360,7 @@ auditado.
 ### I4 · Simulación enriquecida  *(P1 — Sprint V2-4)*
 
 **Definition of Done:**
-- [ ] Migración `V29__simulation_interest_type_and_bonifications.sql`: `interest_type`
+- [ ] Migración `V30__simulation_interest_type_and_bonifications.sql` (antes V29; V29 la ocupa I2): `interest_type`
       (`FIXED`/`VARIABLE`/`MIXED`), desglose (`spread`, `euribor`, `fixed_years`, `fixed_rate`,
       `variable_spread`), `base_interest_rate` / `final_interest_rate` `numeric(7,4)`, bonificaciones
       (tabla o `metadata` tipado), `ico_guarantee`.
@@ -304,14 +399,15 @@ incluye un párrafo de contexto generado por reglas.
 
 ## Tests — estado
 
-| Ámbito | Baseline (V2-0) | Actual (tras I3) | Nuevos en V2 |
+| Ámbito | Baseline (V2-0) | Actual (tras I2) | Nuevos en V2 |
 |---|---|---|---|
-| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **492/492** | +7 |
+| Frontend (`ng lint` + `npm test`) | lint ✅ · **485/485** | lint ✅ · **499/499** | +14 |
 | Backend unit (Surefire, sin Docker) | **106/106** ✅ | **106/106** ✅ | 0 |
 | Backend IT — barrido I1 (document, casemgmt, contract, dossier, financialanalysis, ai, e2e, portal, notification) | — | **verde** (189 tests) | I1 |
 | Backend IT — barrido I3 (`CaseTransitionPreconditionsIT` 15, `CrmCaseEndpointsIT` 23, `CaseServiceIT` 17, `CaseChecklistServiceIT` 6, `FlywayMigrationIT`, `RbacSeedIT` 30, `IdentityEndpointsIT`) | — | **verde** | `CaseTransitionPreconditionsIT` 15/15 · `CrmCaseEndpointsIT` +2 |
-| Backend integración — suite completa `./mvnw clean verify` (tras I3) | *(no ejecutada en V2-0)* | **BUILD SUCCESS** — Surefire **108/108**, Failsafe **435/435** (71 clases IT), 0 fallos / 0 errores | — |
-| Aislamiento de tenant (por recurso nuevo) | n/a | **checklist** (I1) + **3 gates** (I3): `CaseTransitionPreconditionsIT.gate2_bankRequestOfAnotherTenant...`, `gate3_selectedOfferOfAnotherTenant...` | — |
+| Backend IT — barrido I2 (`CaseRagServiceIT` 7, `ScoringEndpointsIT` 14, `ScoringNoActiveRulesetIT` 1, `ScoringRulesetEndpointsIT`, `FlywayMigrationIT`, `CrossModuleE2EIT`) | — | **verde** | `CaseRagServiceIT` 7/7 · `ScoringEndpointsIT` +2 |
+| Backend integración — suite completa `./mvnw clean verify` (tras I2) | *(no ejecutada en V2-0)* | _(en curso — se anota el resultado al terminar)_ | — |
+| Aislamiento de tenant (por recurso nuevo) | n/a | **checklist** (I1) + **3 gates** (I3) + **RAG** (I2): `CaseRagServiceIT.scoringResultOfAnotherTenantNeverLeaksIntoTheIndicator`, `ScoringEndpointsIT.ragFromAnotherTenantCaseIsNotFound` | — |
 
 ---
 
@@ -345,6 +441,7 @@ Decisiones **de diseño interno** (se resuelven dentro de cada sprint, sin bloqu
 | 2026-08-31 | V2-0 | Commit Sprint 40.x (`5c4b223`, `main`). Rama `feat/v2-migration`. Baseline de tests medido. Docs de planificación commiteados en la rama. | FE 485 ✅ · BE unit 106 ✅ · BE IT muestra 26 ✅ |
 | 2026-08-31 | V2-1 (I1) | Checklist documental: `V27` + 7 clases backend nuevas + 8 modificadas + 3 ficheros frontend + selector de titular. Cierre por `APPROVED` (§10.3), auto-gen en `DOCUMENTATION`, AI-ready. | `CaseChecklistServiceIT` 6/6 · `DocumentEndpointsIT` 16/16 · `FlywayMigrationIT` ✅ · barrido regresión ✅ · FE 488/488 ✅ |
 | 2026-08-31 | V2-2 (I3) | 3 gates de transición (`CaseTransitionPreconditions` + `CaseService.changeStatus`) + excepción autorizada (`CASE_TRANSITION_OVERRIDE`, `V28`) + FE (casilla forzar + traducción de errores). | `CaseTransitionPreconditionsIT` 15/15 · `CrmCaseEndpointsIT` 23/23 · `CaseServiceIT` 17/17 · RBAC counters ✅ · FE 492/492 ✅ · `./mvnw verify` completo → ver abajo |
+| 2026-08-31 | V2-3 (I2) | Scoring de fábrica (`V29` — ruleset `ACTIVE` `default-operation-v1` + 4 reglas + categorías `GREEN/AMBER/RED` en jsonb, motor existente) + indicador RAG del expediente (`scoring/CaseRagService` + `GET /scoring/rag`, `SCORING_READ`, peor de 3 ejes tenant-scoped) + FE (`features/scoring/*` + sección "Indicador RAG" en `case-detail` + `status-tone`/labels). `case-list` RAG → FUTURO `§6.5`. | `CaseRagServiceIT` 7/7 · `ScoringEndpointsIT` 16/16 (+2) · `ScoringNoActiveRulesetIT` adaptado ✅ · `FlywayMigrationIT` 28→29 ✅ · FE 499/499 ✅ · `ng lint` ✅ · `./mvnw clean verify` completo → ver abajo |
 
 ---
 

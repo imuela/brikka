@@ -500,4 +500,65 @@ class ScoringEndpointsIT {
             storedResult.get("explanation").get("snapshot").get("ltv").decimalValue())
         .isEqualByComparingTo(originalLtv);
   }
+
+  /**
+   * BRIKKA V2 I2: the case RAG indicator (GET /scoring/rag) is readable by the case team via the
+   * existing SCORING_READ permission and its scoring axis reflects the V29 factory ruleset without
+   * anyone authoring one.
+   */
+  @Test
+  void ragIndicatorIsReadableByTheCaseTeamAndReflectsTheFactoryScoring() throws Exception {
+    UUID companyId = companyRepository.insert("Co SE13", "Co SE13", "TC-SE13");
+    TestPrincipal manager = createUser(UserRole.MANAGER, companyId, "manager-se13");
+
+    UUID caseId = createCase(manager);
+    upsertProperty(manager, caseId, new BigDecimal("300000"), new BigDecimal("300000"));
+    createFinancingRequest(manager, caseId, new BigDecimal("180000"), 300);
+
+    mockMvc
+        .perform(
+            post("/api/v1/cases/" + caseId + "/scoring/run")
+                .header("Authorization", manager.bearer()))
+        .andExpect(status().isOk());
+
+    String response =
+        mockMvc
+            .perform(
+                get("/api/v1/cases/" + caseId + "/scoring/rag")
+                    .header("Authorization", manager.bearer()))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    JsonNode rag = objectMapper.readTree(response);
+
+    // LTV 180000/300000 = 0.60 -> ltv-strong+ltv-moderate+term-standard+amount-known = 100 ->
+    // GREEN.
+    org.assertj.core.api.Assertions.assertThat(rag.get("rag").asText()).isEqualTo("GREEN");
+    org.assertj.core.api.Assertions.assertThat(rag.get("axes").size()).isEqualTo(3);
+    JsonNode scoringAxis = null;
+    for (JsonNode candidate : rag.get("axes")) {
+      if ("scoring".equals(candidate.get("axis").asText())) {
+        scoringAxis = candidate;
+      }
+    }
+    org.assertj.core.api.Assertions.assertThat(scoringAxis).isNotNull();
+    org.assertj.core.api.Assertions.assertThat(scoringAxis.get("level").asText())
+        .isEqualTo("GREEN");
+  }
+
+  @Test
+  void ragFromAnotherTenantCaseIsNotFound() throws Exception {
+    UUID companyA = companyRepository.insert("Co SE14A", "Co SE14A", "TC-SE14A");
+    UUID companyB = companyRepository.insert("Co SE14B", "Co SE14B", "TC-SE14B");
+    TestPrincipal managerA = createUser(UserRole.MANAGER, companyA, "manager-se14a");
+    TestPrincipal managerB = createUser(UserRole.MANAGER, companyB, "manager-se14b");
+    UUID caseBId = createCase(managerB);
+
+    mockMvc
+        .perform(
+            get("/api/v1/cases/" + caseBId + "/scoring/rag")
+                .header("Authorization", managerA.bearer()))
+        .andExpect(status().isNotFound());
+  }
 }

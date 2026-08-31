@@ -37,6 +37,8 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   INVALID_FINANCIAL_PROFILE_SOURCE: 'La fuente del dato no es válida.',
   INVALID_FINANCIAL_PROFILE_STATUS: 'El estado de verificación no es válido.',
   NEGATIVE_FINANCIAL_VALUE: 'Los importes y cantidades no pueden ser negativos.',
+  // BRIKKA V2 I2: solo puede aparecer si se desactiva el ruleset de scoring de fábrica (V29).
+  NO_ACTIVE_SCORING_RULESET: 'No hay ningún conjunto de reglas de scoring activo para evaluar.',
   NEGATIVE_FEE_VALUE: 'Los importes de honorarios no pueden ser negativos.',
   INVALID_FEE_TYPE: 'El tipo de honorario no es válido.',
   INVALID_FEE_STATUS: 'El estado de honorarios no es válido.',

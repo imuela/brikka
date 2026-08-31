@@ -68,8 +68,10 @@ class FlywayMigrationIT {
     // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26. + V27 (BRIKKA V2 I1: document
     // checklist — documents.client_id, document_requirements unique constraint + 9 PURCHASE
     // requirement rows, no new table) = 27. + V28 (BRIKKA V2 I3: CASE_TRANSITION_OVERRIDE
-    // permission + 2 role_permissions rows, no new table) = 28.
-    assertThat(appliedMigrations).isEqualTo(28);
+    // permission + 2 role_permissions rows, no new table) = 28. + V29 (BRIKKA V2 I2: factory
+    // scoring ruleset — 1 scoring_rulesets row + 4 scoring_rules rows, no new table, no new
+    // permission) = 29.
+    assertThat(appliedMigrations).isEqualTo(29);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -218,5 +220,28 @@ class FlywayMigrationIT {
                 + " 'CASE_TRANSITION_OVERRIDE'",
             Integer.class);
     assertThat(caseTransitionOverrideGrants).isEqualTo(2);
+
+    // V29 (BRIKKA V2 I2): exactly one ACTIVE factory scoring ruleset with its 4 rules and the
+    // GREEN/AMBER/RED category triad (thresholds live in the ruleset jsonb, not in Java).
+    Integer activeFactoryRulesets =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM scoring_rulesets WHERE code = 'default-operation-v1'"
+                + " AND version = 'v1' AND status = 'ACTIVE'",
+            Integer.class);
+    assertThat(activeFactoryRulesets).isEqualTo(1);
+
+    Integer factoryRulesetRuleCount =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM scoring_rules r JOIN scoring_rulesets rs ON rs.id = r.ruleset_id"
+                + " WHERE rs.code = 'default-operation-v1'",
+            Integer.class);
+    assertThat(factoryRulesetRuleCount).isEqualTo(4);
+
+    Integer factoryRulesetCategoryCount =
+        jdbc.queryForObject(
+            "SELECT jsonb_array_length(rules -> 'categories') FROM scoring_rulesets"
+                + " WHERE code = 'default-operation-v1'",
+            Integer.class);
+    assertThat(factoryRulesetCategoryCount).isEqualTo(3);
   }
 }

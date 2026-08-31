@@ -82,6 +82,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock
@@ -129,6 +132,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
@@ -180,6 +186,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
@@ -358,6 +367,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
@@ -1136,6 +1148,85 @@ describe('CaseDetailComponent', () => {
     expect(fixture.componentInstance.financialAnalysisError()).toContain(
       'oferta bancaria seleccionada o una simulación',
     );
+  });
+
+  it('the Indicador RAG section is gated by SCORING_READ and renders the combined level and axes', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Indicador RAG');
+
+    sessionStore.setPermissions(['SCORING_READ']);
+    fixture.detectChanges();
+
+    // The initial flushInitialLoad RAG stub is NOT_EVALUATED with no axes; reload with real data.
+    fixture.componentInstance['loadCaseRag']();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`).flush({
+      rag: 'AMBER',
+      axes: [
+        { axis: 'scoring', level: 'GREEN', detail: 'Categoría GREEN (puntuación 100.00)' },
+        { axis: 'viability', level: 'AMBER', detail: 'Viabilidad REVISAR' },
+        { axis: 'documentation', level: 'NOT_EVALUATED', detail: 'Sin requisitos documentales' },
+      ],
+    });
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Indicador RAG');
+    expect(text).toContain('Indicador global');
+    expect(text).toContain('Ámbar');
+    expect(text).toContain('Scoring de la operación');
+    expect(text).toContain('Viabilidad (DTI)');
+    expect(text).toContain('Categoría GREEN');
+  });
+
+  it('shows the "Calcular scoring" button only with SCORING_RUN and re-reads the RAG after running', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['SCORING_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Calcular scoring');
+
+    sessionStore.setPermissions(['SCORING_READ', 'SCORING_RUN']);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Calcular scoring');
+
+    fixture.componentInstance.runScoring();
+    const runReq = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/run`);
+    expect(runReq.request.method).toBe('POST');
+    runReq.flush([{ id: 'sr1' }]);
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'GREEN', axes: [{ axis: 'scoring', level: 'GREEN', detail: 'ok' }] });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.caseRag()?.rag).toBe('GREEN');
+    expect(fixture.componentInstance.scoringRunning()).toBe(false);
+  });
+
+  it('surfaces the backend error when the scoring run fails', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['SCORING_READ', 'SCORING_RUN']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.runScoring();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/run`)
+      .flush(
+        { code: 'NO_ACTIVE_SCORING_RULESET', message: 'none', requestId: 'r1' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.caseRagError()).toBeTruthy();
+    expect(fixture.componentInstance.scoringRunning()).toBe(false);
   });
 
   it('the Honorarios section is gated by CASE_READ and shows the empty state', () => {

@@ -69,10 +69,12 @@ FUERA de V2** por decisión del propietario (no existe clausulado jurídico apro
 
 ### I2 · Scoring "de fábrica" + indicador RAG del expediente  *(P1 — GAP filas 11c, 11d; reglas R10, R12)*
 
-- Migración Flyway que **siembra un `scoring_ruleset` `ACTIVE`** (código `default-property-v1`) con:
-  reglas sobre `LTV` y `REQUESTED_AMOUNT`/`TERM_MONTHS` (pesos y umbrales razonables, **editables vía
-  el ruleset**, nunca hardcoded) y **3 categorías** (`SOLIDO` / `VIGILANCIA` / `BLOQUEADO`, con
-  `maxScore` configurable + catch-all).
+- Migración Flyway que **siembra un `scoring_ruleset` `ACTIVE`** (código `default-operation-v1`,
+  `V29`) con: reglas sobre `computed.ltv`, `financingRequest.termMonths` y
+  `financingRequest.requestedAmount` (pesos y umbrales **editables vía el ruleset** — jsonb, nunca
+  hardcoded) y **3 categorías `GREEN` / `AMBER` / `RED`** (`maxScore` en el propio ruleset:
+  `RED ≤ 40`, `AMBER ≤ 69`, `GREEN` catch-all). *(Realizado: se usa el motor existente
+  `ScoringEngine` / `ScoringService`; el nombre de categoría es el propio semáforo.)*
 - **Indicador RAG del expediente** (decisión §10.1: **cualitativo y configurable vía ruleset, NO una
   copia de la fórmula Legacy; NO un segundo sistema de scoring paralelo**). Endpoint de solo lectura,
   sin persistencia nueva: combinación **cualitativa** del **peor** de los ejes disponibles:
@@ -83,9 +85,14 @@ FUERA de V2** por decisión del propietario (no existe clausulado jurídico apro
 
   Sin medias ponderadas, sin umbrales numéricos fuera del ruleset. Ejes ausentes → el indicador
   degrada a "sin evaluar", no a verde.
-- Badge en `case-detail` y en `case-list`.
-- Tests: resolución de categoría con el ruleset sembrado; combinación RAG con datos completos /
-  parciales / ausentes; tenant.
+  *(Realizado: `scoring/CaseRagService` + `GET /api/v1/cases/{caseId}/scoring/rag`, permiso
+  reutilizado `SCORING_READ`; `RagLevel` = `GREEN`/`AMBER`/`RED`/`NOT_EVALUATED`; combinado = peor
+  de los ejes evaluados; todos `NOT_EVALUATED` → `NOT_EVALUATED`. Cada eje filtra por `company_id`.)*
+- Badge en `case-detail` (indicador global + tabla de los 3 ejes). **`case-list` → FUTURO §6.5**
+  (exigiría N peticiones o un endpoint de lote; no se justifica en I2).
+- Tests: seed del ruleset (`ACTIVE`, 3 categorías, 4 reglas, reproducible); combinación RAG con
+  datos completos / parciales / ausentes; aislamiento de tenant (`GET /scoring/rag` de otro tenant
+  → 404; datos de otra empresa nunca entran en el indicador); regresión de scoring/viabilidad.
 
 ### I3 · Precondiciones de transición del expediente  *(P1 — regla R08 revisada; spec `13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §5`)*
 
@@ -292,6 +299,10 @@ Registrado y documentado; retomar solo con decisión y prioridad explícitas del
   no hueco funcional Legacy.
 - **(V2-2)** `case-detail`: recargar automáticamente la sección "Checklist documental" al cambiar
   el estado del caso (hoy solo se recarga tras acciones documentales — enganche de I1). Cosmético.
+- **(V2-3)** Indicador RAG en `case-list`: mostrar el semáforo por fila exigiría N peticiones
+  `GET /scoring/rag` (una por caso) o un endpoint de lote nuevo. No se justifica en I2 (la lista no
+  aporta el detalle por ejes). El RAG del caso se muestra solo en `case-detail`. Retomar solo si se
+  añade un endpoint de RAG en lote.
 
 **Regla de control de alcance:** si durante la implementación de I1–I5 aparece una funcionalidad
 nueva interesante, se anota aquí y **no se implementa**.
@@ -334,8 +345,8 @@ y **se detiene el trabajo de migración**. Cualquier hueco descubierto después 
 | **V2-0** · Preparación | — | — | Confirmar/commitear o *stashear* los 4 archivos locales de `client-form` (Fase 0); crear `BRIKKA_V2_MIGRATION_PROGRESS.md`; congelar este alcance | `BRIKKA_V2_MIGRATION_PROGRESS.md` (nuevo) | — | working tree limpio; progreso inicializado; alcance §1–§7 sin contradicciones |
 | **V2-1** · Checklist documental (I1, **P0**) | V2-0 | seed `document_requirements(PURCHASE)`; auto-gen de `document_requests` al entrar en `DOCUMENTATION`; cierre de requisito solo con `review_status = APPROVED`; endpoint + vista de completitud; diseño AI-ready del enganche "documento→requisito" | migración `V27__seed_document_requirements.sql`; `document/DocumentRequestService.java`, `document/DocumentService.java` (hook al aprobar), `casemgmt/CaseService.java` (hook de transición); nuevo `document/CaseChecklistService.java` + controller; `frontend/.../cases/case-detail/*` + nuevo componente de checklist + `documents.service.ts` | auto-gen idempotente; requisito NO se cierra al subir, SÍ al aprobar; tenant; componente Angular | al pasar `PURCHASE` a `DOCUMENTATION` aparecen los requisitos por titular y de expediente; subir el documento deja el requisito en `SUBIDO`; aprobarlo lo deja `APROBADO`; la vista muestra "faltan N obligatorios" |
 | **V2-2** · Precondiciones de transición (I3, P1) | V2-1 (para la primera transición) | 3 gates: `DOCUMENTATION→ANALYSIS` (checklist obligatorio aprobado), `BANK_SEARCH→BANK_SUBMISSION` (≥1 solicitud bancaria válida), `OFFER→FORMALIZATION` (oferta seleccionada / `final_financing`); excepción autorizada con motivo | `casemgmt/CaseService.java` (`changeStatus`), sin cambios en `CaseWorkflow`; permiso nuevo `CASE_TRANSITION_OVERRIDE` (o equivalente); `frontend/.../cases/case-dialogs/change-status-dialog.component.ts` | por transición: bloqueada / permitida / con excepción; error estructurado | no se avanza si la precondición falla; con permiso + motivo sí, y queda en `case_status_history.reason` |
-| **V2-3** · Scoring de fábrica + RAG (I2, P1) | V2-1 (eje "checklist" del RAG) | migración seed `scoring_ruleset` `ACTIVE` + 3 categorías; endpoint RAG del caso (peor eje, cualitativo); badge en `case-detail` y `case-list` | migración `V28__seed_default_scoring_ruleset.sql`; nuevo `scoring/CaseIndicatorService.java` + controller; `frontend` `scoring.service.ts` + `case-detail`/`case-list` + `shared/status-badge` | resolución de categoría con el ruleset sembrado; combinación RAG completa/parcial/ausente; tenant | caso con LTV bajo + viabilidad FAVORABLE + checklist completo → verde; cualquier eje en rojo → rojo; sin datos → "sin evaluar" |
-| **V2-4** · Simulación enriquecida (I4, P1) | V2-0 | `interest_type` + desglose; bonificaciones (catálogo + tasa); `rate_final` en backend; cuota recalculada con `MortgagePaymentCalculator`; flag `ico_guarantee` | migración `V29__simulation_interest_type_and_bonifications.sql`; `financing/Simulation.java`, `SimulationRepository`, `SimulationController`, `CreateSimulationApiRequest`; `frontend` `create-simulation-dialog.component.ts` | `rate_final` con varias bonificaciones (floor 0); cuota francesa; validación MIXED (años fijos < plazo); redondeo `numeric(7,4)`/`numeric(14,2)` | una simulación VARIABLE con euríbor + diferencial + 2 bonificaciones muestra base, final y cuota coherentes; el dossier lo refleja |
+| **V2-3** · Scoring de fábrica + RAG (I2, P1) — ✅ | V2-1 (eje "checklist" del RAG) | migración seed `scoring_ruleset` `ACTIVE` + 3 categorías `GREEN/AMBER/RED`; endpoint RAG del caso (peor eje evaluado, cualitativo); badge en `case-detail` (**`case-list` → FUTURO §6.5**) | migración `V29__seed_default_scoring_ruleset.sql`; nuevo `scoring/CaseRagService.java` + `RagLevel`/`RagAxis`/`CaseRagIndicator` + `scoring/web/CaseRagController.java` + `CaseRagResponse`; `frontend` `features/scoring/scoring.{model,service}.ts` + `case-detail` + `status-labels.ts` + `status-tone.ts` | seed (`ACTIVE`, 3 categorías, 4 reglas, reproducible); combinación RAG completa/parcial/ausente; tenant (`GET /scoring/rag` de otro tenant → 404); regresión scoring/viabilidad | caso con LTV bajo + viabilidad FAVORABLE → verde; cualquier eje en rojo → rojo; sin datos → "sin evaluar" |
+| **V2-4** · Simulación enriquecida (I4, P1) | V2-0 | `interest_type` + desglose; bonificaciones (catálogo + tasa); `rate_final` en backend; cuota recalculada con `MortgagePaymentCalculator`; flag `ico_guarantee` | migración `V30__simulation_interest_type_and_bonifications.sql` (antes V29; V29 la ocupa I2); `financing/Simulation.java`, `SimulationRepository`, `SimulationController`, `CreateSimulationApiRequest`; `frontend` `create-simulation-dialog.component.ts` | `rate_final` con varias bonificaciones (floor 0); cuota francesa; validación MIXED (años fijos < plazo); redondeo `numeric(7,4)`/`numeric(14,2)` | una simulación VARIABLE con euríbor + diferencial + 2 bonificaciones muestra base, final y cuota coherentes; el dossier lo refleja |
 | **V2-5** · Dossier + ZIP documental + narrativa determinista (I5, P1) | V2-1 (documentos), V2-4 (simulación en el dossier) | endpoint "descargar toda la documentación del caso" (ZIP streaming, permisos, tenant); dossier combina/enlaza; `NarrativeService` determinista (reglas), AI-ready | nuevo `document/CaseDocumentsArchiveService.java` + controller; `dossier/ViabilityDossierService.java` (narrativa + enlace ZIP); nuevo `dossier/NarrativeService.java`; `frontend` `viability-dossier.service.ts` + botón en `case-detail` | contenido y estructura del ZIP; permisos y tenant; caso sin documentos; narrativa por rama (1 titular / varios; antigüedad; ingresos) | el broker descarga un ZIP con todos los documentos del caso; el dossier incluye un párrafo de contexto generado por reglas |
 
 ### Cierre (dentro de V2-5)

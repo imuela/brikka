@@ -14,6 +14,19 @@ export function statusTone(value: string | null | undefined): StatusTone {
   }
   const v = value.toUpperCase();
 
+  // BRIKKA V2 I2: RAG indicator levels are an exact closed set, matched before the lexical
+  // heuristic so a substring rule can never misclassify them. NOT_EVALUATED falls through to
+  // neutral on purpose — "no signal" must not look like a warning.
+  if (v === 'GREEN') {
+    return 'success';
+  }
+  if (v === 'AMBER') {
+    return 'warning';
+  }
+  if (v === 'RED') {
+    return 'error';
+  }
+
   if (
     /(REJECTED|CANCELLED|CANCELED|ERROR|FAILED|OVERDUE|EXPIRED|DECLINED|SUSPENDED|BLOCKED|LOST|NO_VIABLE)/.test(
       v,
