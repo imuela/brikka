@@ -37,7 +37,12 @@
 
   <mat-form-field>
     <mat-label>Tipo de documento</mat-label>
-    <input matInput formControlName="documentType" placeholder="DNI / NIE / PASAPORTE" />
+    <mat-select formControlName="documentType">
+      <mat-option value="">— Sin especificar —</mat-option>
+      @for (type of documentTypes; track type) {
+        <mat-option [value]="type">{{ type }}</mat-option>
+      }
+    </mat-select>
   </mat-form-field>
 
   <mat-form-field>
@@ -62,7 +67,27 @@
 
   <mat-form-field>
     <mat-label>Situación laboral</mat-label>
-    <input matInput formControlName="employmentStatus" placeholder="Empleado / Autónomo / ..." />
+    <mat-select formControlName="employmentStatus">
+      <mat-option value="">— Sin especificar —</mat-option>
+      @for (status of employmentStatuses; track status) {
+        <mat-option [value]="status">{{ status }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Empresa actual</mat-label>
+    <input matInput formControlName="employerName" />
+    <mat-hint>Empresa o entidad en la que trabaja actualmente el cliente.</mat-hint>
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Antigüedad (años)</mat-label>
+    <input matInput type="number" min="0" formControlName="yearsEmployed" />
+    <mat-hint>Años en la situación laboral / empresa actual.</mat-hint>
+    @if (form.controls.yearsEmployed.hasError('min')) {
+      <mat-error>La antigüedad no puede ser negativa.</mat-error>
+    }
   </mat-form-field>
 
   @if (error()) {
