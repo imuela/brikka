@@ -2319,6 +2319,19 @@ Trabajo posterior a V1.0.0, en la rama `feat/v2-migration` (6 commits: `3de7109`
   V2 no introduce ninguna dependencia de proveedor de IA. Las costuras AI-ready quedan preparadas
   (el enganche "documento → requisito" en I1, el propio `CaseNarrativeService` en I5) para que un
   `AiProvider` posterior se conecte sin tocar el dominio.
+- **Sin PDF real, sin firma electrónica en V2.** El HTML versionado actual (dossier, contrato) es
+  suficiente para V2; el render a PDF (Gotenberg / OpenPDF / Flying Saucer) queda FUTURO (`§6.2`).
+  La firma electrónica nunca estuvo en el alcance y no se aborda.
+- **Reutilización de motores existentes.** I2 usa el `ScoringEngine` ya existente (V29 solo aporta
+  el ruleset "de fábrica" en datos). I4 usa el calculador de amortización francés existente
+  (`MortgagePaymentCalculator`), sin un segundo motor; se movió del paquete `financialanalysis` a
+  `financing` para evitar un ciclo de paquetes y se amplió con `computeOutstandingBalance`. I1/I3
+  reutilizan el flujo de revisión documental y el histórico/auditoría de estado ya existentes.
+- **Seguridad tenant-scoped por diseño.** Todos los accesos a datos nuevos resuelven el tenant
+  desde la identidad autenticada (`CaseAccessService` / `DocumentAccessService`), nunca desde un
+  `company_id` del cliente; caso de otro tenant → 404 enmascarado. Filtrado explícito por
+  `company_id` en RAG, narrativa, gates I3 y ZIP. Cada recurso nuevo tiene un test de aislamiento
+  de tenant. Un único permiso nuevo (`CASE_TRANSITION_OVERRIDE`), el resto reutilizado.
 - **No copiar bugs de Legacy.** En concreto: las bonificaciones de simulación se aplican de verdad
   (Legacy las guardaba en `bonus_*` pero nunca las aplicaba — F17c); no se recuperan
   `monthly_payment_phase2`, `total_interest` ni `recommended` (valores incorrectos o columnas

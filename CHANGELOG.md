@@ -6,12 +6,15 @@ funcionalidades inventadas. Ver `docs/12_DECISION_LOG.md` para el detalle sprint
 
 ## [2.0.0] — BRIKKA V2 (migración funcional Legacy → V2)
 
+> Versión candidata. Trabajo en la rama `feat/v2-migration`, **pendiente de merge a `main` y de
+> tag `v2.0.0`** (operaciones posteriores con confirmación explícita del propietario, mismo
+> criterio que los Gates 23/25 de la release V1.0.0).
+
 Migración funcional controlada **Legacy → BRIKKA V2**: cierre de los huecos funcionales
 verificados de la Brikka Legacy que no cubría V1, **sin copiar código PHP y sin reproducir bugs
 de Legacy**. Alcance cerrado y aprobado por el propietario: bloques **I1–I5**. Ver
 `docs/BRIKKA_V2_MIGRATION_SCOPE.md` (alcance), `docs/BRIKKA_V2_MIGRATION_PROGRESS.md`
-(seguimiento) y `docs/BRIKKA_V2_FINAL_AUDIT.md` (auditoría final). Trabajo en la rama
-`feat/v2-migration`.
+(seguimiento) y `docs/BRIKKA_V2_FINAL_AUDIT.md` (auditoría final).
 
 ### Producto
 
@@ -57,8 +60,8 @@ de Legacy**. Alcance cerrado y aprobado por el propietario: bloques **I1–I5**.
 
 ### Técnico
 
-- Base de datos: **30 migraciones Flyway** (V1–V30). Nuevas en V2, todas **aditivas y no
-  destructivas**: `V27__document_checklist.sql` (I1 — `documents.client_id` nullable + índice,
+- Base de datos: se pasa de **26 a 30 migraciones Flyway** (V1–V30). Las 4 nuevas de V2 son todas
+  **aditivas y no destructivas**: `V27__document_checklist.sql` (I1 — `documents.client_id` nullable + índice,
   `UNIQUE(operation_type, document_type_id)`, semilla de requisitos `PURCHASE`),
   `V28__case_transition_override_permission.sql` (I3 — 1 permiso + 2 `role_permissions`),
   `V29__seed_default_scoring_ruleset.sql` (I2 — 1 `scoring_rulesets` + 4 `scoring_rules`),
