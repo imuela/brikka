@@ -37,6 +37,21 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   INVALID_FINANCIAL_PROFILE_SOURCE: 'La fuente del dato no es válida.',
   INVALID_FINANCIAL_PROFILE_STATUS: 'El estado de verificación no es válido.',
   NEGATIVE_FINANCIAL_VALUE: 'Los importes y cantidades no pueden ser negativos.',
+  // BRIKKA V2 I2: solo puede aparecer si se desactiva el ruleset de scoring de fábrica (V29).
+  NO_ACTIVE_SCORING_RULESET: 'No hay ningún conjunto de reglas de scoring activo para evaluar.',
+  // BRIKKA V2 I4: validación de la simulación enriquecida (tipo de interés, tramo fijo, bonificaciones).
+  INVALID_SIMULATION_INTEREST_TYPE: 'El tipo de interés debe ser fijo, variable o mixto.',
+  INVALID_SIMULATION_AMOUNT: 'El importe de la simulación debe ser mayor que cero.',
+  INVALID_SIMULATION_TERM: 'El plazo de la simulación no es válido.',
+  SIMULATION_INTEREST_MODEL_MISMATCH:
+    'Los datos del tipo de interés no encajan con el tipo elegido (revisa euríbor, diferencial o tramo fijo).',
+  INVALID_SIMULATION_FIXED_PERIOD:
+    'El tramo fijo debe durar menos que el plazo total de la simulación.',
+  NEGATIVE_SIMULATION_VALUE: 'Los tipos y diferenciales de la simulación no pueden ser negativos.',
+  INVALID_SIMULATION_BONIFICATION:
+    'Alguna bonificación no es válida: revisa el código, la descripción y la reducción.',
+  // BRIKKA V2 I5: descarga ZIP de la documentación del expediente.
+  CASE_HAS_NO_DOCUMENTS: 'Este expediente no tiene documentos para descargar.',
   NEGATIVE_FEE_VALUE: 'Los importes de honorarios no pueden ser negativos.',
   INVALID_FEE_TYPE: 'El tipo de honorario no es válido.',
   INVALID_FEE_STATUS: 'El estado de honorarios no es válido.',
@@ -64,6 +79,14 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   NO_VERSION_TO_PUBLISH: 'El documento no tiene ninguna versión que publicar.',
   NO_VERSION_TO_REVIEW: 'El documento no tiene ninguna versión pendiente de revisión.',
   PLAN_NOT_FOUND: 'No se ha encontrado el plan solicitado.',
+  // BRIKKA V2 I3: transition preconditions (13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §5).
+  PRECONDITION_CHECKLIST_INCOMPLETE:
+    'Faltan documentos obligatorios por aprobar antes de pasar a Análisis.',
+  PRECONDITION_NO_BANK_REQUEST:
+    'El caso necesita al menos una solicitud a un banco antes de enviarlo a las entidades.',
+  PRECONDITION_NO_SELECTED_OFFER:
+    'El caso necesita una oferta bancaria seleccionada antes de pasar a Formalización.',
+  PRECONDITION_OVERRIDE_REASON_REQUIRED: 'Indica un motivo para forzar la transición.',
   PROPERTY_NOT_FOUND: 'No se ha encontrado ningún inmueble registrado para esta operación.',
   SUBSCRIPTION_NOT_FOUND: 'La empresa no tiene ninguna suscripción asignada.',
   // Sprint 22 (autenticación propia): UNAUTHENTICATED cubre login/refresh/password-reset con

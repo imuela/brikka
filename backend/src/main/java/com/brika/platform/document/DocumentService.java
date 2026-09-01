@@ -54,6 +54,7 @@ public class DocumentService {
   private final ActivityPublisher activityPublisher;
   private final NotificationPublisher notificationPublisher;
   private final NotificationRecipients notificationRecipients;
+  private final DocumentRequestFulfillment documentRequestFulfillment;
 
   public DocumentService(
       DocumentRepository documentRepository,
@@ -63,7 +64,8 @@ public class DocumentService {
       StorageProperties storageProperties,
       ActivityPublisher activityPublisher,
       NotificationPublisher notificationPublisher,
-      NotificationRecipients notificationRecipients) {
+      NotificationRecipients notificationRecipients,
+      DocumentRequestFulfillment documentRequestFulfillment) {
     this.documentRepository = documentRepository;
     this.documentVersionRepository = documentVersionRepository;
     this.documentPublicationRepository = documentPublicationRepository;
@@ -72,11 +74,22 @@ public class DocumentService {
     this.activityPublisher = activityPublisher;
     this.notificationPublisher = notificationPublisher;
     this.notificationRecipients = notificationRecipients;
+    this.documentRequestFulfillment = documentRequestFulfillment;
   }
 
+  /** Document of the expediente (no holder attribution). */
   @Transactional
   public Document createDocument(UUID tenantId, UUID caseId, UUID documentTypeId) {
-    UUID id = documentRepository.insert(tenantId, caseId, documentTypeId);
+    return createDocument(tenantId, caseId, documentTypeId, null);
+  }
+
+  /**
+   * BRIKKA V2 I1: clientId non-null attributes the document to a case holder, so a per-holder
+   * checklist requirement can be closed by that holder's own evidence.
+   */
+  @Transactional
+  public Document createDocument(UUID tenantId, UUID caseId, UUID documentTypeId, UUID clientId) {
+    UUID id = documentRepository.insert(tenantId, caseId, documentTypeId, clientId);
     return documentRepository.findById(id).orElseThrow();
   }
 
@@ -233,6 +246,9 @@ public class DocumentService {
     }
     documentVersionRepository.review(document.currentVersionId(), decision, reviewerId, comment);
     documentRepository.updateStatus(document.id(), decision);
+    // BRIKKA V2 I1: an APPROVED document fulfils its matching checklist requirement(s); a REJECT of
+    // a previously-approved one reopens them.
+    documentRequestFulfillment.onDocumentReviewed(document, decision);
     DocumentVersion version =
         documentVersionRepository.findById(document.currentVersionId()).orElseThrow();
     notifyUploaderOfReview(document, decision, version);

@@ -14,9 +14,18 @@
     </mat-form-field>
 
     <mat-form-field>
-      <mat-label>Motivo (opcional)</mat-label>
+      <mat-label>Motivo{{ form.controls.override.value ? '' : ' (opcional)' }}</mat-label>
       <input matInput formControlName="reason" />
+      @if (form.controls.reason.hasError('required')) {
+        <mat-error>Indica un motivo para forzar la transición.</mat-error>
+      }
     </mat-form-field>
+
+    @if (canOverride) {
+      <mat-checkbox formControlName="override">
+        Forzar la transición (excepción autorizada)
+      </mat-checkbox>
+    }
 
     @if (error()) {
       <p class="error-text">{{ error() }}</p>

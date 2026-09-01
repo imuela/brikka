@@ -187,4 +187,19 @@ describe('DocumentsService', () => {
     expect(req.request.body).toEqual(request);
     req.flush(documentRequest);
   });
+
+  it('getChecklist(caseId) calls GET /api/v1/cases/{caseId}/checklist', () => {
+    const checklist = {
+      mandatoryTotal: 2,
+      mandatoryMissing: 1,
+      optionalTotal: 0,
+      optionalMissing: 0,
+      complete: false,
+      items: [],
+    };
+    service.getChecklist('k1').subscribe((result) => expect(result).toEqual(checklist));
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`);
+    expect(req.request.method).toBe('GET');
+    req.flush(checklist);
+  });
 });

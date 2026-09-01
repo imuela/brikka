@@ -1,51 +1,157 @@
 <h2 mat-dialog-title>Nueva simulación</h2>
-<form [formGroup]="form" (ngSubmit)="submit()">
+
+@if (result(); as sim) {
   <mat-dialog-content class="field-row">
-    <mat-form-field>
-      <mat-label>Importe (€)</mat-label>
-      <input matInput type="number" formControlName="principal" required />
-      @if (form.controls.principal.hasError('required')) {
-        <mat-error>El importe es obligatorio.</mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Tipo de interés (%)</mat-label>
-      <input matInput type="number" formControlName="interestRate" required />
-      @if (form.controls.interestRate.hasError('required')) {
-        <mat-error>El tipo de interés es obligatorio.</mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Plazo (meses)</mat-label>
-      <input matInput type="number" formControlName="termMonths" required />
-      @if (form.controls.termMonths.hasError('required')) {
-        <mat-error>El plazo es obligatorio.</mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Cuota estimada (€)</mat-label>
-      <input matInput type="number" formControlName="estimatedPayment" required />
-      @if (form.controls.estimatedPayment.hasError('required')) {
-        <mat-error>La cuota estimada es obligatoria.</mat-error>
-      }
-    </mat-form-field>
-
-    @if (error()) {
-      <p class="error-text">{{ error() }}</p>
+    <p><strong>Simulación creada.</strong></p>
+    <p>Tipo: {{ interestTypeLabels[sim.interestType] ?? sim.interestType }}</p>
+    <p>Tipo base: {{ sim.baseInterestRate | number: '1.2-4' }} %</p>
+    <p>Tipo final (con bonificaciones): {{ sim.finalInterestRate | number: '1.2-4' }} %</p>
+    <p>
+      Cuota estimada{{ sim.interestType === 'MIXED' ? ' (tramo fijo)' : '' }}:
+      <strong>{{ sim.estimatedPayment | currency: 'EUR' : 'symbol' : '1.0-2' }}</strong>
+    </p>
+    @if (sim.variablePhase; as vp) {
+      <p>
+        Cuota estimada (tramo variable, tipo {{ vp.finalInterestRate | number: '1.2-4' }} %):
+        <strong>{{ vp.monthlyPayment | currency: 'EUR' : 'symbol' : '1.0-2' }}</strong>
+      </p>
+    }
+    @if (sim.icoGuarantee) {
+      <p>Con aval ICO.</p>
     }
   </mat-dialog-content>
-
   <mat-dialog-actions align="end">
-    <button mat-button type="button" (click)="cancel()">Cancelar</button>
-    <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
-      @if (loading()) {
-        <mat-spinner diameter="20" />
-      } @else {
-        Crear simulación
-      }
-    </button>
+    <button mat-flat-button color="primary" type="button" (click)="close()">Cerrar</button>
   </mat-dialog-actions>
-</form>
+} @else {
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <mat-dialog-content class="field-row">
+      <mat-form-field>
+        <mat-label>Tipo de interés</mat-label>
+        <mat-select formControlName="interestType">
+          <mat-option value="FIXED">Fijo</mat-option>
+          <mat-option value="VARIABLE">Variable</mat-option>
+          <mat-option value="MIXED">Mixto</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Importe (€)</mat-label>
+        <input matInput type="number" formControlName="principal" required />
+        @if (form.controls.principal.hasError('required')) {
+          <mat-error>El importe es obligatorio.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Plazo (meses)</mat-label>
+        <input matInput type="number" formControlName="termMonths" required />
+        @if (form.controls.termMonths.hasError('required')) {
+          <mat-error>El plazo es obligatorio.</mat-error>
+        }
+      </mat-form-field>
+
+      @if (interestType() === 'FIXED') {
+        <mat-form-field>
+          <mat-label>Tipo fijo (%)</mat-label>
+          <input matInput type="number" formControlName="fixedRate" required />
+          @if (form.controls.fixedRate.hasError('required')) {
+            <mat-error>El tipo fijo es obligatorio.</mat-error>
+          }
+        </mat-form-field>
+      }
+
+      @if (interestType() === 'MIXED') {
+        <mat-form-field>
+          <mat-label>Meses del tramo fijo</mat-label>
+          <input matInput type="number" formControlName="fixedPeriodMonths" required />
+          @if (form.controls.fixedPeriodMonths.hasError('required')) {
+            <mat-error>Indica los meses del tramo fijo.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Tipo del tramo fijo (%)</mat-label>
+          <input matInput type="number" formControlName="fixedPeriodRate" required />
+          @if (form.controls.fixedPeriodRate.hasError('required')) {
+            <mat-error>Indica el tipo del tramo fijo.</mat-error>
+          }
+        </mat-form-field>
+      }
+
+      @if (interestType() === 'VARIABLE' || interestType() === 'MIXED') {
+        <mat-form-field>
+          <mat-label>Euríbor (%)</mat-label>
+          <input matInput type="number" formControlName="euriborRate" required />
+          @if (form.controls.euriborRate.hasError('required')) {
+            <mat-error>El euríbor es obligatorio.</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Diferencial (%)</mat-label>
+          <input matInput type="number" formControlName="spreadRate" required />
+          @if (form.controls.spreadRate.hasError('required')) {
+            <mat-error>El diferencial es obligatorio.</mat-error>
+          }
+        </mat-form-field>
+      }
+
+      <div class="bonifications">
+        <div class="section-header">
+          <strong>Bonificaciones</strong>
+          <button mat-button type="button" (click)="addBonification()">Añadir bonificación</button>
+        </div>
+        @for (group of bonifications.controls; track $index) {
+          <div [formGroup]="group" class="bonification-row">
+            <mat-form-field>
+              <mat-label>Bonificación</mat-label>
+              <mat-select formControlName="code" (selectionChange)="onBonificationCodeChange($index)">
+                @for (option of bonificationCatalog; track option.code) {
+                  <mat-option [value]="option.code">{{ option.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Descripción</mat-label>
+              <input matInput formControlName="label" required />
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Reducción (pp)</mat-label>
+              <input matInput type="number" formControlName="rate" required />
+            </mat-form-field>
+            <mat-checkbox formControlName="active">Activa</mat-checkbox>
+            <button mat-icon-button type="button" (click)="removeBonification($index)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+
+      <mat-checkbox formControlName="icoGuarantee">Con aval ICO</mat-checkbox>
+
+      <div class="rate-preview">
+        <p>Tipo base: {{ baseRatePreview() === null ? '—' : (baseRatePreview() | number: '1.2-4') }} %</p>
+        <p>Suma de bonificaciones activas: {{ totalBonificationPreview() | number: '1.2-4' }} pp</p>
+        <p>
+          Tipo final (estimado):
+          {{ finalRatePreview() === null ? '—' : (finalRatePreview() | number: '1.2-4') }} %
+        </p>
+        <p class="hint">La cuota exacta la calcula el servidor y se muestra al crear la simulación.</p>
+      </div>
+
+      @if (error()) {
+        <p class="error-text">{{ error() }}</p>
+      }
+    </mat-dialog-content>
+
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" (click)="cancel()">Cancelar</button>
+      <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+        @if (loading()) {
+          <mat-spinner diameter="20" />
+        } @else {
+          Crear simulación
+        }
+      </button>
+    </mat-dialog-actions>
+  </form>
+}

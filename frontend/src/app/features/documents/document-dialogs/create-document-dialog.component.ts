@@ -14,6 +14,9 @@ import { DocumentsService } from '../documents.service';
 export interface CreateDocumentDialogData {
   caseId: string;
   documentTypes: DocumentType[];
+  /** BRIKKA V2 I1: case holders. When non-empty the dialog offers an optional "Titular" so the
+   * document can be attributed to one and close that holder's per-holder checklist requirement. */
+  holders?: { id: string; name: string }[];
 }
 
 @Component({
@@ -36,11 +39,13 @@ export class CreateDocumentDialogComponent {
   private readonly data = inject<CreateDocumentDialogData>(MAT_DIALOG_DATA);
 
   readonly documentTypes = this.data.documentTypes;
+  readonly holders = this.data.holders ?? [];
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
   readonly form = this.fb.nonNullable.group({
     documentTypeId: ['', Validators.required],
+    clientId: [''],
   });
 
   submit(): void {
@@ -50,13 +55,16 @@ export class CreateDocumentDialogComponent {
     }
     this.loading.set(true);
     this.error.set(null);
-    this.documentsService.create(this.data.caseId, this.form.getRawValue()).subscribe({
-      next: (document) => this.dialogRef.close(document),
-      error: (err: ApiError) => {
-        this.loading.set(false);
-        this.error.set(friendlyErrorMessage(err));
-      },
-    });
+    const { documentTypeId, clientId } = this.form.getRawValue();
+    this.documentsService
+      .create(this.data.caseId, { documentTypeId, clientId: clientId || null })
+      .subscribe({
+        next: (document) => this.dialogRef.close(document),
+        error: (err: ApiError) => {
+          this.loading.set(false);
+          this.error.set(friendlyErrorMessage(err));
+        },
+      });
   }
 
   cancel(): void {

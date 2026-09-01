@@ -47,16 +47,30 @@ describe('CaseDetailComponent', () => {
 
   afterEach(() => httpMock.verify());
 
-  function flushInitialLoad() {
+  function flushInitialLoad(overrides: { clients?: unknown[]; checklist?: unknown } = {}) {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
-    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`)
+      .flush(overrides.clients ?? []);
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush(
+        overrides.checklist ?? {
+          mandatoryTotal: 0,
+          mandatoryMissing: 0,
+          optionalTotal: 0,
+          optionalMissing: 0,
+          complete: true,
+          items: [],
+        },
+      );
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -68,6 +82,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock
@@ -76,6 +93,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
   }
 
   it('loads and renders the case, its assignments and its clients', () => {
@@ -95,6 +115,16 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({
+        mandatoryTotal: 0,
+        mandatoryMissing: 0,
+        optionalTotal: 0,
+        optionalMissing: 0,
+        complete: true,
+        items: [],
+      });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -106,6 +136,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock
@@ -114,6 +147,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('REF-1');
@@ -136,6 +172,16 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({
+        mandatoryTotal: 0,
+        mandatoryMissing: 0,
+        optionalTotal: 0,
+        optionalMissing: 0,
+        complete: true,
+        items: [],
+      });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -147,6 +193,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock
@@ -155,6 +204,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No se ha encontrado la operación solicitada.');
@@ -302,6 +354,16 @@ describe('CaseDetailComponent', () => {
       .flush({ code: 'PROPERTY_NOT_FOUND', message: 'Property not found.', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({
+        mandatoryTotal: 0,
+        mandatoryMissing: 0,
+        optionalTotal: 0,
+        optionalMissing: 0,
+        complete: true,
+        items: [],
+      });
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
@@ -315,6 +377,9 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
     httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
       .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
     httpMock
@@ -323,6 +388,9 @@ describe('CaseDetailComponent', () => {
     httpMock
       .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`)
       .flush({ documentId: null, versions: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`)
+      .flush({ sections: [] });
 
     expect(fixture.componentInstance.bankName('b1')).toBe('Banco Demo Desarrollo');
     expect(fixture.componentInstance.bankName('unknown')).toBe('unknown');
@@ -823,6 +891,37 @@ describe('CaseDetailComponent', () => {
     httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
   });
 
+  it('renders the document checklist with holder names and the pending-mandatory summary', () => {
+    sessionStore.setPermissions(['CASE_READ', 'DOCUMENT_REQUEST']);
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad({
+      clients: [{ clientId: 'h1', firstName: 'Ada', lastName: 'Lovelace', participationType: 'HOLDER', isPrimary: true }],
+      checklist: {
+        mandatoryTotal: 3,
+        mandatoryMissing: 2,
+        optionalTotal: 1,
+        optionalMissing: 1,
+        complete: false,
+        items: [
+          { requirementId: 'r1', documentRequestId: 'dr1', documentTypeId: 't1', documentTypeCode: 'DNI', documentTypeName: 'DNI', mandatory: true, clientId: 'h1', state: 'APPROVED' },
+          { requirementId: 'r2', documentRequestId: 'dr2', documentTypeId: 't2', documentTypeCode: 'PAYSLIP', documentTypeName: 'Nómina', mandatory: true, clientId: 'h1', state: 'SUBMITTED' },
+          { requirementId: 'r3', documentRequestId: 'dr3', documentTypeId: 't3', documentTypeCode: 'LAND_REGISTRY_EXTRACT', documentTypeName: 'Nota simple', mandatory: true, clientId: null, state: 'MISSING' },
+          { requirementId: 'r4', documentRequestId: 'dr4', documentTypeId: 't4', documentTypeCode: 'PROPERTY_APPRAISAL', documentTypeName: 'Tasación', mandatory: false, clientId: null, state: 'MISSING' },
+        ],
+      },
+    });
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Checklist documental');
+    expect(text).toContain('Faltan 2');
+    expect(text).toContain('Ada Lovelace');
+    expect(text).toContain('Expediente'); // per-case items' holder column
+    expect(text).toContain('Aprobado');
+    expect(text).toContain('Subido (pendiente de revisión)');
+  });
+
   const task = {
     id: 't1',
     caseId: 'k1',
@@ -1063,6 +1162,85 @@ describe('CaseDetailComponent', () => {
     );
   });
 
+  it('the Indicador RAG section is gated by SCORING_READ and renders the combined level and axes', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Indicador RAG');
+
+    sessionStore.setPermissions(['SCORING_READ']);
+    fixture.detectChanges();
+
+    // The initial flushInitialLoad RAG stub is NOT_EVALUATED with no axes; reload with real data.
+    fixture.componentInstance['loadCaseRag']();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`).flush({
+      rag: 'AMBER',
+      axes: [
+        { axis: 'scoring', level: 'GREEN', detail: 'Categoría GREEN (puntuación 100.00)' },
+        { axis: 'viability', level: 'AMBER', detail: 'Viabilidad REVISAR' },
+        { axis: 'documentation', level: 'NOT_EVALUATED', detail: 'Sin requisitos documentales' },
+      ],
+    });
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Indicador RAG');
+    expect(text).toContain('Indicador global');
+    expect(text).toContain('Ámbar');
+    expect(text).toContain('Scoring de la operación');
+    expect(text).toContain('Viabilidad (DTI)');
+    expect(text).toContain('Categoría GREEN');
+  });
+
+  it('shows the "Calcular scoring" button only with SCORING_RUN and re-reads the RAG after running', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['SCORING_READ']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Calcular scoring');
+
+    sessionStore.setPermissions(['SCORING_READ', 'SCORING_RUN']);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Calcular scoring');
+
+    fixture.componentInstance.runScoring();
+    const runReq = httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/run`);
+    expect(runReq.request.method).toBe('POST');
+    runReq.flush([{ id: 'sr1' }]);
+
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`)
+      .flush({ rag: 'GREEN', axes: [{ axis: 'scoring', level: 'GREEN', detail: 'ok' }] });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.caseRag()?.rag).toBe('GREEN');
+    expect(fixture.componentInstance.scoringRunning()).toBe(false);
+  });
+
+  it('surfaces the backend error when the scoring run fails', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['SCORING_READ', 'SCORING_RUN']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.runScoring();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/run`)
+      .flush(
+        { code: 'NO_ACTIVE_SCORING_RULESET', message: 'none', requestId: 'r1' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.caseRagError()).toBeTruthy();
+    expect(fixture.componentInstance.scoringRunning()).toBe(false);
+  });
+
   it('the Honorarios section is gated by CASE_READ and shows the empty state', () => {
     const fixture = TestBed.createComponent(CaseDetailComponent);
     fixture.detectChanges();
@@ -1184,6 +1362,111 @@ describe('CaseDetailComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Versión 1');
     expect(fixture.nativeElement.textContent).toContain('Regenerar dossier');
+  });
+
+  it('renders the deterministic dossier narrative sections (BRIKKA V2 I5)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1`).flush(theCase);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/assignments`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/users`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/clients`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/property`)
+      .flush({ code: 'PROPERTY_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/document-types`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents`).flush([]);
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/checklist`)
+      .flush({ mandatoryTotal: 0, mandatoryMissing: 0, optionalTotal: 0, optionalMissing: 0, complete: true, items: [] });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/document-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/simulations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financing-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/banks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/matching`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/bank-requests`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/offers`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/tasks`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/conversations`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/financial-analysis`).flush([]);
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/scoring/rag`).flush({ rag: 'NOT_EVALUATED', axes: [] });
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/fee`)
+      .flush({ code: 'CASE_FEE_NOT_FOUND', message: 'x', requestId: 'r1' }, { status: 404, statusText: 'Not Found' });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/contract`).flush({ documentId: null, versions: [] });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier`).flush({ documentId: null, versions: [] });
+    httpMock.expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/dossier/narrative`).flush({
+      sections: [
+        { key: 'situation', title: 'Situación del expediente', paragraphs: ['El expediente REF-1 se encuentra en estado «Preestudio».'] },
+        { key: 'scoring', title: 'Scoring e indicador RAG', paragraphs: ['Scoring de la operación no calculado.'] },
+      ],
+    });
+    sessionStore.setPermissions(['DOCUMENT_READ']);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Narrativa del expediente');
+    expect(text).toContain('Situación del expediente');
+    expect(text).toContain('El expediente REF-1 se encuentra en estado «Preestudio».');
+    expect(text).toContain('Scoring e indicador RAG');
+  });
+
+  it('downloads the case documents ZIP through an authenticated blob request (BRIKKA V2 I5)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_DOWNLOAD']);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Descargar toda la documentación (ZIP)');
+
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    const createUrlSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:mock');
+    const revokeUrlSpy = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined);
+
+    fixture.componentInstance.downloadCaseArchive();
+    const req = httpMock.expectOne(
+      `${environment.apiBaseUrl}/api/v1/cases/k1/documents/archive`,
+    );
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['zip'], { type: 'application/zip' }), {
+      headers: { 'Content-Disposition': 'attachment; filename="expediente-REF-1-documentos.zip"' },
+    });
+
+    expect(clickSpy).toHaveBeenCalled();
+    expect(createUrlSpy).toHaveBeenCalled();
+    expect(revokeUrlSpy).toHaveBeenCalled();
+    expect(fixture.componentInstance.archiveDownloading()).toBe(false);
+
+    clickSpy.mockRestore();
+    createUrlSpy.mockRestore();
+    revokeUrlSpy.mockRestore();
+  });
+
+  it('shows a specific message when the case has no documents to archive (BRIKKA V2 I5)', () => {
+    const fixture = TestBed.createComponent(CaseDetailComponent);
+    fixture.detectChanges();
+    flushInitialLoad();
+    sessionStore.setPermissions(['DOCUMENT_READ', 'DOCUMENT_DOWNLOAD']);
+    fixture.detectChanges();
+
+    fixture.componentInstance.downloadCaseArchive();
+    httpMock
+      .expectOne(`${environment.apiBaseUrl}/api/v1/cases/k1/documents/archive`)
+      .flush(new Blob(['{}'], { type: 'application/json' }), {
+        status: 400,
+        statusText: 'Bad Request',
+      });
+
+    expect(fixture.componentInstance.archiveError()).toBe(
+      'Este expediente no tiene documentos para descargar.',
+    );
   });
 
   it('shows the structured backend error when the contract cannot be generated', () => {

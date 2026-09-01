@@ -13,6 +13,19 @@
       }
     </mat-form-field>
 
+    @if (holders.length > 0) {
+      <mat-form-field>
+        <mat-label>Titular (opcional)</mat-label>
+        <mat-select formControlName="clientId">
+          <mat-option [value]="''">— Documento del expediente —</mat-option>
+          @for (holder of holders; track holder.id) {
+            <mat-option [value]="holder.id">{{ holder.name }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>Asócialo a un titular para cerrar su requisito del checklist.</mat-hint>
+      </mat-form-field>
+    }
+
     @if (error()) {
       <p class="error-text">{{ error() }}</p>
     }

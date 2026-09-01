@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -11,6 +11,15 @@ export class ApiClient {
 
   get<T>(path: string): Observable<T> {
     return this.http.get<T>(`${environment.apiBaseUrl}${path}`);
+  }
+
+  /** BRIKKA V2 I5: authenticated binary GET (the case documents ZIP) — the auth interceptor still
+   * attaches the bearer token, unlike a raw window.open on a presigned URL. */
+  getBlob(path: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${environment.apiBaseUrl}${path}`, {
+      responseType: 'blob',
+      observe: 'response',
+    });
   }
 
   post<T>(path: string, body: unknown = {}): Observable<T> {

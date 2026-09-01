@@ -61,26 +61,29 @@ class RbacSeedIT {
   }
 
   @Test
-  void totalRolePermissionCountIsExactly250() {
+  void totalRolePermissionCountIsExactly252() {
     // 243 through V15, + 1 (Sprint 29 stabilization, V21: SUPERADMIN x NOTIFICATION_READ),
-    // + 6 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ x SUPERADMIN/MANAGER/BROKER).
+    // + 6 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ x SUPERADMIN/MANAGER/BROKER),
+    // + 2 (BRIKKA V2 I3, V28: CASE_TRANSITION_OVERRIDE x MANAGER/SUPERADMIN).
     Integer count = jdbc().queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class);
-    assertThat(count).isEqualTo(250);
-    assertThat(rolePermissionRepository.count()).isEqualTo(250);
+    assertThat(count).isEqualTo(252);
+    assertThat(rolePermissionRepository.count()).isEqualTo(252);
   }
 
   @Test
   void roleAndPermissionRepositoriesExposeTheFullCatalog() {
     assertThat(roleRepository.findAll()).hasSize(4);
-    // 114 through V21, + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ).
-    assertThat(permissionRepository.findAll()).hasSize(116);
+    // 114 through V21, + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ),
+    // + 1 (BRIKKA V2 I3, V28: CASE_TRANSITION_OVERRIDE).
+    assertThat(permissionRepository.findAll()).hasSize(117);
   }
 
   @Test
   void rolePermissionRepositoryResolvesPermissionCodesForSuperadmin() {
     Role superadmin = roleRepository.findByCode("SUPERADMIN");
-    // 89 through V21, + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ).
-    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(91);
+    // 89 through V21, + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ),
+    // + 1 (BRIKKA V2 I3, V28: CASE_TRANSITION_OVERRIDE).
+    assertThat(rolePermissionRepository.permissionCodesForRole(superadmin.id())).hasSize(92);
   }
 
   @Test
@@ -102,17 +105,18 @@ class RbacSeedIT {
         .containsExactlyInAnyOrderEntriesOf(
             Map.of(
                 "SUPERADMIN",
-                    91L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13) + 1 (ADR-BANKENGINE-002,
+                    92L, // 81 (ADR-RBAC-001) + 2 (ADR-BANKENGINE-001, V13) + 1 (ADR-BANKENGINE-002,
                 // V14) + 4 (Sprint 10 D10-1, V15: AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/
                 // AI_DRAFT_MESSAGE) + 1 (Sprint 29 stabilization, V21: NOTIFICATION_READ — an
                 // oversight from before Sprint 27's GLOBAL model; notifications stay scoped to the
                 // caller's own recipientUserId regardless of this grant) + 2 (Sprint 31, V24:
-                // FINANCIAL_ANALYSIS_RUN/READ)
-                "MANAGER", 81L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 1
+                // FINANCIAL_ANALYSIS_RUN/READ) + 1 (BRIKKA V2 I3, V28: CASE_TRANSITION_OVERRIDE)
+                "MANAGER", 82L, // 71 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 1
                 // (ADR-BANKENGINE-002, V14) + 4 (Sprint 10 D10-1, V15) + 2 (Sprint 31, V24:
-                // FINANCIAL_ANALYSIS_RUN/READ)
+                // FINANCIAL_ANALYSIS_RUN/READ) + 1 (BRIKKA V2 I3, V28: CASE_TRANSITION_OVERRIDE)
                 "BROKER", 67L, // 58 (ADR-RBAC-001) + 1 (V11) + 2 (ADR-BANKENGINE-001, V13) + 4
-                // (Sprint 10 D10-1, V15) + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ)
+                // (Sprint 10 D10-1, V15) + 2 (Sprint 31, V24: FINANCIAL_ANALYSIS_RUN/READ) —
+                // unchanged: BRIKKA V2 I3 never grants BROKER CASE_TRANSITION_OVERRIDE
                 "CLIENT", 11L)); // unchanged — Sprint 31 deliberately never grants CLIENT/Portal
     // access to financial analysis (V24 seeds no CLIENT rows)
   }

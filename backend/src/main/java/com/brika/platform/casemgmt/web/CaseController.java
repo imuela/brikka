@@ -133,10 +133,16 @@ public class CaseController {
       @RequestBody ChangeCaseStatusApiRequest request) {
     CaseAccessResult access =
         caseAccessService.requireCaseAccess(authentication, "CASE_CHANGE_STATUS", id);
+    boolean override = Boolean.TRUE.equals(request.override());
+    if (override) {
+      // BRIKKA V2 I3: forcing past a precondition needs its own permission (403 without it).
+      authorizationService.requirePermission(authentication, "CASE_TRANSITION_OVERRIDE");
+    }
     CaseStatus oldStatus = access.theCase().status();
     CaseStatus newStatus = parseCaseStatus(request.newStatus());
     Case updated =
-        caseService.changeStatus(access.theCase(), newStatus, access.user().id(), request.reason());
+        caseService.changeStatus(
+            access.theCase(), newStatus, access.user().id(), request.reason(), override);
     auditEventWriter.write(
         access.tenantId(),
         access.user().id(),
@@ -150,7 +156,9 @@ public class CaseController {
             + oldStatus
             + "\",\"newStatus\":\""
             + newStatus
-            + "\"}");
+            + "\",\"override\":"
+            + override
+            + "}");
     return CaseResponse.from(updated);
   }
 

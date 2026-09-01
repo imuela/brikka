@@ -65,8 +65,14 @@ class FlywayMigrationIT {
     // SUPERADMIN x NOTIFICATION_READ) + V22 (Sprint 30: client financial profile) = 22.
     // + V23 (Sprint 31: case_financial_analysis_results) + V24 (Sprint 31: FINANCIAL_ANALYSIS_RUN/
     // READ permissions) = 24. + V25 (Sprint 32: case_fees/case_fee_history) + V26 (Sprint 32:
-    // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26.
-    assertThat(appliedMigrations).isEqualTo(26);
+    // ENGAGEMENT_CONTRACT/VIABILITY_DOSSIER document types) = 26. + V27 (BRIKKA V2 I1: document
+    // checklist — documents.client_id, document_requirements unique constraint + 9 PURCHASE
+    // requirement rows, no new table) = 27. + V28 (BRIKKA V2 I3: CASE_TRANSITION_OVERRIDE
+    // permission + 2 role_permissions rows, no new table) = 28. + V29 (BRIKKA V2 I2: factory
+    // scoring ruleset — 1 scoring_rulesets row + 4 scoring_rules rows, no new table, no new
+    // permission) = 29. + V30 (BRIKKA V2 I4: simulations interest breakdown + bonifications — 9
+    // columns added to simulations, no new table, no new permission) = 30.
+    assertThat(appliedMigrations).isEqualTo(30);
 
     Integer tableCount =
         jdbc.queryForObject(
@@ -103,10 +109,10 @@ class FlywayMigrationIT {
     Integer permissionCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM permissions", Integer.class);
     assertThat(permissionCount)
-        .isEqualTo(116); // 110 full atomic catalog (14_DEFINITIVE_PERMISSION_CATALOG.md) + 1
+        .isEqualTo(117); // 110 full atomic catalog (14_DEFINITIVE_PERMISSION_CATALOG.md) + 1
     // CLIENT_PORTAL_ACCOUNT_CREATE (ADR-PORTAL-AUTH-001, V11) + 2 BANK_MATCHING_RUN/READ
     // (ADR-BANKENGINE-001, V13) + 1 BANK_MATCHING_OVERRIDE (ADR-BANKENGINE-002, V14) + 2
-    // FINANCIAL_ANALYSIS_RUN/READ (Sprint 31, V24)
+    // FINANCIAL_ANALYSIS_RUN/READ (Sprint 31, V24) + 1 CASE_TRANSITION_OVERRIDE (BRIKKA V2 I3, V28)
 
     Integer documentTypeCount =
         jdbc.queryForObject("SELECT COUNT(*) FROM document_types", Integer.class);
@@ -122,8 +128,9 @@ class FlywayMigrationIT {
     // (SUPERADMIN/MANAGER/BROKER x AI_USE/AI_DOCUMENT_ANALYZE/AI_SUMMARIZE/AI_DRAFT_MESSAGE,
     // V15) = 243, + 1 from Sprint 29 stabilization (SUPERADMIN x NOTIFICATION_READ, V21) = 244,
     // + 6 from Sprint 31 (SUPERADMIN/MANAGER/BROKER x FINANCIAL_ANALYSIS_RUN/READ, V24) = 250.
+    // + 2 from BRIKKA V2 I3 (MANAGER/SUPERADMIN x CASE_TRANSITION_OVERRIDE, V28) = 252.
     // Full breakdown and PENDING/NOT_ASSIGNED absence verified in RbacSeedIT.
-    assertThat(rolePermissionCount).isEqualTo(250);
+    assertThat(rolePermissionCount).isEqualTo(252);
 
     Boolean reviewCommentExists =
         jdbc.queryForObject(
@@ -184,5 +191,94 @@ class FlywayMigrationIT {
               table);
       assertThat(exists).as("table %s must exist (V17)", table).isTrue();
     }
+
+    // V27 (BRIKKA V2 I1): documents.client_id nullable + document_requirements seed for PURCHASE.
+    Boolean documentsClientIdNullable =
+        jdbc.queryForObject(
+            "SELECT is_nullable = 'YES' FROM information_schema.columns WHERE table_name ="
+                + " 'documents' AND column_name = 'client_id'",
+            Boolean.class);
+    assertThat(documentsClientIdNullable).isTrue();
+
+    Integer purchaseRequirementCount =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM document_requirements WHERE operation_type = 'PURCHASE'",
+            Integer.class);
+    assertThat(purchaseRequirementCount).isEqualTo(9);
+
+    Integer mandatoryPurchaseRequirementCount =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM document_requirements WHERE operation_type = 'PURCHASE'"
+                + " AND mandatory = true",
+            Integer.class);
+    assertThat(mandatoryPurchaseRequirementCount).isEqualTo(5);
+
+    // V28 (BRIKKA V2 I3): CASE_TRANSITION_OVERRIDE granted to MANAGER + SUPERADMIN only.
+    Integer caseTransitionOverrideGrants =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM role_permissions rp JOIN roles r ON r.id = rp.role_id JOIN"
+                + " permissions p ON p.id = rp.permission_id WHERE p.code ="
+                + " 'CASE_TRANSITION_OVERRIDE'",
+            Integer.class);
+    assertThat(caseTransitionOverrideGrants).isEqualTo(2);
+
+    // V29 (BRIKKA V2 I2): exactly one ACTIVE factory scoring ruleset with its 4 rules and the
+    // GREEN/AMBER/RED category triad (thresholds live in the ruleset jsonb, not in Java).
+    Integer activeFactoryRulesets =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM scoring_rulesets WHERE code = 'default-operation-v1'"
+                + " AND version = 'v1' AND status = 'ACTIVE'",
+            Integer.class);
+    assertThat(activeFactoryRulesets).isEqualTo(1);
+
+    Integer factoryRulesetRuleCount =
+        jdbc.queryForObject(
+            "SELECT COUNT(*) FROM scoring_rules r JOIN scoring_rulesets rs ON rs.id = r.ruleset_id"
+                + " WHERE rs.code = 'default-operation-v1'",
+            Integer.class);
+    assertThat(factoryRulesetRuleCount).isEqualTo(4);
+
+    Integer factoryRulesetCategoryCount =
+        jdbc.queryForObject(
+            "SELECT jsonb_array_length(rules -> 'categories') FROM scoring_rulesets"
+                + " WHERE code = 'default-operation-v1'",
+            Integer.class);
+    assertThat(factoryRulesetCategoryCount).isEqualTo(3);
+
+    // V30 (BRIKKA V2 I4): simulations gains the interest breakdown + bonifications, additively.
+    for (String column :
+        new String[] {
+          "interest_type",
+          "base_interest_rate",
+          "final_interest_rate",
+          "euribor_rate",
+          "spread_rate",
+          "fixed_period_months",
+          "fixed_period_rate",
+          "ico_guarantee",
+          "bonifications"
+        }) {
+      Boolean exists =
+          jdbc.queryForObject(
+              "SELECT COUNT(*) > 0 FROM information_schema.columns WHERE table_name = 'simulations'"
+                  + " AND column_name = ?",
+              Boolean.class,
+              column);
+      assertThat(exists).as("simulations.%s must exist (V30)", column).isTrue();
+    }
+
+    Boolean interestTypeNotNull =
+        jdbc.queryForObject(
+            "SELECT is_nullable = 'NO' FROM information_schema.columns WHERE table_name ="
+                + " 'simulations' AND column_name = 'interest_type'",
+            Boolean.class);
+    assertThat(interestTypeNotNull).isTrue();
+
+    Boolean icoGuaranteeDefaultsFalse =
+        jdbc.queryForObject(
+            "SELECT column_default LIKE 'false%' FROM information_schema.columns WHERE table_name ="
+                + " 'simulations' AND column_name = 'ico_guarantee'",
+            Boolean.class);
+    assertThat(icoGuaranteeDefaultsFalse).isTrue();
   }
 }

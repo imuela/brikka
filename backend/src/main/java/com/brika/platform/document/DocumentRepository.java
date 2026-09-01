@@ -11,7 +11,8 @@ import org.springframework.stereotype.Repository;
 public class DocumentRepository {
 
   private static final String SELECT =
-      "SELECT id, company_id, case_id, document_type_id, current_version_id, status FROM documents";
+      "SELECT id, company_id, case_id, document_type_id, client_id, current_version_id, status FROM"
+          + " documents";
 
   private static final RowMapper<Document> ROW_MAPPER =
       (rs, rowNum) ->
@@ -20,6 +21,7 @@ public class DocumentRepository {
               (UUID) rs.getObject("company_id"),
               (UUID) rs.getObject("case_id"),
               (UUID) rs.getObject("document_type_id"),
+              (UUID) rs.getObject("client_id"),
               (UUID) rs.getObject("current_version_id"),
               ReviewStatus.valueOf(rs.getString("status")));
 
@@ -29,14 +31,21 @@ public class DocumentRepository {
     this.jdbcTemplate = jdbcTemplate;
   }
 
+  /** Document of the expediente (no holder attribution). */
   public UUID insert(UUID companyId, UUID caseId, UUID documentTypeId) {
+    return insert(companyId, caseId, documentTypeId, null);
+  }
+
+  /** clientId non-null attributes the document to a case holder (V27, BRIKKA V2 I1). */
+  public UUID insert(UUID companyId, UUID caseId, UUID documentTypeId, UUID clientId) {
     return jdbcTemplate.queryForObject(
-        "INSERT INTO documents (company_id, case_id, document_type_id, status) VALUES (?, ?, ?,"
-            + " ?) RETURNING id",
+        "INSERT INTO documents (company_id, case_id, document_type_id, client_id, status) VALUES"
+            + " (?, ?, ?, ?, ?) RETURNING id",
         UUID.class,
         companyId,
         caseId,
         documentTypeId,
+        clientId,
         ReviewStatus.PENDING.name());
   }
 
@@ -51,7 +60,8 @@ public class DocumentRepository {
 
   /**
    * Sprint 32: lets a generator (dossier/contract) find the single Document row it keeps adding
-   * versions to for a given case + type, instead of creating a new row on every generation.
+   * versions to for a given case + type, instead of creating a new row on every generation. Those
+   * generators never attribute to a holder, so this deliberately ignores client_id.
    */
   public Optional<Document> findByCaseIdAndDocumentTypeId(UUID caseId, UUID documentTypeId) {
     return jdbcTemplate
@@ -62,6 +72,16 @@ public class DocumentRepository {
             documentTypeId)
         .stream()
         .findFirst();
+  }
+
+  /**
+   * BRIKKA V2 I1: every document of a given type on a case, used by CaseChecklistService to decide
+   * whether a per-holder / per-case requirement is satisfied (an APPROVED document with the
+   * matching client_id).
+   */
+  public List<Document> findAllByCaseIdAndDocumentTypeId(UUID caseId, UUID documentTypeId) {
+    return jdbcTemplate.query(
+        SELECT + " WHERE case_id = ? AND document_type_id = ?", ROW_MAPPER, caseId, documentTypeId);
   }
 
   public void setCurrentVersionAndStatus(UUID documentId, UUID versionId, ReviewStatus status) {

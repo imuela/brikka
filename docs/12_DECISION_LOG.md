@@ -2261,3 +2261,107 @@ documentado.**
 (4200, 8080, 8081, 15432, 25672, 35672, 19000, 19001, 11025, 18025) verificados libres con `lsof`.
 
 **Decisión final: BRIKKA V1.0.0 — RELEASED.**
+
+---
+
+## BRIKKA V2 — Migración funcional Legacy → V2 (bloques I1–I5)
+
+Trabajo posterior a V1.0.0, en la rama `feat/v2-migration` (6 commits: `3de7109` planificación +
+`f07c919` I1 + `3e00857` I3 + `33f4d18` I2 + `cd6218c` I4 + `cd89a49` I5). Documentos de referencia:
+`docs/BRIKKA_V2_FUNCTIONAL_GAP.md`, `docs/BRIKKA_V2_BUSINESS_RULES_GAP.md`,
+`docs/BRIKKA_V2_MIGRATION_SCOPE.md`, `docs/BRIKKA_V2_MIGRATION_PROGRESS.md`,
+`docs/BRIKKA_V2_FINAL_AUDIT.md`.
+
+### Decisiones de alcance
+
+- **Migrar únicamente los huecos funcionales verificados de Legacy.** La auditoría forense
+  (`imgsbroker/brikka/docs/LEGACY_FORENSIC_AUDIT.md`) y la comparación con V1 concluyen que la
+  Brikka moderna ya cubre —y en varios casos mejora— la mayor parte del valor de Legacy. V2 **no
+  es una migración literal**: es un cierre de huecos acotado. No se copia código PHP ni el esquema
+  MySQL.
+- **Alcance cerrado = I1, I2, I3, I4, I5.** Congelado en `BRIKKA_V2_MIGRATION_SCOPE.md §1` con las
+  10 decisiones del propietario (`§10`). La implementación se limitó estrictamente a esos cinco
+  bloques; cualquier idea nueva detectada durante la ejecución se registró en `§6 FUTURO` y **no se
+  implementó**.
+- **I6 (contratos legales) queda FUERA de V2** (`§10.4`): no existe clausulado jurídico aprobado y
+  no se genera ni se inventa texto legal. Con I6 quedan también FUTURO los campos de `Company` que
+  dependen de él (representante legal, tipo jurídico, logo — `§10.6`).
+- **Descarte del score Legacy de cliente** (`calculateClientScore`, puntos por tramos de
+  ingresos/ahorro/antigüedad) — definitivo, `§10.1`. La sustitución oficial es el **análisis
+  DTI / viabilidad** ya existente (Sprint 31). No se mantienen dos sistemas de scoring paralelos.
+- **Descarte de la ponderación 65/35** (`0,65·cliente + 0,35·inmueble`) — definitivo, `§10.1`.
+  Umbrales Legacy sin base documentada.
+- **Descarte de los gates de transición por número de score** (Legacy: `ofertado` exige score
+  ≥ 60, `cerrado` ≥ 70) — definitivo, `§10.1`.
+- **DTI/viabilidad + RAG cualitativo** como sustitución. El indicador único del expediente (I2) es
+  un **semáforo cualitativo** = peor de {categoría del scoring de operación/inmueble, peor
+  viabilidad DTI por titular, completitud del checklist obligatorio}. Los umbrales viven en el
+  `scoring_ruleset` (editables), nunca en código. Sin medias ponderadas.
+- **Checklist documental como precondición.** El checklist obligatorio **aprobado** (I1) es la
+  precondición de `DOCUMENTATION → ANALYSIS` (I3). Un requisito solo se cierra con
+  `review_status = APPROVED`, no por la mera existencia de un archivo (`§10.3`).
+- **Simulación enriquecida** (I4): tipo de interés `FIXED`/`VARIABLE`/`MIXED`, Euríbor +
+  diferencial, tramo fijo en `MIXED`, bonificaciones que **reducen de verdad** el tipo
+  (`tipo_final = max(0, tipo_base − Σ activas)`), tipo base y final persistidos, cuota recalculada
+  en el backend con el calculador de amortización francés existente, flag `ico_guarantee`. **Sin
+  segundo motor de cálculo.**
+- **ZIP documental** (I5): descarga en streaming de la versión actual de cada documento del caso,
+  con estructura interna derivada de metadatos (no las carpetas físicas Legacy `01–06`), nombres
+  saneados, control de acceso `DOCUMENT_DOWNLOAD` y aislamiento de tenant. Sin fichero temporal
+  (mejora sobre Legacy, que usaba `sys_get_temp_dir()` y tenía un IDOR — S03 de la auditoría).
+- **Narrativa determinista del dossier, sin IA** (I5, `§10.8`): el `ViabilityDossierService` se
+  eleva —su HTML deja de ser un volcado de campos y pasa a ser una narrativa de 8 secciones
+  construida solo con datos almacenados—. Es funcionalidad del dossier, **no IA**: `narrate(x)`
+  produce exactamente el mismo texto para los mismos datos. Un dato ausente se indica
+  explícitamente, nunca se inventa; no se generan recomendaciones bancarias ni conclusiones
+  financieras nuevas. No hay dossier paralelo.
+- **IA real / Ollama / OCR / extracción / clasificación automática documental = FUTURO** (`§6.4`).
+  V2 no introduce ninguna dependencia de proveedor de IA. Las costuras AI-ready quedan preparadas
+  (el enganche "documento → requisito" en I1, el propio `CaseNarrativeService` en I5) para que un
+  `AiProvider` posterior se conecte sin tocar el dominio.
+- **Sin PDF real, sin firma electrónica en V2.** El HTML versionado actual (dossier, contrato) es
+  suficiente para V2; el render a PDF (Gotenberg / OpenPDF / Flying Saucer) queda FUTURO (`§6.2`).
+  La firma electrónica nunca estuvo en el alcance y no se aborda.
+- **Reutilización de motores existentes.** I2 usa el `ScoringEngine` ya existente (V29 solo aporta
+  el ruleset "de fábrica" en datos). I4 usa el calculador de amortización francés existente
+  (`MortgagePaymentCalculator`), sin un segundo motor; se movió del paquete `financialanalysis` a
+  `financing` para evitar un ciclo de paquetes y se amplió con `computeOutstandingBalance`. I1/I3
+  reutilizan el flujo de revisión documental y el histórico/auditoría de estado ya existentes.
+- **Seguridad tenant-scoped por diseño.** Todos los accesos a datos nuevos resuelven el tenant
+  desde la identidad autenticada (`CaseAccessService` / `DocumentAccessService`), nunca desde un
+  `company_id` del cliente; caso de otro tenant → 404 enmascarado. Filtrado explícito por
+  `company_id` en RAG, narrativa, gates I3 y ZIP. Cada recurso nuevo tiene un test de aislamiento
+  de tenant. Un único permiso nuevo (`CASE_TRANSITION_OVERRIDE`), el resto reutilizado.
+- **No copiar bugs de Legacy.** En concreto: las bonificaciones de simulación se aplican de verdad
+  (Legacy las guardaba en `bonus_*` pero nunca las aplicaba — F17c); no se recuperan
+  `monthly_payment_phase2`, `total_interest` ni `recommended` (valores incorrectos o columnas
+  muertas); no se replica la estructura de carpetas físicas ni la separación
+  `client_documents`/`case_documents`.
+
+### Ejecución
+
+- **6 sprints**: V2-0 (preparación) + V2-1 (I1) + V2-2 (I3) + V2-3 (I2) + V2-4 (I4) + V2-5 (I5). El
+  orden respeta las dependencias reales (I2 e I3 consumen la completitud del checklist de I1). Cada
+  sprint: implementación backend + frontend + validación de dominio (contrato de error
+  `{code, message, requestId}`) + tests (incl. aislamiento de tenant por recurso nuevo) + batería
+  completa + actualización de documentación + **commit independiente**. Sin merge a `main` ni tag
+  hasta la decisión explícita del propietario.
+- **Base de datos**: 4 migraciones nuevas (V27–V30), todas aditivas y no destructivas, ninguna
+  tabla nueva. Total: 30 migraciones Flyway (V1–V30).
+- **RBAC**: un único permiso nuevo en todo V2 — `CASE_TRANSITION_OVERRIDE` (I3), MANAGER /
+  SUPERADMIN. El resto reutiliza permisos existentes.
+- **Batería final** (`docs/BRIKKA_V2_FINAL_AUDIT.md`): backend `./mvnw clean verify` **BUILD
+  SUCCESS** (Surefire 134/134, Failsafe 466/466, 0 fallos / 0 errores); frontend `ng lint` OK,
+  `ng test` 507/507, `ng build` OK.
+- **Auditoría técnica final**: veredicto `READY TO MERGE` — 0 hallazgos críticos, 0 importantes,
+  5 menores de coherencia documental (resueltos en el commit
+  `docs(v2): finalize migration documentation before merge`).
+
+### Cierre de V2
+
+Se cumple la condición de `BRIKKA_V2_MIGRATION_SCOPE.md §7` para I1–I5 → se declara
+**MIGRACIÓN LEGACY → BRIKKA V2 COMPLETADA** (`BRIKKA_V2_MIGRATION_PROGRESS.md` → "Declaración de
+cierre"). A partir de la declaración no se añaden más funcionalidades de migración; todo lo nuevo
+va a `§6 FUTURO`. El merge de `feat/v2-migration` → `main` y el tag `v2.0.0` son operaciones
+posteriores, explícitas y con confirmación del propietario (mismo criterio que los Gates 23/25 de
+la release V1.0.0).

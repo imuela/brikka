@@ -23,10 +23,13 @@ import {
   FEE_STATUS_LABELS,
   FEE_TYPE_LABELS,
   FINANCING_REQUEST_STATUS_LABELS,
+  INTEREST_TYPE_LABELS,
   MATCH_RESULT_LABELS,
   OPERATION_TYPE_LABELS,
   PARTICIPATION_TYPE_LABELS,
   PROPERTY_TYPE_LABELS,
+  RAG_AXIS_LABELS,
+  RAG_LEVEL_LABELS,
   REVIEW_STATUS_LABELS,
   TASK_STATUS_LABELS,
   TASK_TYPE_LABELS,
@@ -36,13 +39,19 @@ import { StatusLabelPipe } from '../../../shared/pipes/status-label.pipe';
 import { StatusBadgeComponent } from '../../../shared/status-badge/status-badge.component';
 import { FinancialAnalysisResult } from '../../financial-analysis/financial-analysis.model';
 import { FinancialAnalysisService } from '../../financial-analysis/financial-analysis.service';
+import { CaseRag } from '../../scoring/scoring.model';
+import { ScoringService } from '../../scoring/scoring.service';
 import { CaseFee } from '../../case-fee/case-fee.model';
 import { CaseFeeService } from '../../case-fee/case-fee.service';
 import { EditCaseFeeDialogComponent } from '../../case-fee/case-fee-dialogs/edit-case-fee-dialog.component';
 import { GeneratedDocument as ContractDocument } from '../../engagement-contract/engagement-contract.model';
 import { EngagementContractService } from '../../engagement-contract/engagement-contract.service';
-import { GeneratedDocument as DossierDocument } from '../../viability-dossier/viability-dossier.model';
+import {
+  CaseNarrative,
+  GeneratedDocument as DossierDocument,
+} from '../../viability-dossier/viability-dossier.model';
 import { ViabilityDossierService } from '../../viability-dossier/viability-dossier.service';
+import { CaseArchiveService } from '../case-archive.service';
 import { Bank } from '../../banks/bank.model';
 import { BankService } from '../../banks/bank.service';
 import { RunMatchingDialogComponent } from '../../bank-matching/bank-matching-dialogs/run-matching-dialog.component';
@@ -59,6 +68,7 @@ import { CreateConversationDialogComponent } from '../../communications/communic
 import { Conversation } from '../../communications/communication.model';
 import { CommunicationService } from '../../communications/communication.service';
 import {
+  CaseChecklist,
   CaseDocument,
   CaseDocumentRequest,
   CaseDocumentVersion,
@@ -126,6 +136,8 @@ export class CaseDetailComponent {
   readonly operationTypeLabels = OPERATION_TYPE_LABELS;
   readonly assignmentTypeLabels = ASSIGNMENT_TYPE_LABELS;
   readonly propertyTypeLabels = PROPERTY_TYPE_LABELS;
+  readonly ragLevelLabels = RAG_LEVEL_LABELS;
+  readonly ragAxisLabels = RAG_AXIS_LABELS;
   private readonly casesService = inject(CasesService);
   private readonly propertyService = inject(PropertyService);
   private readonly documentsService = inject(DocumentsService);
@@ -136,9 +148,11 @@ export class CaseDetailComponent {
   private readonly taskService = inject(TaskService);
   private readonly communicationService = inject(CommunicationService);
   private readonly financialAnalysisService = inject(FinancialAnalysisService);
+  private readonly scoringService = inject(ScoringService);
   private readonly caseFeeService = inject(CaseFeeService);
   private readonly engagementContractService = inject(EngagementContractService);
   private readonly viabilityDossierService = inject(ViabilityDossierService);
+  private readonly caseArchiveService = inject(CaseArchiveService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
 
@@ -170,8 +184,28 @@ export class CaseDetailComponent {
   readonly documentRequests = signal<CaseDocumentRequest[] | null>(null);
   readonly documentRequestColumns = ['type', 'client', 'status', 'dueAt', 'actions'];
 
+  /** BRIKKA V2 I1: document checklist of the case (auto-generated server-side on entering
+   * DOCUMENTATION). complete = every mandatory item APPROVED. */
+  readonly checklist = signal<CaseChecklist | null>(null);
+  readonly checklistError = signal<string | null>(null);
+  readonly checklistColumns = ['document', 'holder', 'mandatory', 'state'];
+  readonly checklistItemStateLabels: Record<string, string> = {
+    MISSING: 'Falta',
+    SUBMITTED: 'Subido (pendiente de revisión)',
+    REJECTED: 'Rechazado',
+    APPROVED: 'Aprobado',
+  };
+
   readonly simulations = signal<Simulation[] | null>(null);
-  readonly simulationColumns = ['principal', 'interestRate', 'termMonths', 'estimatedPayment', 'createdAt'];
+  readonly simulationColumns = [
+    'principal',
+    'interestType',
+    'interestRate',
+    'termMonths',
+    'estimatedPayment',
+    'createdAt',
+  ];
+  readonly interestTypeLabels = INTEREST_TYPE_LABELS;
 
   readonly financingRequests = signal<FinancingRequest[] | null>(null);
   readonly financingRequestColumns = ['status', 'requestedAmount', 'termMonths', 'createdAt', 'actions'];
@@ -208,6 +242,12 @@ export class CaseDetailComponent {
   ];
   readonly viabilityCategoryLabels = VIABILITY_CATEGORY_LABELS;
 
+  /** BRIKKA V2 I2: qualitative RAG indicator of the case (scoring + viability + documentation). */
+  readonly caseRag = signal<CaseRag | null>(null);
+  readonly caseRagError = signal<string | null>(null);
+  readonly scoringRunning = signal(false);
+  readonly ragAxisColumns = ['axis', 'level', 'detail'];
+
   readonly caseFee = signal<CaseFee | null>(null);
   readonly caseFeeLoading = signal(true);
   readonly caseFeeError = signal<string | null>(null);
@@ -221,6 +261,12 @@ export class CaseDetailComponent {
   readonly dossierDocument = signal<DossierDocument | null>(null);
   readonly dossierGenerating = signal(false);
   readonly dossierError = signal<string | null>(null);
+
+  /** BRIKKA V2 I5: deterministic narrative + the case documents ZIP. */
+  readonly caseNarrative = signal<CaseNarrative | null>(null);
+  readonly caseNarrativeError = signal<string | null>(null);
+  readonly archiveDownloading = signal(false);
+  readonly archiveError = signal<string | null>(null);
 
   constructor() {
     this.loadCase();
@@ -249,9 +295,11 @@ export class CaseDetailComponent {
     this.loadTasks();
     this.loadConversations();
     this.loadFinancialAnalysis();
+    this.loadCaseRag();
     this.loadCaseFee();
     this.loadContract();
     this.loadDossier();
+    this.loadNarrative();
   }
 
   private loadCase(): void {
@@ -404,6 +452,29 @@ export class CaseDetailComponent {
         this.error.set(friendlyErrorMessage(err));
       },
     });
+    // BRIKKA V2 I1: the checklist state is derived from these documents' review status.
+    this.loadChecklist();
+  }
+
+  private loadChecklist(): void {
+    this.documentsService.getChecklist(this.caseId).subscribe({
+      next: (checklist) => this.checklist.set(checklist),
+      error: (err: ApiError) => {
+        this.checklist.set(null);
+        this.checklistError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  /** BRIKKA V2 I1: resolve a checklist item's holder (null = document of the expediente). */
+  checklistHolderName(clientId: string | null): string {
+    if (!clientId) {
+      return 'Expediente';
+    }
+    const holder = (this.clients() ?? []).find((c) => c.clientId === clientId);
+    return holder
+      ? `${holder.firstName ?? ''} ${holder.lastName ?? ''}`.trim() || clientId
+      : clientId;
   }
 
   documentTypeName(documentTypeId: string): string {
@@ -414,13 +485,21 @@ export class CaseDetailComponent {
     if (this.hasOpenDialog()) return;
     this.dialog
       .open(CreateDocumentDialogComponent, {
-        data: { caseId: this.caseId, documentTypes: this.documentTypes() },
+        data: {
+          caseId: this.caseId,
+          documentTypes: this.documentTypes(),
+          holders: (this.clients() ?? []).map((c) => ({
+            id: c.clientId,
+            name: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || c.clientId,
+          })),
+        },
         width: '400px',
       })
       .afterClosed()
       .subscribe((result: CaseDocument | undefined) => {
         if (result) {
           this.loadDocuments();
+          this.loadChecklist();
         }
       });
   }
@@ -835,6 +914,32 @@ export class CaseDetailComponent {
     return client ? `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() : clientId;
   }
 
+  private loadCaseRag(): void {
+    this.scoringService.getRag(this.caseId).subscribe({
+      next: (rag) => this.caseRag.set(rag),
+      error: (err: ApiError) => {
+        this.caseRag.set(null);
+        this.caseRagError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  /** BRIKKA V2 I2: recompute the operation scoring (existing /scoring/run) and refresh the RAG. */
+  runScoring(): void {
+    this.scoringRunning.set(true);
+    this.caseRagError.set(null);
+    this.scoringService.run(this.caseId).subscribe({
+      next: () => {
+        this.scoringRunning.set(false);
+        this.loadCaseRag();
+      },
+      error: (err: ApiError) => {
+        this.scoringRunning.set(false);
+        this.caseRagError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
   private loadCaseFee(): void {
     this.caseFeeLoading.set(true);
     this.caseFeeService.get(this.caseId).subscribe({
@@ -936,6 +1041,49 @@ export class CaseDetailComponent {
     this.documentsService.downloadVersion(documentId, versionId).subscribe({
       next: (download) => window.open(download.url, '_blank'),
       error: (err: ApiError) => this.dossierError.set(friendlyErrorMessage(err)),
+    });
+  }
+
+  private loadNarrative(): void {
+    this.viabilityDossierService.getNarrative(this.caseId).subscribe({
+      next: (narrative) => this.caseNarrative.set(narrative),
+      error: (err: ApiError) => {
+        this.caseNarrative.set(null);
+        this.caseNarrativeError.set(friendlyErrorMessage(err));
+      },
+    });
+  }
+
+  /** BRIKKA V2 I5: downloads the case documents ZIP (authenticated blob → browser save). */
+  downloadCaseArchive(): void {
+    this.archiveDownloading.set(true);
+    this.archiveError.set(null);
+    this.caseArchiveService.downloadArchive(this.caseId).subscribe({
+      next: (response) => {
+        this.archiveDownloading.set(false);
+        const blob = response.body;
+        if (!blob) {
+          this.archiveError.set('No se ha podido descargar el archivo.');
+          return;
+        }
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const match = /filename="?([^"]+)"?/.exec(disposition);
+        const filename = match ? match[1] : `expediente-${this.caseId}-documentos.zip`;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err: ApiError) => {
+        this.archiveDownloading.set(false);
+        this.archiveError.set(
+          err.status === 400
+            ? 'Este expediente no tiene documentos para descargar.'
+            : friendlyErrorMessage(err),
+        );
+      },
     });
   }
 }

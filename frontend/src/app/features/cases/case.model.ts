@@ -101,6 +101,9 @@ export interface UpdateCaseRequest {
 export interface ChangeCaseStatusRequest {
   newStatus: string;
   reason: string;
+  /** BRIKKA V2 I3: force the transition past its business precondition. Needs the
+   * CASE_TRANSITION_OVERRIDE permission and a non-blank reason (both enforced by the backend). */
+  override?: boolean;
 }
 
 /** Mirrors backend CancelCaseApiRequest. */

@@ -6,6 +6,7 @@ import com.brika.platform.common.error.ResourceNotFoundException;
 import com.brika.platform.common.error.ValidationException;
 import com.brika.platform.crm.Client;
 import com.brika.platform.crm.ClientRepository;
+import com.brika.platform.document.CaseChecklistService;
 import com.brika.platform.identity.User;
 import com.brika.platform.identity.UserRepository;
 import com.brika.platform.notification.NotificationPublisher;
@@ -36,6 +37,14 @@ public class CaseService {
   private final ActivityPublisher activityPublisher;
   private final NotificationPublisher notificationPublisher;
   private final NotificationRecipients notificationRecipients;
+  private final CaseChecklistService caseChecklistService;
+  private final CaseTransitionPreconditions transitionPreconditions;
+
+  /**
+   * BRIKKA V2 I3: prefixes case_status_history.reason when a transition precondition was
+   * overridden, so the exception is identifiable in the existing history (no parallel audit table).
+   */
+  static final String OVERRIDE_MARKER = "[PRECONDITION_OVERRIDE] ";
 
   public CaseService(
       CaseRepository caseRepository,
@@ -46,7 +55,9 @@ public class CaseService {
       UserRepository userRepository,
       ActivityPublisher activityPublisher,
       NotificationPublisher notificationPublisher,
-      NotificationRecipients notificationRecipients) {
+      NotificationRecipients notificationRecipients,
+      CaseChecklistService caseChecklistService,
+      CaseTransitionPreconditions transitionPreconditions) {
     this.caseRepository = caseRepository;
     this.caseClientRepository = caseClientRepository;
     this.caseAssignmentRepository = caseAssignmentRepository;
@@ -56,6 +67,8 @@ public class CaseService {
     this.activityPublisher = activityPublisher;
     this.notificationPublisher = notificationPublisher;
     this.notificationRecipients = notificationRecipients;
+    this.caseChecklistService = caseChecklistService;
+    this.transitionPreconditions = transitionPreconditions;
   }
 
   @Transactional
@@ -113,6 +126,22 @@ public class CaseService {
    */
   @Transactional
   public Case changeStatus(Case theCase, CaseStatus newStatus, UUID actorUserId, String reason) {
+    return changeStatus(theCase, newStatus, actorUserId, reason, false);
+  }
+
+  /**
+   * BRIKKA V2 I3: {@code overridePreconditions} skips the three business-precondition gates
+   * (13_DEFINITIVE_WORKFLOW_SPECIFICATION.md §5). The caller (CaseController) must have already
+   * required the CASE_TRANSITION_OVERRIDE permission; here we additionally require a non-blank
+   * reason and mark it in the persisted history.
+   */
+  @Transactional
+  public Case changeStatus(
+      Case theCase,
+      CaseStatus newStatus,
+      UUID actorUserId,
+      String reason,
+      boolean overridePreconditions) {
     if (newStatus == CaseStatus.CANCELLED) {
       throw new ValidationException(
           "USE_CANCEL_ENDPOINT", "Use POST /cases/{id}/cancel to cancel a case.");
@@ -128,11 +157,35 @@ public class CaseService {
     if (current == CaseStatus.PRESTUDY && newStatus == CaseStatus.DOCUMENTATION) {
       requireAtLeastOneClient(theCase.id());
     }
-    requireReasonFits(reason);
+
+    if (overridePreconditions) {
+      if (reason == null || reason.isBlank()) {
+        throw new ValidationException(
+            "PRECONDITION_OVERRIDE_REASON_REQUIRED",
+            "A reason is required when overriding a transition precondition.");
+      }
+    } else {
+      transitionPreconditions.check(theCase, current, newStatus);
+    }
+
+    String persistedReason = overridePreconditions ? OVERRIDE_MARKER + reason : reason;
+    requireReasonFits(persistedReason);
 
     caseRepository.updateStatus(theCase.id(), newStatus, null);
     caseStatusHistoryRepository.insert(
-        theCase.companyId(), theCase.id(), current, newStatus, actorUserId, reason);
+        theCase.companyId(), theCase.id(), current, newStatus, actorUserId, persistedReason);
+
+    // BRIKKA V2 I1: entering DOCUMENTATION materialises the document checklist for the operation
+    // type (idempotent — safe on the backwards ANALYSIS -> DOCUMENTATION edge too).
+    if (newStatus == CaseStatus.DOCUMENTATION) {
+      caseChecklistService.ensureRequests(
+          theCase.companyId(),
+          theCase.id(),
+          theCase.operationType(),
+          holderClientIds(theCase.id()),
+          actorUserId);
+    }
+
     String activityType = newStatus == CaseStatus.COMPLETED ? "CaseCompleted" : "CaseStatusChanged";
     activityPublisher.publish(
         CaseActivityEvent.byUser(
@@ -158,6 +211,19 @@ public class CaseService {
       throw new ValidationException(
           "MISSING_CLIENT", "Case must have at least one client before moving to DOCUMENTATION.");
     }
+  }
+
+  /**
+   * Client ids of the case's holders / co-holders — the targets of per-holder document requests.
+   */
+  private List<UUID> holderClientIds(UUID caseId) {
+    return caseClientRepository.findAllByCaseId(caseId).stream()
+        .filter(
+            cc ->
+                cc.participationType() == ParticipationType.HOLDER
+                    || cc.participationType() == ParticipationType.CO_HOLDER)
+        .map(CaseClient::clientId)
+        .toList();
   }
 
   /**
