@@ -513,7 +513,7 @@ Luz verde para **V2-1 (I1)**.
    `UNIQUE(operation_type, document_type_id)` en `document_requirements` (guarda la auto-gen).
 
 **Definition of Done:**
-- [x] Migración `V27__seed_document_requirements.sql` con el mapa `PURCHASE` (por titular:
+- [x] Migración `V27__document_checklist.sql` con el mapa `PURCHASE` (por titular:
       `DNI`, `PAYSLIP`, `EMPLOYMENT_HISTORY` obl.; `INCOME_TAX_RETURN`, `EMPLOYMENT_CONTRACT`,
       `BANK_STATEMENT` opc. — de expediente: `LAND_REGISTRY_EXTRACT`, `DEPOSIT_CONTRACT` obl.;
       `PROPERTY_APPRAISAL` opc.).

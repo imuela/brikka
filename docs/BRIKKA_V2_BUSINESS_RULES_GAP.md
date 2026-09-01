@@ -73,8 +73,8 @@ los valores/mecánica) · `YA CUBIERTA` · `DESCARTAR` · `REQUIERE DECISIÓN`.
 | **Regla Legacy** | `dni` (en mayúsculas, `trim`) único dentro de la empresa. |
 | **Nueva Brikka** | `Client.documentNumber` **sin restricción de unicidad** (comentario explícito en `Client.java`: *"No uniqueness constraint is placed on the document yet"*). |
 | **Diferencias** | La Nueva no impide duplicados. |
-| **Decisión** | `ADOPTAR-REVISADA`: unicidad **parcial** `(company_id, document_type, document_number)` cuando `document_number` no es nulo; normalizar a mayúsculas/sin espacios en el servicio. |
-| **Prioridad** | P2 |
+| **Decisión** | `FUTURO` (definitivo, alineado con `BRIKKA_V2_MIGRATION_SCOPE.md §4.3 / §6` y con las tablas de resumen de este documento §5). **Fuera del alcance cerrado I1–I5** (decisión del propietario §10.9): es una mejora de integridad, no un hueco funcional Legacy. Si en el futuro se aborda: unicidad **parcial** `(company_id, document_type, document_number)` cuando `document_number` no es nulo, normalizando a mayúsculas/sin espacios en el servicio. |
+| **Prioridad** | P2 (FUTURO) |
 
 ## R06 — Unicidad de email de usuario
 
